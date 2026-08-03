@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 6% 4%;
+    --foreground: 40 10% 90%;
+    --card: 40 5% 7%;
+    --card-foreground: 40 10% 90%;
+    --primary: 40 8% 78%;
+    --primary-foreground: 40 6% 4%;
+    --muted: 40 4% 12%;
+    --muted-foreground: 40 5% 48%;
+    --accent: 40 4% 14%;
+    --accent-foreground: 40 10% 90%;
+    --border: 40 4% 16%;
+    --radius: 0.125rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  ::selection {
+    background: hsl(40 8% 78% / 0.18);
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-sm border border-border bg-card;
+  }
+
+  .surface-interactive {
+    @apply surface transition-colors duration-200;
+  }
+
+  .surface-interactive:hover {
+    @apply border-foreground/15 bg-accent;
+  }
+
+  .label-caps {
+    @apply font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground;
+  }
+
+  .void-depth {
+    background:
+      radial-gradient(ellipse 120% 80% at 50% 100%, hsl(40 6% 8%) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 50% 62%, hsl(40 8% 10% / 0.35) 0%, transparent 70%);
+  }
+
+  .void-vignette {
+    background: radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, hsl(40 6% 2% / 0.85) 100%);
+  }
+
+  .void-grain {
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .void-horizon {
+    background: hsl(40 8% 78% / 0.09);
+    animation: horizon-idle 14s ease-in-out infinite;
+  }
+
+  .void-horizon-glow {
+    background: linear-gradient(to bottom, hsl(40 8% 78% / 0.04), transparent);
+    animation: horizon-idle 14s ease-in-out infinite;
+  }
+
+  .idle-dot {
+    @apply inline-block h-1.5 w-1.5 bg-foreground/50;
+    animation: idle-breathe 6s ease-in-out infinite;
+  }
+}
+
+@keyframes horizon-idle {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes idle-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .void-horizon,
+  .void-horizon-glow,
+  .idle-dot {
+    animation: none;
+  }
+}

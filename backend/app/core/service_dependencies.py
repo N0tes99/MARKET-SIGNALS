@@ -1,0 +1,99 @@
+"""FastAPI dependency providers for services."""
+
+from functools import lru_cache
+
+from app.backtesting import BacktestRunner
+from app.engines.evidence_engine import EvidenceEngine
+from app.engines.learning_engine import LearningEngine
+from app.market_data.providers.mock import MockMarketDataProvider
+from app.market_data.service import MarketDataService
+from app.scoring.optimizer import WeightOptimizer
+from app.services.decision_pipeline import DecisionPipelineService
+from app.services.evidence_service import EvidenceService
+
+
+@lru_cache
+def get_market_data_service() -> MarketDataService:
+    """Return a singleton market data service (Binance → Kraken fallback)."""
+    return MarketDataService()
+
+
+def get_evidence_engine() -> EvidenceEngine:
+    """Return an Evidence Engine wired to the default market data service."""
+    md = get_market_data_service()
+    return EvidenceEngine(market_data=md)
+
+
+def get_evidence_service() -> EvidenceService:
+    """Return an Evidence Service wired to the default engine."""
+    return EvidenceService(engine=get_evidence_engine())
+
+
+@lru_cache
+def get_decision_pipeline() -> DecisionPipelineService:
+    """Return the full decision pipeline with live market data."""
+    md = get_market_data_service()
+    return DecisionPipelineService(market_data=md)
+
+
+def get_test_market_data_service() -> MarketDataService:
+    """Return market data service with mock provider for tests."""
+    return MarketDataService(provider=MockMarketDataProvider())
+
+
+def get_test_evidence_service() -> EvidenceService:
+    """Return an Evidence Service with mock market data for tests."""
+    md = get_test_market_data_service()
+    engine = EvidenceEngine(market_data=md)
+    return EvidenceService(engine=engine)
+
+
+def get_test_decision_pipeline() -> DecisionPipelineService:
+    """Return decision pipeline with mock market data for tests."""
+    md = get_test_market_data_service()
+    return DecisionPipelineService(market_data=md)
+
+
+def get_ai_analyst():
+    """Return an AI Analyst instance."""
+    from app.engines.ai_engine import AIAnalyst
+
+    return AIAnalyst()
+
+
+@lru_cache
+def get_learning_engine() -> LearningEngine:
+    """Singleton learning engine with in-memory signal store."""
+    return LearningEngine()
+
+
+@lru_cache
+def get_backtest_runner() -> BacktestRunner:
+    """Singleton backtest runner sharing market data cache."""
+    return BacktestRunner(market_data=get_market_data_service())
+
+
+def get_test_learning_engine() -> LearningEngine:
+    """Fresh learning engine for tests."""
+    return LearningEngine()
+
+
+def get_test_backtest_runner() -> BacktestRunner:
+    """Backtest runner with mock market data for tests."""
+    return BacktestRunner(market_data=get_test_market_data_service())
+
+
+@lru_cache
+def get_weight_optimizer() -> WeightOptimizer:
+    """Singleton weight optimizer sharing market data cache."""
+    return WeightOptimizer(market_data=get_market_data_service())
+
+
+def get_test_weight_optimizer() -> WeightOptimizer:
+    """Weight optimizer with mock market data for tests."""
+    from app.scoring.weight_config import WeightConfig
+
+    return WeightOptimizer(
+        market_data=get_test_market_data_service(),
+        weight_config=WeightConfig(),
+    )
