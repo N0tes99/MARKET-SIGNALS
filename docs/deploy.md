@@ -14,7 +14,9 @@ Browser → Vercel (Next.js) → /api/backend/* proxy (+ Basic Auth)
 ```
 
 - `GET /api/v1/health` is public (Railway healthchecks).
-- All other API routes require Basic Auth when `AUTH_PASSWORD` is set.
+- All other API routes require Basic Auth when `AUTH_PASSWORD` is set (proxy injects it).
+- Social accounts use a second layer: email/password JWT in httpOnly cookie `se_session`
+  (Secure + SameSite=Lax). The `/api/backend/*` proxy forwards `Cookie` / `Set-Cookie`.
 - `/docs` is disabled when `APP_ENV=production`.
 
 ---
@@ -40,12 +42,13 @@ Browser → Vercel (Next.js) → /api/backend/* proxy (+ Basic Auth)
 |----------|-----------------|
 | `APP_ENV` | `production` |
 | `APP_DEBUG` | `false` |
-| `SECRET_KEY` | long random string |
+| `SECRET_KEY` | long random string (**required strong in prod** — signs social JWT cookies) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
 | `DATABASE_URL` | from Railway Postgres |
 | `SIGNAL_STORE` | `postgres` (or `auto`) |
 | `AUTH_USERNAME` | e.g. `signal` |
-| `AUTH_PASSWORD` | strong password |
-| `CORS_ORIGINS` | your Vercel URL, e.g. `https://your-app.vercel.app` |
+| `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
+| `CORS_ORIGINS` | your Vercel/Netlify URL, e.g. `https://your-app.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 
 ### Optional alert vars

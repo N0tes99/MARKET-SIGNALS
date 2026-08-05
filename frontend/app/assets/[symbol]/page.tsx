@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { AssetPriceHeader } from "@/components/asset-price-header";
 import { DecisionBanner } from "@/components/decision-banner";
+import { DiscussionPanel } from "@/components/discussion-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
 import { OutcomeLogger } from "@/components/outcome-logger";
+import { SiteHeader } from "@/components/site-header";
 
 interface AssetDetailPageProps {
   params: Promise<{ symbol: string }>;
@@ -15,6 +17,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
 
   return (
     <main className="min-h-screen">
+      <SiteHeader compact />
       <div className="container mx-auto px-4 py-10">
         <Link
           href="/"
@@ -31,6 +34,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
 
         <DecisionBanner symbol={normalized} />
         <OutcomeLogger symbol={normalized} />
+        <DiscussionPanel symbol={normalized} />
         <EvidencePanel symbol={normalized} />
       </div>
     </main>

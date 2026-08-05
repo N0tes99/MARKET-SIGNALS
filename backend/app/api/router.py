@@ -6,6 +6,7 @@ from app.api.routes import (
     alerts,
     analysis,
     assets,
+    auth,
     backtests,
     decision,
     evidence,
@@ -14,12 +15,15 @@ from app.api.routes import (
     learning,
     opportunities,
     quotes,
+    social,
     tuning,
     websocket,
 )
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(social.router, tags=["social"])
 api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
 api_router.include_router(quotes.router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(decision.router, prefix="/assets", tags=["decision"])

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SiteHeader } from "@/components/site-header";
 import { type AlertStatus, fetchAlertStatus } from "@/services/api";
 
 export function DashboardHeader() {
@@ -28,30 +29,24 @@ export function DashboardHeader() {
     : null;
 
   return (
-    <header className="border-b border-white/[0.06] bg-card/25 backdrop-blur-xl">
-      <div className="container mx-auto flex items-end justify-between px-4 py-8">
-        <div>
-          <p className="label-caps mb-3">Signal Engine</p>
-          <h1 className="text-2xl font-light tracking-tight text-foreground">
-            Market intelligence
-          </h1>
+    <SiteHeader
+      trailing={
+        <div className="flex items-center gap-2">
+          <span className="idle-dot" />
+          <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            live
+          </span>
         </div>
-        <div className="flex flex-col items-end gap-2 pb-1">
-          <div className="flex items-center gap-2">
-            <span className="idle-dot" />
-            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-              live
-            </span>
-          </div>
-          {alertLabel ? (
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/80">
-              {alertLabel}
-              {alerts?.discord_configured ? ` · discord ${alerts.discord_mode}` : ""}
-              {alerts?.email_configured ? " · email" : ""}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </header>
+      }
+      subtitle={
+        alertLabel ? (
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/80">
+            {alertLabel}
+            {alerts?.discord_configured ? ` · discord ${alerts.discord_mode}` : ""}
+            {alerts?.email_configured ? " · email" : ""}
+          </p>
+        ) : null
+      }
+    />
   );
 }

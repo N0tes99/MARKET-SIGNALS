@@ -12,7 +12,13 @@ from app.config import settings
 from app.database.base import Base
 
 # Import all models here so Alembic can detect them for autogenerate
-from app.models import EvidenceSnapshot, SignalRecordModel  # noqa: F401
+from app.models import (  # noqa: F401
+    Comment,
+    EvidenceSnapshot,
+    Post,
+    SignalRecordModel,
+    User,
+)
 
 config = context.config
 

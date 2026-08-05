@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
     secret_key: str = "change-me-in-production"
+    # Social JWT (httpOnly cookie); keep SECRET_KEY strong in production
+    access_token_expire_minutes: int = 60 * 24 * 14  # 14 days
 
     postgres_user: str = "signal_engine"
     postgres_password: str = "signal_engine"

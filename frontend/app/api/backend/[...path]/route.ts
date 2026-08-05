@@ -21,6 +21,22 @@ function authHeader(): string | null {
   return `Basic ${token}`;
 }
 
+function forwardSetCookies(upstream: Response, responseHeaders: Headers): void {
+  const getSetCookie = (
+    upstream.headers as Headers & { getSetCookie?: () => string[] }
+  ).getSetCookie;
+  if (typeof getSetCookie === "function") {
+    for (const cookie of getSetCookie.call(upstream.headers)) {
+      responseHeaders.append("set-cookie", cookie);
+    }
+    return;
+  }
+  const single = upstream.headers.get("set-cookie");
+  if (single) {
+    responseHeaders.append("set-cookie", single);
+  }
+}
+
 async function proxyRequest(
   request: NextRequest,
   pathSegments: string[],
@@ -32,6 +48,10 @@ async function proxyRequest(
   const contentType = request.headers.get("content-type");
   if (contentType) {
     headers.set("content-type", contentType);
+  }
+  const cookie = request.headers.get("cookie");
+  if (cookie) {
+    headers.set("cookie", cookie);
   }
   const auth = authHeader();
   if (auth) {
@@ -62,6 +82,7 @@ async function proxyRequest(
     if (upstreamType) {
       responseHeaders.set("content-type", upstreamType);
     }
+    forwardSetCookies(upstream, responseHeaders);
     return new NextResponse(body, {
       status: upstream.status,
       headers: responseHeaders,

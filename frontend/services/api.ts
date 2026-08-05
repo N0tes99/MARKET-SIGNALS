@@ -160,12 +160,28 @@ export interface EvidenceBundle {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 55_000;
 
+/** Cookie auth through same-origin proxy or CORS-enabled local API. */
+const FETCH_CREDENTIALS: RequestCredentials = "include";
+
+async function readErrorDetail(response: Response): Promise<string> {
+  try {
+    const data = (await response.json()) as { detail?: unknown };
+    if (typeof data.detail === "string") return data.detail;
+  } catch {
+    /* ignore */
+  }
+  return `${response.status} ${response.statusText}`;
+}
+
 async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(apiUrl(path), { signal: controller.signal });
+    const response = await fetch(apiUrl(path), {
+      signal: controller.signal,
+      credentials: FETCH_CREDENTIALS,
+    });
 
     if (!response.ok) {
       if (response.status === 502 || response.status === 504) {
@@ -228,6 +244,7 @@ export async function fetchSignals(symbol: string, limit = 20): Promise<SignalRe
 export async function logCurrentSignal(symbol: string): Promise<SignalRecord> {
   const response = await fetch(apiUrl(`/api/v1/assets/${symbol}/signals/log`), {
     method: "POST",
+    credentials: FETCH_CREDENTIALS,
   });
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`);
@@ -246,6 +263,7 @@ export async function recordSignalOutcome(
     apiUrl(`/api/v1/assets/${symbol}/signals/${recordId}/outcome`),
     {
       method: "PATCH",
+      credentials: FETCH_CREDENTIALS,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         outcome,
@@ -331,6 +349,7 @@ export async function fetchQuote(symbol: string): Promise<AssetQuote> {
 export async function applyWeightPreset(preset: string): Promise<ActiveWeights> {
   const response = await fetch(apiUrl("/api/v1/tuning/weights/apply"), {
     method: "POST",
+    credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ preset }),
   });
@@ -338,4 +357,115 @@ export async function applyWeightPreset(preset: string): Promise<ActiveWeights> 
     throw new Error(`API error: ${response.status}`);
   }
   return response.json() as Promise<ActiveWeights>;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  username: string;
+  created_at: string;
+}
+
+export interface DiscussionComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  username: string;
+  body: string;
+  created_at: string;
+}
+
+export interface DiscussionPost {
+  id: string;
+  user_id: string;
+  username: string;
+  symbol: string;
+  body: string;
+  created_at: string;
+  comments: DiscussionComment[];
+  comment_count: number;
+}
+
+export async function fetchMe(): Promise<AuthUser | null> {
+  const response = await fetch(apiUrl("/api/v1/auth/me"), {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (response.status === 401) return null;
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
+export async function registerAccount(
+  email: string,
+  username: string,
+  password: string,
+): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/register"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, username, password }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
+export async function loginAccount(email: string, password: string): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/login"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
+export async function logoutAccount(): Promise<void> {
+  const response = await fetch(apiUrl("/api/v1/auth/logout"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function fetchAssetPosts(symbol: string): Promise<DiscussionPost[]> {
+  return apiFetch<DiscussionPost[]>(`/api/v1/assets/${symbol}/posts`);
+}
+
+export async function createAssetPost(symbol: string, body: string): Promise<DiscussionPost> {
+  const response = await fetch(apiUrl(`/api/v1/assets/${symbol}/posts`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<DiscussionPost>;
+}
+
+export async function createPostComment(
+  postId: string,
+  body: string,
+): Promise<DiscussionComment> {
+  const response = await fetch(apiUrl(`/api/v1/posts/${postId}/comments`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<DiscussionComment>;
 }
