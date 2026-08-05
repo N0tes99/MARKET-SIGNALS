@@ -127,7 +127,7 @@ Or keep auth off locally (empty `AUTH_PASSWORD`) and use direct `NEXT_PUBLIC_API
 | `GET /api/v1/health` | ~every 12 min | Keep the API awake / reduce free-tier cold starts |
 | `GET /api/v1/assets` | ~every 30 min | Run scoring so Discord alerts can fire without site visitors |
 
-Defaults use the Netlify proxy (`https://signals27.netlify.app/api/backend/...`), which injects Basic Auth. Optional repo variables: `API_HEALTH_URL`, `API_ASSETS_URL`. The assets job uses a 120s timeout and `continue-on-error` (cold miss / 502 must not fail keep-warm). Health still fails the job on error. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
+Defaults use the Netlify proxy (`https://signals27.netlify.app/api/backend/...`), which injects Basic Auth. Optional repo variables: `API_HEALTH_URL`, `API_ASSETS_URL`. The assets job wakes health first, waits a few seconds, then hits `/assets` (120s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
 
 ---
 

@@ -35,15 +35,20 @@ jobs:
     continue-on-error: true
     steps:
       - name: Ping assets endpoint
+        continue-on-error: true
         env:
           # Optional repo variable: Settings → Variables → API_ASSETS_URL
           API_ASSETS_URL: ${{ vars.API_ASSETS_URL }}
+          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
         run: |
+          HEALTH_URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
           URL="${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}"
+
+          echo "Waking API via health ($HEALTH_URL) before assets ping"
+          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null || echo "::warning::Health wake ping failed (continuing to assets)"
+          sleep 8
+
           echo "Pinging $URL (max 120s; timeouts/502 are non-fatal)"
-          if curl -fsS --max-time 120 "$URL" -o /dev/null; then
-            echo "OK"
-          else
-            echo "::warning::Assets ping failed or timed out (cold start / 502 is OK)"
-            exit 1
-          fi
+          curl -fsS --max-time 120 "$URL" -o /dev/null \
+            || echo "::warning::Assets ping failed or timed out (cold start / 502 is OK)"
+          exit 0
