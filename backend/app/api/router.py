@@ -13,6 +13,7 @@ from app.api.routes import (
     health,
     learning,
     opportunities,
+    quotes,
     tuning,
     websocket,
 )
@@ -20,6 +21,7 @@ from app.api.routes import (
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
+api_router.include_router(quotes.router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(decision.router, prefix="/assets", tags=["decision"])
 api_router.include_router(analysis.router, prefix="/assets", tags=["analysis"])
 api_router.include_router(learning.router, prefix="/assets", tags=["learning"])

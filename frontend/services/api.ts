@@ -291,6 +291,22 @@ export async function fetchAlertStatus(): Promise<AlertStatus> {
   return apiFetch<AlertStatus>("/api/v1/alerts/status");
 }
 
+export interface AssetQuote {
+  symbol: string;
+  price: number | null;
+  change_pct: number | null;
+  as_of: string | null;
+  available: boolean;
+}
+
+export async function fetchQuotes(): Promise<AssetQuote[]> {
+  return apiFetch<AssetQuote[]>("/api/v1/quotes");
+}
+
+export async function fetchQuote(symbol: string): Promise<AssetQuote> {
+  return apiFetch<AssetQuote>(`/api/v1/quotes/${symbol}`);
+}
+
 export async function applyWeightPreset(preset: string): Promise<ActiveWeights> {
   const response = await fetch(apiUrl("/api/v1/tuning/weights/apply"), {
     method: "POST",

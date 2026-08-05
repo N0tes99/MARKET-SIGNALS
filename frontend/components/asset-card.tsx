@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import type { AssetSummary } from "@/services/api";
+import type { AssetQuote, AssetSummary } from "@/services/api";
 
 interface AssetCardProps {
   asset: AssetSummary;
+  quote?: AssetQuote | null;
 }
 
 function trendColor(trend: string): string {
@@ -22,7 +23,41 @@ function stateLabel(state: string): string {
   return state.toLowerCase();
 }
 
-export function AssetCard({ asset }: AssetCardProps) {
+function formatPrice(price: number): string {
+  if (price >= 1000) {
+    return price.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  if (price >= 1) {
+    return price.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    });
+  }
+  return price.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  });
+}
+
+function formatChange(changePct: number): string {
+  const sign = changePct > 0 ? "+" : "";
+  return `${sign}${changePct.toFixed(2)}%`;
+}
+
+export function AssetCard({ asset, quote }: AssetCardProps) {
+  const change = quote?.change_pct;
+  const changeClass =
+    change == null
+      ? "text-muted-foreground"
+      : change > 0
+        ? "text-bullish"
+        : change < 0
+          ? "text-bearish"
+          : "text-neutral";
+
   return (
     <Link href={`/assets/${asset.symbol}`}>
       <article className="surface-interactive group p-5">
@@ -37,6 +72,16 @@ export function AssetCard({ asset }: AssetCardProps) {
             <p className="mt-1 font-mono text-[11px] text-muted-foreground">
               {stateLabel(asset.trade_state)} · {asset.execution_signal.toLowerCase()}
             </p>
+            {quote?.available && quote.price != null ? (
+              <p className="mt-2 flex items-baseline gap-2 font-mono text-sm">
+                <span className="text-foreground/90">${formatPrice(quote.price)}</span>
+                {change != null ? (
+                  <span className={cn("text-[11px]", changeClass)}>{formatChange(change)}</span>
+                ) : null}
+              </p>
+            ) : (
+              <p className="mt-2 font-mono text-[11px] text-muted-foreground/70">price …</p>
+            )}
           </div>
           <span className="font-mono text-sm text-foreground/80">{asset.trade_grade}</span>
         </div>

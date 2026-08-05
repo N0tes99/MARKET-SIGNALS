@@ -1,16 +1,21 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { useAssets } from "@/hooks/use-assets";
+import { useQuotes } from "@/hooks/use-quotes";
 import { AssetCard } from "@/components/asset-card";
 import { ASSET_SECTIONS, TRACKED_SYMBOLS } from "@/config/assets";
-import type { AssetSummary } from "@/services/api";
+import type { AssetQuote, AssetSummary } from "@/services/api";
 
 function SectionGrid({
   label,
   assets,
+  quotesBySymbol,
 }: {
   label: string;
   assets: AssetSummary[];
+  quotesBySymbol: Map<string, AssetQuote>;
 }) {
   if (assets.length === 0) {
     return null;
@@ -21,7 +26,11 @@ function SectionGrid({
       <h2 className="label-caps px-1 text-muted-foreground">{label}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         {assets.map((asset) => (
-          <AssetCard key={asset.symbol} asset={asset} />
+          <AssetCard
+            key={asset.symbol}
+            asset={asset}
+            quote={quotesBySymbol.get(asset.symbol)}
+          />
         ))}
       </div>
     </section>
@@ -30,6 +39,15 @@ function SectionGrid({
 
 export function AssetGrid() {
   const { data: assets, isLoading, error } = useAssets();
+  const { data: quotes } = useQuotes();
+
+  const quotesBySymbol = useMemo(() => {
+    const map = new Map<string, AssetQuote>();
+    for (const quote of quotes ?? []) {
+      map.set(quote.symbol, quote);
+    }
+    return map;
+  }, [quotes]);
 
   if (isLoading) {
     return (
@@ -69,6 +87,7 @@ export function AssetGrid() {
         <SectionGrid
           key={section.label}
           label={section.label}
+          quotesBySymbol={quotesBySymbol}
           assets={section.symbols
             .map((symbol) => bySymbol.get(symbol))
             .filter((asset): asset is AssetSummary => asset !== undefined)}

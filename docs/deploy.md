@@ -74,15 +74,24 @@ curl -u signal:YOUR_PASSWORD https://YOUR-RAILWAY-URL/api/v1/alerts/status
 | Variable | Value |
 |----------|-------|
 | `NEXT_PUBLIC_USE_API_PROXY` | `true` |
-| `API_BACKEND_URL` | `https://YOUR-RAILWAY-URL` (no trailing slash) |
+| `API_BACKEND_URL` | `https://YOUR-API-URL` (no trailing slash) |
 | `API_USERNAME` | same as `AUTH_USERNAME` |
 | `API_PASSWORD` | same as `AUTH_PASSWORD` |
 
 Do **not** set `NEXT_PUBLIC_API_PASSWORD`. Server-only `API_*` stays off the client bundle.
 
-5. Deploy. Open the Vercel URL — the UI calls `/api/backend/api/v1/...`, which proxies to Railway with Basic Auth.
+5. Deploy. Open the Vercel URL — the UI calls `/api/backend/api/v1/...`, which proxies to the API with Basic Auth.
 
-6. After you have the Vercel URL, add it to Railway `CORS_ORIGINS` (comma-separated if multiple) and redeploy the API if needed.
+6. After you have the frontend URL, add it to the API `CORS_ORIGINS` (comma-separated if multiple) and redeploy the API if needed.
+
+## 3b. Netlify — frontend (alternative to Vercel)
+
+Repo root includes [`netlify.toml`](../netlify.toml) with `base = "frontend"` and the Next.js plugin.
+
+1. Import **N0tes99/MARKET-SIGNALS** in Netlify.
+2. In Build settings clear Publish / Functions if they show nested `frontend/` paths — rely on `netlify.toml`.
+3. Same env vars as Vercel (`NEXT_PUBLIC_USE_API_PROXY`, `API_BACKEND_URL`, `API_USERNAME`, `API_PASSWORD`).
+4. Deploy, then set API `CORS_ORIGINS` to `https://your-site.netlify.app`.
 
 ---
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AssetPriceHeader } from "@/components/asset-price-header";
 import { DecisionBanner } from "@/components/decision-banner";
 import { EvidencePanel } from "@/components/evidence-panel";
 import { OutcomeLogger } from "@/components/outcome-logger";
@@ -25,6 +26,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
         <header className="mt-8 border-b border-white/[0.06] pb-6">
           <p className="label-caps">Asset</p>
           <h1 className="mt-2 font-mono text-3xl font-light tracking-wide">{normalized}</h1>
+          <AssetPriceHeader symbol={normalized} />
         </header>
 
         <DecisionBanner symbol={normalized} />
