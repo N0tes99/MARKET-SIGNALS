@@ -11,7 +11,7 @@ export function BacktestPanel({ symbol }: BacktestPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="surface bg-card p-5 lg:col-span-2">
+      <div className="surface p-5 lg:col-span-2">
         <div className="h-20 animate-pulse bg-muted/30" />
       </div>
     );
@@ -19,7 +19,7 @@ export function BacktestPanel({ symbol }: BacktestPanelProps) {
 
   if (error || !data) {
     return (
-      <div className="surface bg-card p-5 lg:col-span-2">
+      <div className="surface p-5 lg:col-span-2">
         <h2 className="label-caps">Backtest</h2>
         <p className="mt-3 text-sm text-muted-foreground">Unable to load.</p>
       </div>
@@ -27,7 +27,7 @@ export function BacktestPanel({ symbol }: BacktestPanelProps) {
   }
 
   return (
-    <div className="surface bg-card p-5 lg:col-span-2">
+    <div className="surface p-5 lg:col-span-2">
       <div className="flex items-baseline justify-between">
         <h2 className="label-caps">Backtest</h2>
         <span className="font-mono text-[10px] text-muted-foreground">
@@ -37,7 +37,7 @@ export function BacktestPanel({ symbol }: BacktestPanelProps) {
 
       <p className="mt-3 text-sm text-muted-foreground">{data.description}</p>
 
-      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-white/[0.06] pt-4 sm:grid-cols-4">
         <Stat label="Signals" value={String(data.total_signals)} />
         <Stat label="Win rate" value={`${data.win_rate}%`} />
         <Stat label="Avg return" value={`${data.avg_return_pct > 0 ? "+" : ""}${data.avg_return_pct}%`} />

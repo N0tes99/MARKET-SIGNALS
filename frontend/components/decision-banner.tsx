@@ -23,11 +23,11 @@ export function DecisionBanner({ symbol }: DecisionBannerProps) {
   const { data, isLoading } = useDecision(symbol);
 
   if (isLoading || !data) {
-    return <div className="surface mt-8 h-20 animate-pulse bg-card" />;
+    return <div className="surface mt-8 h-20 animate-pulse" />;
   }
 
   return (
-    <div className="surface mt-8 bg-card p-5">
+    <div className="surface mt-8 p-5">
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         <Stat label="State" value={data.trade_state.toLowerCase()} className={stateColor(data.trade_state)} />
         <Stat label="Grade" value={data.trade_grade} />
@@ -36,7 +36,7 @@ export function DecisionBanner({ symbol }: DecisionBannerProps) {
           <Stat label="R:R" value={`${data.risk.risk_reward_ratio.toFixed(1)}:1`} />
         )}
       </div>
-      <p className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
+      <p className="mt-4 border-t border-white/[0.06] pt-4 text-sm leading-relaxed text-muted-foreground">
         {data.summary}
       </p>
     </div>

@@ -19,7 +19,7 @@ function SectionGrid({
   return (
     <section className="space-y-3">
       <h2 className="label-caps px-1 text-muted-foreground">{label}</h2>
-      <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         {assets.map((asset) => (
           <AssetCard key={asset.symbol} asset={asset} />
         ))}
@@ -37,9 +37,9 @@ export function AssetGrid() {
         {ASSET_SECTIONS.map((section) => (
           <div key={section.label} className="space-y-3">
             <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-            <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
               {section.symbols.map((symbol) => (
-                <div key={symbol} className="surface h-52 animate-pulse bg-card" />
+                <div key={symbol} className="surface h-52 animate-pulse" />
               ))}
             </div>
           </div>

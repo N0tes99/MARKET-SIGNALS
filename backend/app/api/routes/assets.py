@@ -1,16 +1,24 @@
 """Asset dashboard endpoints."""
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.tracked import TRACKED_SYMBOLS, is_tracked
-from app.core.service_dependencies import get_decision_pipeline, get_learning_engine
+from app.core.service_dependencies import (
+    get_alert_service,
+    get_decision_pipeline,
+    get_learning_engine,
+)
 from app.engines.learning_engine import LearningEngine
 from app.market_data.symbols import get_asset_class
 from app.schemas.assets import AssetSummary
+from app.services.alert_service import AlertService
 from app.services.decision_pipeline import DecisionPipelineService
 from app.utils.ttl_cache import TTLCache
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -73,13 +81,19 @@ def _load_asset_summaries(
 async def list_assets(
     pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
     learning: LearningEngine = Depends(get_learning_engine),
+    alerts: AlertService = Depends(get_alert_service),
 ) -> list[AssetSummary]:
     """Return summary metrics for all tracked dashboard assets (cached ~90s)."""
-    return await asyncio.to_thread(
+    assets = await asyncio.to_thread(
         _ASSETS_LIST_CACHE.get_or_set,
         "dashboard",
         lambda: _load_asset_summaries(pipeline, learning),
     )
+    try:
+        await asyncio.to_thread(alerts.dispatch, assets)
+    except Exception:
+        logger.exception("Alert dispatch failed")
+    return assets
 
 
 @router.get("/{symbol}", response_model=AssetSummary)

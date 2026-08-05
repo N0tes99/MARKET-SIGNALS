@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root .env (signal-engine/.env) — works when running from backend/
@@ -49,6 +50,49 @@ class Settings(BaseSettings):
     binance_futures_url: str = "https://fapi.binance.com"
     kraken_api_url: str = "https://api.kraken.com"
     fred_api_key: str = ""
+
+    # Learning store: auto (Postgres if reachable), postgres, or memory
+    signal_store: str = "auto"
+
+    # Alerts — Discord bot (preferred) / webhook fallback + SMTP email
+    alert_enabled: bool = False
+    alert_min_confidence: float = 65.0
+    alert_min_grade: str = "B"
+    alert_cooldown_minutes: int = 120
+    alert_discord_bot_token: str = ""
+    alert_discord_channel_id: str = ""
+    alert_discord_webhook_url: str = ""
+    alert_email_to: str = ""
+    alert_email_from: str = ""
+    alert_smtp_host: str = ""
+    alert_smtp_port: int = 587
+    alert_smtp_user: str = ""
+    alert_smtp_password: str = ""
+    alert_smtp_use_tls: bool = True
+
+    # HTTP Basic Auth — empty password disables auth (local default)
+    auth_username: str = "signal"
+    auth_password: str = ""
+
+    # Comma-separated browser origins (Vercel URL in production)
+    cors_origins: str = "http://localhost:3000"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: object) -> object:
+        """Accept Railway ``postgres://`` URLs and force asyncpg driver."""
+        if not isinstance(value, str) or not value:
+            return value
+        url = value
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url.removeprefix("postgres://")
+        if url.startswith("postgresql://") and "+asyncpg" not in url and "+psycopg" not in url:
+            url = "postgresql+asyncpg://" + url.removeprefix("postgresql://")
+        return url
+
+    def cors_origin_list(self) -> list[str]:
+        """Parse CORS_ORIGINS into a list of origins."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 settings = Settings()

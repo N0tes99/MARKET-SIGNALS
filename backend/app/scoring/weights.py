@@ -16,19 +16,25 @@ class ScoringCategory(StrEnum):
     CORRELATION = "Correlation"
     VOLATILITY = "Volatility"
     EVENTS = "Events"
+    SECTOR_RS = "Sector RS"
+    ON_CHAIN = "On-Chain"
+    SENTIMENT = "Sentiment"
 
 
 DEFAULT_WEIGHTS: dict[ScoringCategory, float] = {
-    ScoringCategory.TREND: 16.0,
-    ScoringCategory.MOMENTUM: 12.0,
-    ScoringCategory.VOLUME: 8.0,
-    ScoringCategory.STRUCTURE: 16.0,
-    ScoringCategory.RISK: 14.0,
-    ScoringCategory.MACRO: 8.0,
+    ScoringCategory.TREND: 14.0,
+    ScoringCategory.MOMENTUM: 11.0,
+    ScoringCategory.VOLUME: 7.0,
+    ScoringCategory.STRUCTURE: 14.0,
+    ScoringCategory.RISK: 12.0,
+    ScoringCategory.MACRO: 6.0,
     ScoringCategory.DERIVATIVES: 8.0,
-    ScoringCategory.CORRELATION: 6.0,
-    ScoringCategory.VOLATILITY: 6.0,
-    ScoringCategory.EVENTS: 6.0,
+    ScoringCategory.CORRELATION: 5.0,
+    ScoringCategory.VOLATILITY: 5.0,
+    ScoringCategory.EVENTS: 5.0,
+    ScoringCategory.SECTOR_RS: 5.0,
+    ScoringCategory.ON_CHAIN: 5.0,
+    ScoringCategory.SENTIMENT: 3.0,
 }
 
 

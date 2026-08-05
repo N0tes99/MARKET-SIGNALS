@@ -177,6 +177,7 @@ class AIAnalyst:
         macro = by_category.get("Macro", 50)
         volatility = by_category.get("Volatility", 50)
         events = by_category.get("Events", 50)
+        sentiment = by_category.get("Sentiment", 50)
 
         if trend >= 60 and macro <= 40:
             conflicts.append("Bullish trend conflicts with weak macro backdrop")
@@ -188,5 +189,10 @@ class AIAnalyst:
             conflicts.append("Bullish trend into imminent event risk window")
         if trend >= 60 and volatility <= 40:
             conflicts.append("Bullish trend during elevated market fear (VIX)")
+        # Fear & Greed vs VIX — greed into fear, or fear into calm
+        if volatility <= 40 and sentiment <= 40:
+            conflicts.append("Elevated VIX alongside extreme greed (Fear & Greed)")
+        if volatility >= 56 and sentiment >= 60:
+            conflicts.append("Calm VIX alongside extreme fear (Fear & Greed divergence)")
 
         return conflicts

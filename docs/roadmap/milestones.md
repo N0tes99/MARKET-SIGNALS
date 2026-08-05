@@ -49,3 +49,12 @@
 - [x] Historical similarity search (cosine on evidence vectors)
 - [x] Walk-forward backtesting framework
 - [x] Scoring weight optimization
+- [x] Outcome logging (hit/miss + realized return)
+- [x] Postgres signal_records persistence (auto-fallback to memory)
+
+## Milestone 7 — Market Data & Ops
+
+- [ ] Celery market data ingestion / warm cache
+- [ ] Stale data detection
+- [x] Production deploy scaffolding (Basic Auth + Railway/Vercel docs) — wire accounts in [docs/deploy.md](../deploy.md)
+- [x] Alerting on high-confidence setups (Discord bot / webhook + email)

@@ -1,15 +1,17 @@
-"""Learning engine and backtesting tests."""
+"""Learning engine and outcome logging tests."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
 from app.engines.evidence_engine.types import EvidenceBundle, EvidenceItem
-from app.engines.learning_engine import LearningEngine
+from app.engines.execution_engine import ExecutionResult, ExecutionSignal
+from app.engines.learning_engine import LearningEngine, SignalOutcome
 from app.engines.learning_engine.similarity import cosine_similarity, evidence_to_vector
 from app.engines.learning_engine.store import InMemorySignalStore
-from app.engines.learning_engine.types import SignalRecord
-from app.engines.execution_engine import ExecutionResult, ExecutionSignal
 from app.engines.opportunity_engine import OpportunityResult
+from app.engines.risk_engine import RiskAssessment
 from app.scoring.grading import TradeState
 from app.services.decision_pipeline import DecisionResult
 
@@ -44,12 +46,23 @@ def _sample_decision(symbol: str = "BTC", confidence: float = 62.0) -> DecisionR
         confidence=confidence,
         description="watch",
     )
+    risk = RiskAssessment(
+        symbol=symbol,
+        position_size=1.0,
+        stop_loss=100.0,
+        take_profit=103.0,
+        max_drawdown=1.0,
+        risk_percent=1.0,
+        risk_reward_ratio=1.5,
+        score=60.0,
+        description="test risk",
+    )
     return DecisionResult(
         symbol=symbol,
         evidence=evidence,
         opportunity=opportunity,
         execution=execution,
-        risk=None,
+        risk=risk,
         trade_state=TradeState.WATCH,
         summary="test summary",
     )
@@ -77,3 +90,39 @@ def test_evidence_to_vector_fixed_order() -> None:
     vec = evidence_to_vector(items)
     assert vec[0] == 80.0
     assert vec[1] == 50.0  # default for missing categories
+
+
+def test_record_decision_captures_risk_levels() -> None:
+    engine = LearningEngine(store=InMemorySignalStore())
+    record = engine.record_decision(_sample_decision("SPY", confidence=68.0))
+    assert record.confidence == 68.0
+    assert record.stop_loss == 100.0
+    assert record.take_profit == 103.0
+    assert record.entry_price is not None
+    assert record.outcome is None
+
+
+def test_record_outcome_win() -> None:
+    engine = LearningEngine(store=InMemorySignalStore())
+    record = engine.record_decision(_sample_decision("SPY", confidence=68.0))
+    updated = engine.record_outcome(
+        record.id,
+        SignalOutcome.WIN,
+        realized_return_pct=0.4,
+        notes="SPY +3pts",
+    )
+    assert updated.outcome == "win"
+    assert updated.realized_return_pct == 0.4
+    assert updated.notes == "SPY +3pts"
+    assert updated.resolved_at is not None
+
+    stats = engine.outcome_stats("SPY")
+    assert stats["wins"] == 1
+    assert stats["win_rate"] == 100.0
+    assert stats["avg_return_pct"] == 0.4
+
+
+def test_record_outcome_missing_raises() -> None:
+    engine = LearningEngine(store=InMemorySignalStore())
+    with pytest.raises(KeyError):
+        engine.record_outcome(uuid4(), SignalOutcome.LOSS)

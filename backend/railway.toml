@@ -1,0 +1,12 @@
+# Railway service config — root directory should be `backend/`
+# Docs: https://docs.railway.app
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "sh start.sh"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"

@@ -26,11 +26,11 @@ export function AssetCard({ asset }: AssetCardProps) {
   return (
     <Link href={`/assets/${asset.symbol}`}>
       <article className="surface-interactive group p-5">
-        <div className="flex items-start justify-between border-b border-border pb-4">
+        <div className="flex items-start justify-between border-b border-white/[0.06] pb-4">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-mono text-lg tracking-wide">{asset.symbol}</h2>
-              <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                 {asset.asset_class}
               </span>
             </div>

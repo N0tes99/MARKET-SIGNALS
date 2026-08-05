@@ -1,4 +1,17 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+/**
+ * API base URL.
+ * - Local default: direct FastAPI at NEXT_PUBLIC_API_URL
+ * - Deploy: set NEXT_PUBLIC_USE_API_PROXY=true so the browser hits
+ *   same-origin /api/backend (server injects Basic Auth).
+ */
+const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
+const API_BASE_URL = USE_API_PROXY
+  ? "/api/backend"
+  : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
 
 export interface AssetSummary {
   symbol: string;
@@ -76,6 +89,43 @@ export interface SimilarMatch {
   trade_state: string;
   similarity: number;
   category_scores: Record<string, number>;
+  outcome?: string | null;
+  realized_return_pct?: number | null;
+}
+
+export interface SignalRecord {
+  id: string;
+  symbol: string;
+  timestamp: string;
+  confidence: number;
+  trade_grade: string;
+  trade_state: string;
+  execution_signal: string;
+  opportunity_score: number;
+  category_scores: Record<string, number>;
+  expected_value?: number | null;
+  entry_price?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  outcome?: string | null;
+  realized_return_pct?: number | null;
+  notes?: string | null;
+  resolved_at?: string | null;
+}
+
+export type SignalOutcome = "win" | "loss" | "breakeven" | "no_trade";
+
+export interface OutcomeStats {
+  symbol: string;
+  total_logged: number;
+  resolved: number;
+  open: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  no_trade: number;
+  win_rate: number;
+  avg_return_pct: number;
 }
 
 export interface SimilarityResponse {
@@ -109,7 +159,7 @@ export interface EvidenceBundle {
 }
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const response = await fetch(apiUrl(path));
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText}`);
@@ -150,6 +200,49 @@ export async function fetchSimilarity(symbol: string): Promise<SimilarityRespons
   return apiFetch<SimilarityResponse>(`/api/v1/assets/${symbol}/similarity`);
 }
 
+export async function fetchSignals(symbol: string, limit = 20): Promise<SignalRecord[]> {
+  return apiFetch<SignalRecord[]>(`/api/v1/assets/${symbol}/signals?limit=${limit}`);
+}
+
+export async function logCurrentSignal(symbol: string): Promise<SignalRecord> {
+  const response = await fetch(apiUrl(`/api/v1/assets/${symbol}/signals/log`), {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  return response.json() as Promise<SignalRecord>;
+}
+
+export async function recordSignalOutcome(
+  symbol: string,
+  recordId: string,
+  outcome: SignalOutcome,
+  realizedReturnPct?: number | null,
+  notes?: string | null,
+): Promise<SignalRecord> {
+  const response = await fetch(
+    apiUrl(`/api/v1/assets/${symbol}/signals/${recordId}/outcome`),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        outcome,
+        realized_return_pct: realizedReturnPct ?? null,
+        notes: notes ?? null,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  return response.json() as Promise<SignalRecord>;
+}
+
+export async function fetchOutcomeStats(symbol: string): Promise<OutcomeStats> {
+  return apiFetch<OutcomeStats>(`/api/v1/assets/${symbol}/outcomes/stats`);
+}
+
 export async function fetchBacktest(symbol: string): Promise<BacktestResult> {
   return apiFetch<BacktestResult>(`/api/v1/backtests/${symbol}`);
 }
@@ -180,8 +273,26 @@ export async function fetchWeightTuning(symbol: string): Promise<WeightTuningRes
   return apiFetch<WeightTuningResult>(`/api/v1/tuning/optimize/${symbol}`);
 }
 
+export interface AlertStatus {
+  enabled: boolean;
+  min_confidence: number;
+  min_grade: string;
+  cooldown_minutes: number;
+  discord_configured: boolean;
+  discord_mode: "bot" | "webhook" | "both" | "none" | string;
+  email_configured: boolean;
+  channels: {
+    discord: boolean;
+    email: boolean;
+  };
+}
+
+export async function fetchAlertStatus(): Promise<AlertStatus> {
+  return apiFetch<AlertStatus>("/api/v1/alerts/status");
+}
+
 export async function applyWeightPreset(preset: string): Promise<ActiveWeights> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/tuning/weights/apply`, {
+  const response = await fetch(apiUrl("/api/v1/tuning/weights/apply"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ preset }),

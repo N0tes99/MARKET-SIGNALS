@@ -16,12 +16,15 @@ const SECTION_MAP: Record<string, string[]> = {
   Momentum: ["Momentum"],
   Volume: ["Volume"],
   "Market Structure": ["Structure"],
-  Funding: ["Derivatives"],
+  Derivatives: ["Derivatives"],
   Macro: ["Macro"],
   Risk: ["Risk"],
   Correlation: ["Correlation"],
   Volatility: ["Volatility"],
   Events: ["Events"],
+  "Sector RS": ["Sector RS"],
+  "On-Chain": ["On-Chain"],
+  Sentiment: ["Sentiment"],
 };
 
 function scoreColor(score: number): string {
@@ -35,11 +38,11 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
 
   if (isLoading) {
     return (
-      <div className="mt-10 space-y-px bg-border">
-        <div className="surface h-24 animate-pulse bg-card" />
-        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-10 space-y-3">
+        <div className="surface h-24 animate-pulse" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="surface h-32 animate-pulse bg-card" />
+            <div key={i} className="surface h-32 animate-pulse" />
           ))}
         </div>
       </div>
@@ -59,8 +62,8 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
   const itemsByCategory = Object.fromEntries(data.items.map((item) => [item.category, item]));
 
   return (
-    <div className="mt-10 space-y-px bg-border">
-      <div className="surface bg-card p-6">
+    <div className="mt-10 space-y-3">
+      <div className="surface p-6">
         <div className="flex items-end justify-between">
           <div>
             <p className="label-caps">Confidence</p>
@@ -76,11 +79,11 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
         </div>
       </div>
 
-      <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Object.entries(SECTION_MAP).map(([section, categories]) => {
           const item = categories.map((c) => itemsByCategory[c]).find(Boolean);
           return (
-            <div key={section} className="surface bg-card p-5">
+            <div key={section} className="surface p-5">
               <div className="flex items-baseline justify-between">
                 <h2 className="label-caps">{section}</h2>
                 {item && (

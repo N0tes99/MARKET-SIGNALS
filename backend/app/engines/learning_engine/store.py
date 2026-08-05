@@ -1,12 +1,29 @@
-"""In-memory signal history store."""
+"""Signal store protocol and in-memory implementation."""
 
 from collections import deque
 from threading import Lock
+from typing import Protocol
 from uuid import UUID
 
 from app.engines.learning_engine.types import SignalRecord
 
 DEFAULT_MAX_PER_SYMBOL = 200
+
+
+class SignalStore(Protocol):
+    """Persistence interface for learning signal records."""
+
+    def add(self, record: SignalRecord) -> None: ...
+
+    def list_for_symbol(self, symbol: str, limit: int = 50) -> list[SignalRecord]: ...
+
+    def list_all(self, limit: int = 100) -> list[SignalRecord]: ...
+
+    def get(self, record_id: UUID) -> SignalRecord | None: ...
+
+    def update(self, record: SignalRecord) -> SignalRecord | None: ...
+
+    def count(self, symbol: str | None = None) -> int: ...
 
 
 class InMemorySignalStore:
@@ -44,6 +61,16 @@ class InMemorySignalStore:
             for bucket in self._records.values():
                 for record in bucket:
                     if record.id == record_id:
+                        return record
+        return None
+
+    def update(self, record: SignalRecord) -> SignalRecord | None:
+        """Replace a record in-place by ID (used for outcome updates)."""
+        with self._lock:
+            for bucket in self._records.values():
+                for index, existing in enumerate(bucket):
+                    if existing.id == record.id:
+                        bucket[index] = record
                         return record
         return None
 

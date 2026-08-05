@@ -1,12 +1,17 @@
-"""Derivatives Engine — derivatives market analysis."""
+"""Derivatives Engine — funding level, trend, and OI change."""
 
 import logging
 from dataclasses import dataclass
 
 from app.engines.evidence_engine.types import EvidenceItem
+from app.market_data.providers.bybit_derivatives import (
+    fetch_derivatives_depth,
+    oi_change_pct,
+    score_derivatives_composite,
+)
 from app.market_data.service import MarketDataService
+from app.market_data.symbols import AssetClass, get_asset_class
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
-from app.utils.scoring_helpers import clamp_score
 
 logger = logging.getLogger(__name__)
 
@@ -20,51 +25,92 @@ class DerivativesResult:
     open_interest: float | None
     score: float
     description: str
+    source: str = ""
 
 
 class DerivativesEngine:
-    """Analyzes funding rate and open interest."""
+    """Analyzes funding rate trend and open-interest change (crowded vs empty)."""
 
     def __init__(self, market_data: MarketDataService | None = None) -> None:
-        """Initialize with optional market data service."""
+        """Initialize with optional market data service (kept for DI compatibility)."""
         self._market_data = market_data or MarketDataService()
 
     def analyze(self, symbol: str) -> DerivativesResult | None:
         """Analyze derivatives positioning for an asset."""
+        normalized = symbol.upper()
         try:
-            snapshot = self._market_data.get_derivatives(symbol)
-        except Exception:
-            logger.exception("Failed to fetch derivatives for %s", symbol)
-            return None
+            asset_class = get_asset_class(normalized)
+        except ValueError:
+            asset_class = None
 
-        funding = snapshot.funding_rate
-        score = 50.0
-        description = f"{symbol}: Derivatives data unavailable"
-
-        if funding is not None:
-            # Normalize funding: extreme positive = crowded longs (caution)
-            # Score peaks when funding is near neutral
-            funding_bps = funding * 10_000
-            score = clamp_score(70 - abs(funding_bps) * 5)
-            bias = "elevated long funding" if funding > 0.0005 else "neutral funding"
-            if funding < -0.0005:
-                bias = "negative funding (shorts paying)"
-            description = (
-                f"{symbol}: Funding {funding_bps:.2f} bps, OI "
-                f"{snapshot.open_interest:,.0f} — {bias}"
+        if asset_class is not None and asset_class != AssetClass.CRYPTO:
+            return DerivativesResult(
+                symbol=normalized,
+                funding_rate=None,
+                open_interest=None,
+                score=50.0,
+                description=f"{normalized}: Derivatives N/A for {asset_class.value}",
+                source="",
             )
 
+        depth = fetch_derivatives_depth(normalized)
+        if depth is None or depth.funding_rate is None:
+            # Legacy snapshot path (mock / tests)
+            try:
+                snapshot = self._market_data.get_derivatives(normalized)
+            except Exception:
+                logger.exception("Failed to fetch derivatives for %s", normalized)
+                return None
+            if snapshot.funding_rate is None:
+                return DerivativesResult(
+                    symbol=normalized,
+                    funding_rate=None,
+                    open_interest=None,
+                    score=50.0,
+                    description=f"{normalized}: Derivatives data unavailable",
+                    source="",
+                )
+            score, desc = score_derivatives_composite(
+                snapshot.funding_rate,
+                [],
+                None,
+            )
+            if snapshot.open_interest is not None:
+                desc = (
+                    f"{normalized}: {desc}; OI {snapshot.open_interest:,.0f}"
+                )
+            else:
+                desc = f"{normalized}: {desc}"
+            return DerivativesResult(
+                symbol=normalized,
+                funding_rate=snapshot.funding_rate,
+                open_interest=snapshot.open_interest,
+                score=score,
+                description=desc,
+                source="snapshot",
+            )
+
+        oi_delta = oi_change_pct(depth.oi_history)
+        score, desc = score_derivatives_composite(
+            depth.funding_rate,
+            depth.funding_history,
+            oi_delta,
+        )
+        oi_part = ""
+        if depth.open_interest is not None:
+            oi_part = f"; OI {depth.open_interest:,.0f}"
         return DerivativesResult(
-            symbol=symbol.upper(),
-            funding_rate=funding,
-            open_interest=snapshot.open_interest,
+            symbol=normalized,
+            funding_rate=depth.funding_rate,
+            open_interest=depth.open_interest,
             score=score,
-            description=description,
+            description=f"{normalized} [{depth.source}]: {desc}{oi_part}",
+            source=depth.source,
         )
 
     def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:
         """Return derivatives evidence item."""
-        del timeframe  # Derivatives are not timeframe-specific
+        del timeframe
         result = self.analyze(symbol)
         if result is None:
             return [

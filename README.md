@@ -112,6 +112,10 @@ pytest
 ruff check .
 ```
 
+## Production deploy
+
+See [docs/deploy.md](docs/deploy.md) for Railway (API + Postgres) + Vercel (frontend) with HTTP Basic Auth via a Next.js proxy.
+
 ## Milestone Status
 
 - [x] Project foundation (structure, Docker, health endpoint, linting, testing)

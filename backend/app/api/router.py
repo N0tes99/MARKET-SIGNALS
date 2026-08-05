@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    alerts,
     analysis,
     assets,
     backtests,
@@ -27,4 +28,5 @@ api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])
 api_router.include_router(tuning.router, prefix="/tuning", tags=["tuning"])
+api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 api_router.include_router(websocket.router, prefix="/ws", tags=["websocket"])

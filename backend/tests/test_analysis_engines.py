@@ -48,10 +48,22 @@ def test_regime_engine_classifies_trending() -> None:
     assert result.regime in {"Trending", "Ranging", "Volatile", "Quiet"}
 
 
-def test_evidence_engine_nonzero_confidence_with_mock_data() -> None:
+def test_evidence_engine_nonzero_confidence_with_mock_data(monkeypatch) -> None:
     """Full evidence pipeline produces non-zero confidence on mock data."""
+    monkeypatch.setattr(
+        "app.engines.derivatives_engine.engine.fetch_derivatives_depth",
+        lambda symbol: None,
+    )
+    monkeypatch.setattr(
+        "app.engines.sentiment_engine.engine.fetch_fear_greed",
+        lambda: (50, "Neutral"),
+    )
+    monkeypatch.setattr(
+        "app.engines.onchain_engine.engine._fetch_btc_fees",
+        lambda: {"fastestFee": 10},
+    )
     md = _mock_service()
     engine = EvidenceEngine(market_data=md)
     bundle = engine.accumulate("BTC")
     assert bundle.total_confidence > 0
-    assert len(bundle.items) == 10
+    assert len(bundle.items) == 13

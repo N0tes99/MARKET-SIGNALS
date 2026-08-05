@@ -63,8 +63,10 @@ def get_ai_analyst():
 
 @lru_cache
 def get_learning_engine() -> LearningEngine:
-    """Singleton learning engine with in-memory signal store."""
-    return LearningEngine()
+    """Singleton learning engine (Postgres when available, else memory)."""
+    from app.engines.learning_engine.factory import build_signal_store
+
+    return LearningEngine(store=build_signal_store())
 
 
 @lru_cache
@@ -74,13 +76,23 @@ def get_backtest_runner() -> BacktestRunner:
 
 
 def get_test_learning_engine() -> LearningEngine:
-    """Fresh learning engine for tests."""
-    return LearningEngine()
+    """Fresh learning engine for tests (always in-memory)."""
+    from app.engines.learning_engine.store import InMemorySignalStore
+
+    return LearningEngine(store=InMemorySignalStore())
 
 
 def get_test_backtest_runner() -> BacktestRunner:
     """Backtest runner with mock market data for tests."""
     return BacktestRunner(market_data=get_test_market_data_service())
+
+
+@lru_cache
+def get_alert_service():
+    """Singleton alert dispatcher."""
+    from app.services.alert_service import AlertService
+
+    return AlertService()
 
 
 @lru_cache

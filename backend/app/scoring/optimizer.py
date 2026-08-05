@@ -87,6 +87,9 @@ def category_scores_at_index(df: pd.DataFrame, idx: int) -> dict[ScoringCategory
         ScoringCategory.CORRELATION: 50.0,
         ScoringCategory.VOLATILITY: 50.0,
         ScoringCategory.EVENTS: 50.0,
+        ScoringCategory.SECTOR_RS: 50.0,
+        ScoringCategory.ON_CHAIN: 50.0,
+        ScoringCategory.SENTIMENT: 50.0,
     }
 
 

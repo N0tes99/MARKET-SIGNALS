@@ -11,7 +11,7 @@ export function SimilarityPanel({ symbol }: SimilarityPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="surface bg-card p-5">
+      <div className="surface p-5">
         <div className="h-16 animate-pulse bg-muted/30" />
       </div>
     );
@@ -19,7 +19,7 @@ export function SimilarityPanel({ symbol }: SimilarityPanelProps) {
 
   if (error || !data) {
     return (
-      <div className="surface bg-card p-5">
+      <div className="surface p-5">
         <h2 className="label-caps">Similarity</h2>
         <p className="mt-3 text-sm text-muted-foreground">Unable to load.</p>
       </div>
@@ -27,11 +27,11 @@ export function SimilarityPanel({ symbol }: SimilarityPanelProps) {
   }
 
   return (
-    <div className="surface bg-card p-5">
+    <div className="surface p-5">
       <div className="flex items-baseline justify-between">
         <h2 className="label-caps">Similarity</h2>
         <span className="font-mono text-[10px] text-muted-foreground">
-          {data.history_count} in memory
+          {data.history_count} stored
         </span>
       </div>
 
@@ -40,7 +40,7 @@ export function SimilarityPanel({ symbol }: SimilarityPanelProps) {
           Building history — refresh a few times to find matches.
         </p>
       ) : (
-        <ul className="mt-4 space-y-3 border-t border-border pt-4">
+        <ul className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
           {data.matches.map((match) => (
             <li key={match.id} className="flex items-baseline justify-between gap-4">
               <div>
@@ -53,7 +53,15 @@ export function SimilarityPanel({ symbol }: SimilarityPanelProps) {
               </div>
               <div className="text-right">
                 <p className="font-mono text-sm">{match.similarity.toFixed(0)}%</p>
-                <p className="font-mono text-[10px] text-muted-foreground">match</p>
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  {match.outcome
+                    ? `${match.outcome}${
+                        match.realized_return_pct != null
+                          ? ` ${match.realized_return_pct > 0 ? "+" : ""}${match.realized_return_pct.toFixed(1)}%`
+                          : ""
+                      }`
+                    : "match"}
+                </p>
               </div>
             </li>
           ))}

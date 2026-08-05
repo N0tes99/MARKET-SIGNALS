@@ -8,34 +8,37 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.config import settings
+from app.core.basic_auth import BasicAuthMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle."""
-    # Startup: initialize connections, warm caches, etc.
     yield
-    # Shutdown: close connections, flush buffers, etc.
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
+    is_prod = settings.app_env.lower() == "production"
     app = FastAPI(
         title=settings.app_name,
         description="AI-powered Market Intelligence Platform",
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url=None if is_prod else "/docs",
+        redoc_url=None if is_prod else "/redoc",
+        openapi_url=None if is_prod else "/openapi.json",
         lifespan=lifespan,
     )
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=settings.cors_origin_list(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Auth after CORS so preflight succeeds without credentials dance issues
+    app.add_middleware(BasicAuthMiddleware)
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 

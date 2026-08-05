@@ -51,21 +51,23 @@ def test_calculate_total_confidence_zero_scores() -> None:
 
 def test_calculate_total_confidence_partial() -> None:
     """Weighted calculation should reflect partial scores."""
+    trend_w = DEFAULT_WEIGHTS[ScoringCategory.TREND]
+    mom_w = DEFAULT_WEIGHTS[ScoringCategory.MOMENTUM]
     items = [
         EvidenceItem(
             source="trend_engine",
             category="Trend",
             score=80.0,
-            weight=16.0,
+            weight=trend_w,
             description="Strong uptrend",
         ),
         EvidenceItem(
             source="buyer_seller_engine",
             category="Momentum",
             score=60.0,
-            weight=12.0,
+            weight=mom_w,
             description="Moderate momentum",
         ),
     ]
-    # (80/100 * 16) + (60/100 * 12) = 12.8 + 7.2 = 20
-    assert calculate_total_confidence(items) == 20.0
+    expected = round((80 / 100 * trend_w) + (60 / 100 * mom_w), 2)
+    assert calculate_total_confidence(items) == expected
