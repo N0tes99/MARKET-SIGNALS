@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_ASSETS_LIST_CACHE: TTLCache[list[AssetSummary]] = TTLCache(ttl_seconds=90.0)
+_ASSETS_LIST_CACHE: TTLCache[list[AssetSummary]] = TTLCache(ttl_seconds=120.0)
 
 
 def _score_for_category(decision, category: str) -> float:
@@ -83,16 +83,21 @@ async def list_assets(
     learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
 ) -> list[AssetSummary]:
-    """Return summary metrics for all tracked dashboard assets (cached ~90s)."""
+    """Return summary metrics for all tracked dashboard assets (cached ~120s)."""
     assets = await asyncio.to_thread(
         _ASSETS_LIST_CACHE.get_or_set,
         "dashboard",
         lambda: _load_asset_summaries(pipeline, learning),
     )
-    try:
-        await asyncio.to_thread(alerts.dispatch, assets)
-    except Exception:
-        logger.exception("Alert dispatch failed")
+
+    # Don't block the response on Discord/email dispatch
+    async def _dispatch() -> None:
+        try:
+            await asyncio.to_thread(alerts.dispatch, assets)
+        except Exception:
+            logger.exception("Alert dispatch failed")
+
+    asyncio.create_task(_dispatch())
     return assets
 
 

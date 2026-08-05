@@ -8,8 +8,9 @@ export function useAssets() {
   return useQuery({
     queryKey: ["assets"],
     queryFn: fetchAssets,
-    staleTime: 90_000,
-    gcTime: 10 * 60_000,
+    staleTime: 120_000,
+    gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: (previous) => previous,
   });
 }

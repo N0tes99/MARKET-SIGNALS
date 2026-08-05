@@ -13,8 +13,8 @@ from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
-_QUOTES_CACHE: TTLCache[list[AssetQuote]] = TTLCache(ttl_seconds=45.0)
-_MAX_WORKERS = 8
+_QUOTES_CACHE: TTLCache[list[AssetQuote]] = TTLCache(ttl_seconds=90.0)
+_MAX_WORKERS = 12
 
 
 def _change_pct(last: float, prior: float) -> float | None:
@@ -24,7 +24,7 @@ def _change_pct(last: float, prior: float) -> float | None:
 
 
 def build_quote(market_data: MarketDataService, symbol: str) -> AssetQuote:
-    """Fetch last price and approx % change for one symbol."""
+    """Fetch last price; % change from short daily history when cheap to load."""
     normalized = symbol.upper()
     price: float | None = None
     change: float | None = None
@@ -37,10 +37,8 @@ def build_quote(market_data: MarketDataService, symbol: str) -> AssetQuote:
     except Exception:
         logger.debug("Ticker unavailable for %s", normalized, exc_info=True)
 
-    df = market_data.safe_get_ohlcv(normalized, timeframe="1d", limit=5)
-    if df is None or len(df) < 2:
-        df = market_data.safe_get_ohlcv(normalized, timeframe="1h", limit=30)
-
+    # One short daily pull for % change (cached ~180s in MarketDataService)
+    df = market_data.safe_get_ohlcv(normalized, timeframe="1d", limit=3)
     if df is not None and len(df) >= 2:
         prior_close = float(df["close"].iloc[-2])
         last_close = float(df["close"].iloc[-1])
@@ -59,7 +57,7 @@ def build_quote(market_data: MarketDataService, symbol: str) -> AssetQuote:
 
 
 def load_all_quotes(market_data: MarketDataService) -> list[AssetQuote]:
-    """Load quotes for the full watchlist (parallel, cached upstream)."""
+    """Load quotes for the full watchlist (parallel, cached)."""
 
     def _load() -> list[AssetQuote]:
         quotes: dict[str, AssetQuote] = {}
@@ -73,7 +71,7 @@ def load_all_quotes(market_data: MarketDataService) -> list[AssetQuote]:
                 try:
                     quotes[symbol] = future.result()
                 except Exception:
-                    logger.exception("Quote failed for %s", symbol)
+                    logger.debug("Quote failed for %s", symbol, exc_info=True)
                     quotes[symbol] = AssetQuote(symbol=symbol.upper(), available=False)
         return [quotes[s] for s in TRACKED_SYMBOLS if s in quotes]
 

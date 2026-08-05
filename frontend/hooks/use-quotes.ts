@@ -8,9 +8,10 @@ export function useQuotes() {
   return useQuery({
     queryKey: ["quotes"],
     queryFn: fetchQuotes,
-    staleTime: 45_000,
-    gcTime: 10 * 60_000,
-    refetchInterval: 60_000,
+    staleTime: 90_000,
+    gcTime: 15 * 60_000,
+    refetchInterval: 120_000,
     refetchOnWindowFocus: false,
+    placeholderData: (previous) => previous,
   });
 }

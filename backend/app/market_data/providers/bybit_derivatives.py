@@ -97,7 +97,24 @@ def score_derivatives_composite(
     return clamp_score(score), description
 
 
-def fetch_binance_depth(symbol: str, timeout: float = 10.0) -> DerivativesDepth | None:
+def _http_get_json(
+    client: httpx.Client,
+    url: str,
+    params: dict,
+    *,
+    soft_fail: bool = True,
+) -> dict | list | None:
+    """GET JSON; treat geo/auth blocks as soft misses."""
+    response = client.get(url, params=params)
+    if response.status_code in {403, 404, 418, 451}:
+        if soft_fail:
+            logger.debug("HTTP %s for %s params=%s", response.status_code, url, params)
+            return None
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_binance_depth(symbol: str, timeout: float = 4.0) -> DerivativesDepth | None:
     """Fetch Binance futures snapshot + funding/OI history."""
     try:
         pair = to_binance_symbol(symbol)
@@ -107,35 +124,39 @@ def fetch_binance_depth(symbol: str, timeout: float = 10.0) -> DerivativesDepth 
     base = settings.binance_futures_url
     try:
         with httpx.Client(timeout=timeout) as client:
-            premium = client.get(f"{base}/fapi/v1/premiumIndex", params={"symbol": pair})
-            premium.raise_for_status()
-            premium_data = premium.json()
+            premium_data = _http_get_json(
+                client,
+                f"{base}/fapi/v1/premiumIndex",
+                {"symbol": pair},
+            )
+            if not isinstance(premium_data, dict):
+                return None
 
-            oi = client.get(f"{base}/fapi/v1/openInterest", params={"symbol": pair})
-            oi.raise_for_status()
-            oi_data = oi.json()
+            oi_data = _http_get_json(
+                client,
+                f"{base}/fapi/v1/openInterest",
+                {"symbol": pair},
+            )
+            if not isinstance(oi_data, dict):
+                return None
 
             funding_hist: list[float] = []
-            try:
-                fr = client.get(
-                    f"{base}/fapi/v1/fundingRate",
-                    params={"symbol": pair, "limit": 20},
-                )
-                fr.raise_for_status()
-                funding_hist = [float(row["fundingRate"]) for row in fr.json()]
-            except Exception:
-                logger.debug("Binance funding history unavailable for %s", symbol)
+            fr = _http_get_json(
+                client,
+                f"{base}/fapi/v1/fundingRate",
+                {"symbol": pair, "limit": 20},
+            )
+            if isinstance(fr, list):
+                funding_hist = [float(row["fundingRate"]) for row in fr]
 
             oi_hist: list[float] = []
-            try:
-                oi_h = client.get(
-                    f"{base}/futures/data/openInterestHist",
-                    params={"symbol": pair, "period": "1h", "limit": 24},
-                )
-                oi_h.raise_for_status()
-                oi_hist = [float(row["sumOpenInterest"]) for row in oi_h.json()]
-            except Exception:
-                logger.debug("Binance OI history unavailable for %s", symbol)
+            oi_h = _http_get_json(
+                client,
+                f"{base}/futures/data/openInterestHist",
+                {"symbol": pair, "period": "1h", "limit": 24},
+            )
+            if isinstance(oi_h, list):
+                oi_hist = [float(row["sumOpenInterest"]) for row in oi_h]
 
         return DerivativesDepth(
             symbol=symbol.upper(),
@@ -147,59 +168,51 @@ def fetch_binance_depth(symbol: str, timeout: float = 10.0) -> DerivativesDepth 
             source="binance",
         )
     except Exception:
-        logger.info("Binance derivatives depth failed for %s — will try Bybit", symbol)
+        logger.debug("Binance derivatives depth failed for %s", symbol, exc_info=True)
         return None
 
 
-def fetch_bybit_depth(symbol: str, timeout: float = 10.0) -> DerivativesDepth | None:
+def fetch_bybit_depth(symbol: str, timeout: float = 3.0) -> DerivativesDepth | None:
     """Fetch Bybit linear perpetuals snapshot + funding/OI history."""
     pair = f"{symbol.upper()}USDT"
     try:
         with httpx.Client(timeout=timeout) as client:
-            tickers = client.get(
+            payload = _http_get_json(
+                client,
                 f"{_BYBIT_BASE}/v5/market/tickers",
-                params={"category": "linear", "symbol": pair},
+                {"category": "linear", "symbol": pair},
             )
-            tickers.raise_for_status()
-            rows = tickers.json().get("result", {}).get("list", [])
+            if not isinstance(payload, dict):
+                return None
+            rows = payload.get("result", {}).get("list", [])
             if not rows:
                 return None
             tick = rows[0]
 
             funding_hist: list[float] = []
-            try:
-                fr = client.get(
-                    f"{_BYBIT_BASE}/v5/market/funding/history",
-                    params={"category": "linear", "symbol": pair, "limit": 20},
-                )
-                fr.raise_for_status()
-                # Bybit returns newest first — reverse to oldest→newest
-                raw = fr.json().get("result", {}).get("list", [])
-                funding_hist = list(
-                    reversed([float(row["fundingRate"]) for row in raw])
-                )
-            except Exception:
-                logger.debug("Bybit funding history unavailable for %s", symbol)
+            fr = _http_get_json(
+                client,
+                f"{_BYBIT_BASE}/v5/market/funding/history",
+                {"category": "linear", "symbol": pair, "limit": 20},
+            )
+            if isinstance(fr, dict):
+                raw = fr.get("result", {}).get("list", [])
+                funding_hist = list(reversed([float(row["fundingRate"]) for row in raw]))
 
             oi_hist: list[float] = []
-            try:
-                oi_h = client.get(
-                    f"{_BYBIT_BASE}/v5/market/open-interest",
-                    params={
-                        "category": "linear",
-                        "symbol": pair,
-                        "intervalTime": "1h",
-                        "limit": 24,
-                    },
-                )
-                oi_h.raise_for_status()
-                raw_oi = oi_h.json().get("result", {}).get("list", [])
-                # Newest first
-                oi_hist = list(
-                    reversed([float(row["openInterest"]) for row in raw_oi])
-                )
-            except Exception:
-                logger.debug("Bybit OI history unavailable for %s", symbol)
+            oi_h = _http_get_json(
+                client,
+                f"{_BYBIT_BASE}/v5/market/open-interest",
+                {
+                    "category": "linear",
+                    "symbol": pair,
+                    "intervalTime": "1h",
+                    "limit": 24,
+                },
+            )
+            if isinstance(oi_h, dict):
+                raw_oi = oi_h.get("result", {}).get("list", [])
+                oi_hist = list(reversed([float(row["openInterest"]) for row in raw_oi]))
 
         funding = tick.get("fundingRate")
         oi = tick.get("openInterest")
@@ -214,7 +227,7 @@ def fetch_bybit_depth(symbol: str, timeout: float = 10.0) -> DerivativesDepth | 
             source="bybit",
         )
     except Exception:
-        logger.exception("Bybit derivatives depth failed for %s", symbol)
+        logger.debug("Bybit derivatives depth failed for %s", symbol, exc_info=True)
         return None
 
 
