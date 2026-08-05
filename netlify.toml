@@ -1,12 +1,18 @@
-# Netlify monorepo config — Next.js app lives in /frontend
-# After pushing, in Netlify UI: clear Publish directory, then "Clear cache and deploy"
+# Netlify monorepo — Next.js in /frontend
+#
+# In Netlify UI → Site configuration → Build settings:
+#   Publish directory → CLEAR (empty). Do NOT use "frontend".
+#   Functions directory → CLEAR (empty).
+# UI was setting publish=frontend (= base), which breaks @netlify/plugin-nextjs.
 
 [build]
   base = "frontend"
   command = "npm run build"
+  # Relative to base directory (= frontend/.next)
+  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
