@@ -74,17 +74,26 @@ class DecisionPipelineService:
         timeframe: str = "1h",
     ) -> list[DecisionResult]:
         """Evaluate and rank all symbols by opportunity score."""
-        # Prefetch shared benchmarks once so correlation/regime don't stampede
-        self._market_data.warm(["SPY", "QQQ", "BTC"], timeframe=timeframe, limit=80)
+        # Prefetch shared benchmarks at the same limit engines use (cache-key match)
+        self._market_data.warm(["SPY", "QQQ", "BTC"], timeframe=timeframe, limit=200)
         try:
             self._market_data.get_ticker("^VIX")
         except Exception:
             pass
 
+        # One CoinGecko batch for all alts (avoids per-symbol cold HTTP in on-chain)
+        try:
+            from app.engines.onchain_engine.engine import warm_coingecko_activity
+
+            warm_coingecko_activity()
+        except Exception:
+            pass
+
+        workers = min(len(symbols), 10)
         if len(symbols) <= 1:
             results = [self.evaluate(symbol, timeframe) for symbol in symbols]
         else:
-            with ThreadPoolExecutor(max_workers=min(len(symbols), 16)) as pool:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
                 results = list(pool.map(lambda s: self.evaluate(s, timeframe), symbols))
         return sorted(results, key=lambda d: d.opportunity.opportunity_score, reverse=True)
 

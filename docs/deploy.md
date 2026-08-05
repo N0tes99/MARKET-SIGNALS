@@ -118,6 +118,19 @@ Or keep auth off locally (empty `AUTH_PASSWORD`) and use direct `NEXT_PUBLIC_API
 
 ---
 
+## Keep API warm (GitHub Actions)
+
+[`.github/workflows/keep-api-warm.yml`](../.github/workflows/keep-api-warm.yml) runs two scheduled pings (must be on the **default branch** for Actions schedules to fire):
+
+| Ping | Cadence | Purpose |
+|------|---------|---------|
+| `GET /api/v1/health` | ~every 12 min | Keep the API awake / reduce free-tier cold starts |
+| `GET /api/v1/assets` | ~every 30 min | Run scoring so Discord alerts can fire without site visitors |
+
+Defaults use the Netlify proxy (`https://signals27.netlify.app/api/backend/...`), which injects Basic Auth. Optional repo variables: `API_HEALTH_URL`, `API_ASSETS_URL`. The assets job uses a 120s timeout and `continue-on-error` (cold miss / 502 must not fail keep-warm). Health still fails the job on error. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
+
+---
+
 ## Checklist
 
 - [ ] Railway Postgres linked

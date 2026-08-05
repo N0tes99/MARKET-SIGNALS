@@ -9,6 +9,7 @@ import httpx
 
 from app.config import settings
 from app.market_data.symbols import to_binance_symbol
+from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ class DerivativesDepth:
     funding_history: list[float] = field(default_factory=list)
     oi_history: list[float] = field(default_factory=list)
     source: str = ""
+
+
+_DEPTH_CACHE: TTLCache[DerivativesDepth | None] = TTLCache(ttl_seconds=120.0)
 
 
 def _oi_change_pct(oi_history: list[float]) -> float | None:
@@ -114,7 +118,7 @@ def _http_get_json(
     return response.json()
 
 
-def fetch_binance_depth(symbol: str, timeout: float = 4.0) -> DerivativesDepth | None:
+def fetch_binance_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth | None:
     """Fetch Binance futures snapshot + funding/OI history."""
     try:
         pair = to_binance_symbol(symbol)
@@ -172,7 +176,7 @@ def fetch_binance_depth(symbol: str, timeout: float = 4.0) -> DerivativesDepth |
         return None
 
 
-def fetch_bybit_depth(symbol: str, timeout: float = 3.0) -> DerivativesDepth | None:
+def fetch_bybit_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth | None:
     """Fetch Bybit linear perpetuals snapshot + funding/OI history."""
     pair = f"{symbol.upper()}USDT"
     try:
@@ -233,10 +237,15 @@ def fetch_bybit_depth(symbol: str, timeout: float = 3.0) -> DerivativesDepth | N
 
 def fetch_derivatives_depth(symbol: str) -> DerivativesDepth | None:
     """Binance first; fall back to Bybit when Binance fails or is empty."""
-    depth = fetch_binance_depth(symbol)
-    if depth is not None and depth.funding_rate is not None:
-        return depth
-    return fetch_bybit_depth(symbol)
+    key = symbol.upper()
+
+    def _load() -> DerivativesDepth | None:
+        depth = fetch_binance_depth(key)
+        if depth is not None and depth.funding_rate is not None:
+            return depth
+        return fetch_bybit_depth(key)
+
+    return _DEPTH_CACHE.get_or_set(key, _load)
 
 
 # Re-export helper used by scoring/tests

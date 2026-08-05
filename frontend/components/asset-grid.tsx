@@ -38,8 +38,8 @@ function SectionGrid({
 }
 
 export function AssetGrid() {
-  const { data: assets, isLoading, error } = useAssets();
-  const { data: quotes } = useQuotes();
+  const { data: assets, isLoading, isFetching, error } = useAssets();
+  const { data: quotes, isLoading: quotesLoading } = useQuotes();
 
   const quotesBySymbol = useMemo(() => {
     const map = new Map<string, AssetQuote>();
@@ -52,6 +52,17 @@ export function AssetGrid() {
   if (isLoading) {
     return (
       <div className="space-y-8">
+        <div className="rounded-md border border-white/[0.06] bg-card/40 px-4 py-3">
+          <p className="text-sm text-foreground/90">Loading market signals…</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            First load after idle can take up to ~1 minute (API cold start + ranking).
+            {quotesLoading
+              ? " Fetching live quotes in parallel…"
+              : quotes
+                ? ` Quotes ready for ${quotes.filter((q) => q.available).length} assets.`
+                : ""}
+          </p>
+        </div>
         {ASSET_SECTIONS.map((section) => (
           <div key={section.label} className="space-y-3">
             <div className="h-4 w-20 animate-pulse rounded bg-muted" />
@@ -70,7 +81,7 @@ export function AssetGrid() {
     return (
       <div className="surface p-10 text-center">
         <p className="text-sm text-muted-foreground">
-          Unable to connect to the API. Start the backend to see live data.
+          Unable to load asset rankings. The API may still be warming up — wait a minute and refresh.
         </p>
         <p className="mt-2 font-mono text-xs text-muted-foreground">
           {error instanceof Error ? error.message : "Unknown error"}
@@ -83,6 +94,11 @@ export function AssetGrid() {
 
   return (
     <div className="space-y-10">
+      {isFetching && (
+        <p className="px-1 font-mono text-[11px] text-muted-foreground">
+          Refreshing rankings in the background…
+        </p>
+      )}
       {ASSET_SECTIONS.map((section) => (
         <SectionGrid
           key={section.label}

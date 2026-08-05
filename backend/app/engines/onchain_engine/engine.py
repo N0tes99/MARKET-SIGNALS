@@ -20,6 +20,7 @@ _COINGECKO_SIMPLE = "https://api.coingecko.com/api/v3/simple/price"
 
 _BTC_CACHE: TTLCache[dict | None] = TTLCache(ttl_seconds=300.0)
 _CG_CACHE: TTLCache[dict[str, dict] | None] = TTLCache(ttl_seconds=300.0)
+_CG_ALL_KEY = "watchlist"
 
 # Watchlist symbols → CoinGecko ids
 _COINGECKO_IDS: dict[str, str] = {
@@ -85,7 +86,7 @@ def score_vol_mcap(ratio: float) -> tuple[float, str]:
 def _fetch_btc_fees() -> dict | None:
     def _load() -> dict | None:
         try:
-            with httpx.Client(timeout=8.0) as client:
+            with httpx.Client(timeout=3.0) as client:
                 response = client.get(_MEMPOOL_FEES)
                 response.raise_for_status()
                 return response.json()
@@ -97,11 +98,16 @@ def _fetch_btc_fees() -> dict | None:
 
 
 def _fetch_coingecko_batch(ids: list[str]) -> dict[str, dict] | None:
+    # Prefer the shared watchlist cache when the requested ids are a subset.
+    cached_all = _CG_CACHE.get(_CG_ALL_KEY)
+    if cached_all is not None:
+        return cached_all
+
     key = ",".join(sorted(ids))
 
     def _load() -> dict[str, dict] | None:
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=4.0) as client:
                 response = client.get(
                     _COINGECKO_SIMPLE,
                     params={
@@ -118,6 +124,31 @@ def _fetch_coingecko_batch(ids: list[str]) -> dict[str, dict] | None:
             return None
 
     return _CG_CACHE.get_or_set(key, _load)
+
+
+def warm_coingecko_activity() -> None:
+    """Prefetch vol/mcap for the full crypto watchlist in one HTTP call."""
+    ids = list(_COINGECKO_IDS.values())
+
+    def _load() -> dict[str, dict] | None:
+        try:
+            with httpx.Client(timeout=4.0) as client:
+                response = client.get(
+                    _COINGECKO_SIMPLE,
+                    params={
+                        "ids": ",".join(ids),
+                        "vs_currencies": "usd",
+                        "include_market_cap": "true",
+                        "include_24hr_vol": "true",
+                    },
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception:
+            logger.exception("CoinGecko watchlist warm failed")
+            return None
+
+    _CG_CACHE.get_or_set(_CG_ALL_KEY, _load)
 
 
 class OnChainEngine:

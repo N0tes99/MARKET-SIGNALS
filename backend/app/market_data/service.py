@@ -22,7 +22,8 @@ _DERIVATIVES_CACHE: TTLCache[DerivativesSnapshot] = TTLCache(ttl_seconds=120.0)
 
 def build_default_provider() -> MarketDataProvider:
     """Build provider router: crypto via Binance→Kraken, equities via Yahoo."""
-    crypto = FallbackProvider([BinanceProvider(timeout=2.0), KrakenProvider(timeout=8.0)])
+    # Short Binance timeout: Render IPs often get 403/451; fail fast → Kraken.
+    crypto = FallbackProvider([BinanceProvider(timeout=1.5), KrakenProvider(timeout=5.0)])
     return AssetRouterProvider(crypto=crypto)
 
 

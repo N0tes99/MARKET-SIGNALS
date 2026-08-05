@@ -38,10 +38,16 @@ async function proxyRequest(
     headers.set("authorization", auth);
   }
 
+  // Stay under typical Netlify/serverless upstream limits; return 504 instead of hanging.
+  const PROXY_TIMEOUT_MS = 50_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+
   const init: RequestInit = {
     method: request.method,
     headers,
     cache: "no-store",
+    signal: controller.signal,
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -61,8 +67,24 @@ async function proxyRequest(
       headers: responseHeaders,
     });
   } catch (error) {
+    const aborted =
+      (error instanceof Error && error.name === "AbortError") ||
+      (typeof DOMException !== "undefined" &&
+        error instanceof DOMException &&
+        error.name === "AbortError");
+    if (aborted) {
+      return NextResponse.json(
+        {
+          detail:
+            "Upstream API timed out. Render free-tier cold starts or a full assets recompute can exceed the proxy limit — retry shortly.",
+        },
+        { status: 504 },
+      );
+    }
     const message = error instanceof Error ? error.message : "Upstream error";
     return NextResponse.json({ detail: message }, { status: 502 });
+  } finally {
+    clearTimeout(timer);
   }
 }
 

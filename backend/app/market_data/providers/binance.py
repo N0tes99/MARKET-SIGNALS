@@ -10,6 +10,19 @@ from app.market_data.normalizer import STANDARD_COLUMNS
 from app.market_data.symbols import to_binance_interval, to_binance_symbol
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
+# Geo/auth blocks — fail fast so FallbackProvider can try Kraken.
+_SOFT_FAIL_STATUS = frozenset({403, 418, 451})
+
+
+class BinanceBlockedError(RuntimeError):
+    """Binance rejected the request (geo-block / ban); try next provider."""
+
+
+def _raise_for_binance(response: httpx.Response) -> None:
+    if response.status_code in _SOFT_FAIL_STATUS:
+        raise BinanceBlockedError(f"Binance HTTP {response.status_code}")
+    response.raise_for_status()
+
 
 class BinanceProvider:
     """Fetch market data from Binance spot and futures public APIs."""
@@ -35,7 +48,7 @@ class BinanceProvider:
 
         with httpx.Client(timeout=self._timeout) as client:
             response = client.get(url, params=params)
-            response.raise_for_status()
+            _raise_for_binance(response)
             raw = response.json()
 
         rows = [
@@ -60,7 +73,7 @@ class BinanceProvider:
 
         with httpx.Client(timeout=self._timeout) as client:
             response = client.get(url, params=params)
-            response.raise_for_status()
+            _raise_for_binance(response)
             data = response.json()
 
         return TickerSnapshot(
@@ -76,12 +89,12 @@ class BinanceProvider:
         with httpx.Client(timeout=self._timeout) as client:
             premium_url = f"{self._futures_base_url}/fapi/v1/premiumIndex"
             premium_resp = client.get(premium_url, params={"symbol": pair})
-            premium_resp.raise_for_status()
+            _raise_for_binance(premium_resp)
             premium = premium_resp.json()
 
             oi_url = f"{self._futures_base_url}/fapi/v1/openInterest"
             oi_resp = client.get(oi_url, params={"symbol": pair})
-            oi_resp.raise_for_status()
+            _raise_for_binance(oi_resp)
             oi = oi_resp.json()
 
         return DerivativesSnapshot(

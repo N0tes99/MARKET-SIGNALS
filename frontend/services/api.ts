@@ -158,14 +158,35 @@ export interface EvidenceBundle {
   timestamp: string;
 }
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const response = await fetch(apiUrl(path));
+const DEFAULT_FETCH_TIMEOUT_MS = 55_000;
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(apiUrl(path), { signal: controller.signal });
+
+    if (!response.ok) {
+      if (response.status === 502 || response.status === 504) {
+        throw new Error(
+          `API timed out (${response.status}). The backend may still be warming up — retry in a minute.`,
+        );
+      }
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Cold starts can take ~1 min — please retry.`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json() as Promise<T>;
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {

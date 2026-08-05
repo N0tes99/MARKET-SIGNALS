@@ -39,7 +39,7 @@ async def check_alerts(
 ) -> AlertDispatchSchema:
     """Re-score tracked assets (or use cache) and dispatch threshold alerts."""
     assets = await asyncio.to_thread(
-        _ASSETS_LIST_CACHE.get_or_set,
+        _ASSETS_LIST_CACHE.get_stale_while_revalidate,
         "dashboard",
         lambda: _load_asset_summaries(pipeline, learning),
     )

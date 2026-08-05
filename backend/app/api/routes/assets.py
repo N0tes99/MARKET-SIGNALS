@@ -83,9 +83,9 @@ async def list_assets(
     learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
 ) -> list[AssetSummary]:
-    """Return summary metrics for all tracked dashboard assets (cached ~120s)."""
+    """Return summary metrics for all tracked dashboard assets (SWR ~120s)."""
     assets = await asyncio.to_thread(
-        _ASSETS_LIST_CACHE.get_or_set,
+        _ASSETS_LIST_CACHE.get_stale_while_revalidate,
         "dashboard",
         lambda: _load_asset_summaries(pipeline, learning),
     )
