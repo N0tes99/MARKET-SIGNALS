@@ -76,13 +76,26 @@ async function proxyRequest(
 
   try {
     const upstream = await fetch(url, init);
-    const body = await upstream.arrayBuffer();
     const responseHeaders = new Headers();
     const upstreamType = upstream.headers.get("content-type");
     if (upstreamType) {
       responseHeaders.set("content-type", upstreamType);
     }
     forwardSetCookies(upstream, responseHeaders);
+
+    // Response/NextResponse reject a body on 204/205/304.
+    if (
+      upstream.status === 204 ||
+      upstream.status === 205 ||
+      upstream.status === 304
+    ) {
+      return new NextResponse(null, {
+        status: upstream.status,
+        headers: responseHeaders,
+      });
+    }
+
+    const body = await upstream.arrayBuffer();
     return new NextResponse(body, {
       status: upstream.status,
       headers: responseHeaders,
