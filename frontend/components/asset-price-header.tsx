@@ -29,7 +29,8 @@ export function AssetPriceHeader({ symbol }: { symbol: string }) {
     queryKey: ["quote", symbol],
     queryFn: () => fetchQuote(symbol),
     staleTime: 45_000,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
+    refetchOnWindowFocus: false,
   });
 
   if (!data?.available || data.price == null) {

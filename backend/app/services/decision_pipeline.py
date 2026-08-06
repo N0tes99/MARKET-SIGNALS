@@ -10,7 +10,10 @@ from app.engines.opportunity_engine import OpportunityEngine, OpportunityResult
 from app.engines.risk_engine import RiskAssessment, RiskEngine
 from app.market_data.service import MarketDataService
 from app.scoring.grading import TradeState
+from app.utils.ttl_cache import TTLCache
 
+# Collapse duplicate asset-page / concurrent evaluate hits
+_EVAL_CACHE: TTLCache[DecisionResult] = TTLCache(ttl_seconds=90.0)
 
 @dataclass
 class DecisionResult:
@@ -46,8 +49,16 @@ class DecisionPipelineService:
         self._risk = risk_engine or RiskEngine(self._market_data)
 
     def evaluate(self, symbol: str, timeframe: str = "1h") -> DecisionResult:
-        """Run the full decision pipeline for an asset."""
+        """Run the full decision pipeline for an asset (cached ~90s)."""
         normalized = symbol.upper()
+        cache_key = f"{normalized}:{timeframe}"
+        return _EVAL_CACHE.get_or_set(
+            cache_key,
+            lambda: self._evaluate_uncached(normalized, timeframe),
+        )
+
+    def _evaluate_uncached(self, normalized: str, timeframe: str) -> DecisionResult:
+        """Compute a fresh decision without reading the evaluate cache."""
         evidence = self._evidence.accumulate(normalized, timeframe)
         risk = self._risk.assess(normalized, timeframe=timeframe)
         rr = risk.risk_reward_ratio if risk else 1.5
