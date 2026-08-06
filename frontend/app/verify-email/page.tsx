@@ -16,7 +16,7 @@ function VerifyEmailInner() {
   const [resendNote, setResendNote] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = params.get("token");
+    const token = params?.get("token") ?? null;
     if (!token) {
       setStatus("error");
       setMessage("Missing verification token.");
