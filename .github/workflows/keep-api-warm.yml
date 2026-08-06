@@ -1,13 +1,11 @@
-# Ping public endpoints on a schedule so free-tier hosts
-# (e.g. Render) spin down less often, and so scoring/Discord
-# alerts can run without site visitors. Schedules can drift on free Actions.
+# Ping endpoints so Render free-tier spins down less often, and so
+# /assets scoring (+ Discord alerts) can run without site visitors.
+# Schedules can drift on free Actions minutes.
 name: Keep API warm
 
 on:
   schedule:
-    # Health: every 12 minutes (GitHub may delay free-plan schedules).
     - cron: "*/12 * * * *"
-    # Assets scan: every 30 minutes (score + Discord alerts).
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
@@ -18,8 +16,8 @@ jobs:
     steps:
       - name: Ping health endpoint
         env:
-          # Optional repo variable: Settings → Variables → API_HEALTH_URL
-          # Prefer direct Render URL, e.g. https://YOUR-SERVICE.onrender.com/api/v1/health
+          # Repo variable — must include path, e.g.
+          # https://market-signals-51f0.onrender.com/api/v1/health
           API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
         run: |
           URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
@@ -29,7 +27,6 @@ jobs:
           echo "OK"
 
   ping-assets:
-    # Soft-fail: cold starts / 502 must not fail the keep-warm workflow.
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -37,18 +34,32 @@ jobs:
       - name: Ping assets endpoint
         continue-on-error: true
         env:
-          # Optional repo variable: Settings → Variables → API_ASSETS_URL
+          # Variables (include full path):
+          # API_HEALTH_URL=https://….onrender.com/api/v1/health
+          # API_ASSETS_URL=https://….onrender.com/api/v1/assets
           API_ASSETS_URL: ${{ vars.API_ASSETS_URL }}
           API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+          # Secrets (same as Render AUTH_USERNAME / AUTH_PASSWORD):
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
         run: |
           HEALTH_URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
           URL="${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}"
 
-          echo "Waking API via health ($HEALTH_URL) before assets ping"
-          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null || echo "::warning::Health wake ping failed (continuing to assets)"
+          echo "Waking API via health ($HEALTH_URL)"
+          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
+            || echo "::warning::Health wake ping failed (continuing to assets)"
           sleep 8
 
+          AUTH_ARGS=()
+          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
+            echo "Using Basic Auth for assets ping"
+          else
+            echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /assets will 401"
+          fi
+
           echo "Pinging $URL (max 120s; timeouts/502 are non-fatal)"
-          curl -fsS --max-time 120 "$URL" -o /dev/null \
-            || echo "::warning::Assets ping failed or timed out (cold start / 502 is OK)"
+          curl -fsS --max-time 120 "${AUTH_ARGS[@]}" "$URL" -o /dev/null \
+            || echo "::warning::Assets ping failed or timed out (cold start / 401 / 502)"
           exit 0
