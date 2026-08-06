@@ -16,3 +16,22 @@ class AssetQuote(BaseModel):
     )
     as_of: datetime | None = None
     available: bool = False
+
+
+class CandlePoint(BaseModel):
+    """Single OHLCV bar for mini charts."""
+
+    t: datetime
+    o: float
+    h: float
+    l: float
+    c: float
+    v: float
+
+
+class CandleSeries(BaseModel):
+    """OHLCV series for a symbol/timeframe."""
+
+    symbol: str
+    timeframe: str
+    candles: list[CandlePoint] = Field(default_factory=list)

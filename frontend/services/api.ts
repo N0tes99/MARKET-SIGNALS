@@ -338,12 +338,39 @@ export interface AssetQuote {
   available: boolean;
 }
 
+export interface CandlePoint {
+  t: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+export interface CandleSeries {
+  symbol: string;
+  timeframe: string;
+  candles: CandlePoint[];
+}
+
 export async function fetchQuotes(): Promise<AssetQuote[]> {
   return apiFetch<AssetQuote[]>("/api/v1/quotes");
 }
 
 export async function fetchQuote(symbol: string): Promise<AssetQuote> {
   return apiFetch<AssetQuote>(`/api/v1/quotes/${symbol}`);
+}
+
+export async function fetchCandles(
+  symbol: string,
+  timeframe: string = "15m",
+  limit: number = 48,
+): Promise<CandleSeries> {
+  const params = new URLSearchParams({
+    timeframe,
+    limit: String(limit),
+  });
+  return apiFetch<CandleSeries>(`/api/v1/quotes/${symbol}/candles?${params}`);
 }
 
 export async function applyWeightPreset(preset: string): Promise<ActiveWeights> {
