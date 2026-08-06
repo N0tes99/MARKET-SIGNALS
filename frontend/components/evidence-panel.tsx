@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useEvidence } from "@/hooks/use-evidence";
 import { AIExplanationCard } from "@/components/ai-explanation-card";
 import { BacktestPanel } from "@/components/backtest-panel";
@@ -35,6 +37,7 @@ function scoreColor(score: number): string {
 
 export function EvidencePanel({ symbol }: EvidencePanelProps) {
   const { data, isLoading, error } = useEvidence(symbol);
+  const [loadDeep, setLoadDeep] = useState(false);
 
   if (isLoading) {
     return (
@@ -104,13 +107,28 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
           );
         })}
 
-        <AIExplanationCard symbol={symbol} />
-
-        <SimilarityPanel symbol={symbol} />
-
-        <BacktestPanel symbol={symbol} />
-
-        <WeightTuningPanel symbol={symbol} />
+        {loadDeep ? (
+          <>
+            <AIExplanationCard symbol={symbol} />
+            <SimilarityPanel symbol={symbol} />
+            <BacktestPanel symbol={symbol} />
+            <WeightTuningPanel symbol={symbol} />
+          </>
+        ) : (
+          <div className="surface flex flex-col justify-center p-5 sm:col-span-2 lg:col-span-3">
+            <p className="text-sm text-muted-foreground">
+              AI analysis, similar setups, backtests, and weight tuning are deferred so the page
+              loads faster.
+            </p>
+            <button
+              type="button"
+              onClick={() => setLoadDeep(true)}
+              className="mt-4 self-start border border-white/[0.12] px-3 py-2 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06]"
+            >
+              Load deeper analysis
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
