@@ -7,6 +7,7 @@ from app.engines.evidence_engine.types import EvidenceBundle, EvidenceItem
 from app.engines.learning_engine.similarity import similarity_from_evidence
 from app.engines.learning_engine.store import InMemorySignalStore, SignalStore
 from app.engines.learning_engine.types import SignalOutcome, SignalRecord, SimilarMatch
+from app.scoring.grading import TradeState, blend_expected_value
 from app.services.decision_pipeline import DecisionResult
 
 
@@ -143,3 +144,80 @@ class LearningEngine:
             "win_rate": round((wins / traded) * 100, 1) if traded else 0.0,
             "avg_return_pct": round(sum(returns) / len(returns), 3) if returns else 0.0,
         }
+
+    def blend_expected_value(
+        self,
+        symbol: str,
+        formula_ev: float,
+        risk_reward_ratio: float,
+        *,
+        min_samples: int = 3,
+    ) -> float:
+        """Blend formula EV with same-symbol (else same asset-class) trade history."""
+        stats = self.outcome_stats(symbol)
+        traded = int(stats["wins"]) + int(stats["losses"]) + int(stats["breakeven"])
+        if traded < min_samples:
+            traded, hit_rate, avg_ret = self._asset_class_trade_stats(symbol)
+        else:
+            hit_rate = float(stats["win_rate"])
+            avg_ret = float(stats["avg_return_pct"])
+
+        return blend_expected_value(
+            formula_ev,
+            risk_reward_ratio,
+            hit_rate,
+            avg_ret,
+            traded,
+            min_samples=min_samples,
+        )
+
+    def open_manage_context(self, symbol: str) -> dict[str, bool]:
+        """Lifecycle flags from learning history for MANAGE/EXIT resolution.
+
+        Returns:
+            has_open_active: unresolved signal previously in EXECUTE/MANAGE
+            recently_closed: most recent signal has a recorded outcome
+        """
+        records = self._store.list_for_symbol(symbol, limit=20)
+        active_states = {TradeState.EXECUTE.value, TradeState.MANAGE.value}
+        has_open_active = any(
+            r.outcome is None and r.trade_state in active_states for r in records
+        )
+        recently_closed = bool(records) and records[0].outcome is not None
+        return {
+            "has_open_active": has_open_active,
+            "recently_closed": recently_closed,
+        }
+
+    def _asset_class_trade_stats(self, symbol: str) -> tuple[int, float, float]:
+        """Aggregate traded outcomes across symbols in the same asset class."""
+        try:
+            from app.market_data.symbols import TRACKED_SYMBOLS, get_asset_class
+
+            target_class = get_asset_class(symbol)
+            peers = [
+                s for s in TRACKED_SYMBOLS if get_asset_class(s) == target_class
+            ]
+        except (ValueError, KeyError):
+            return 0, 0.0, 0.0
+
+        wins = losses = breakeven = 0
+        returns: list[float] = []
+        for peer in peers:
+            for record in self._store.list_for_symbol(peer, limit=100):
+                if not record.outcome or record.outcome == SignalOutcome.NO_TRADE.value:
+                    continue
+                if record.outcome == SignalOutcome.WIN.value:
+                    wins += 1
+                elif record.outcome == SignalOutcome.LOSS.value:
+                    losses += 1
+                elif record.outcome == SignalOutcome.BREAKEVEN.value:
+                    breakeven += 1
+                if record.realized_return_pct is not None:
+                    returns.append(record.realized_return_pct)
+
+        traded = wins + losses + breakeven
+        hit_rate = round((wins / traded) * 100, 1) if traded else 0.0
+        avg_ret = round(sum(returns) / len(returns), 3) if returns else 0.0
+        return traded, hit_rate, avg_ret
+

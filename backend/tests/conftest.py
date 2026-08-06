@@ -7,13 +7,13 @@ from app.core.service_dependencies import (
     get_decision_pipeline,
     get_evidence_service,
     get_learning_engine,
-    get_test_decision_pipeline,
     get_test_evidence_service,
-    get_test_learning_engine,
+    get_test_market_data_service,
     get_test_weight_optimizer,
     get_weight_optimizer,
 )
 from app.engines.learning_engine import LearningEngine
+from app.engines.learning_engine.store import InMemorySignalStore
 from app.main import app
 from app.services.decision_pipeline import DecisionPipelineService
 from app.services.evidence_service import EvidenceService
@@ -26,15 +26,16 @@ def evidence_service() -> EvidenceService:
 
 
 @pytest.fixture
-def decision_pipeline() -> DecisionPipelineService:
-    """Provide a decision pipeline backed by mock market data."""
-    return get_test_decision_pipeline()
+def learning_engine() -> LearningEngine:
+    """Provide a fresh learning engine for tests."""
+    return LearningEngine(store=InMemorySignalStore())
 
 
 @pytest.fixture
-def learning_engine() -> LearningEngine:
-    """Provide a fresh learning engine for tests."""
-    return get_test_learning_engine()
+def decision_pipeline(learning_engine: LearningEngine) -> DecisionPipelineService:
+    """Provide a decision pipeline sharing the test learning store."""
+    md = get_test_market_data_service()
+    return DecisionPipelineService(market_data=md, learning_engine=learning_engine)
 
 
 @pytest.fixture

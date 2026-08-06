@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.3.0 |
-| Last updated | 2026-08-02 |
-| Status | Analysis engines live — decision pipeline pending |
+| Version | 0.4.0 |
+| Last updated | 2026-08-05 |
+| Status | M4–M6 complete — decision pipeline, AI/dashboard, learning & backtesting live |
 
 ---
 
@@ -111,12 +111,12 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Derivatives Engine | `backend/app/engines/derivatives_engine/` | **Implemented** |
 | Macro Engine | `backend/app/engines/macro_engine/` | **Implemented** |
 | Regime Engine | `backend/app/engines/regime_engine/` | **Implemented** |
-| Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** (evidence only) |
-| Opportunity Engine | `backend/app/engines/opportunity_engine/` | Placeholder |
-| Execution Engine | `backend/app/engines/execution_engine/` | Placeholder |
-| Learning Engine | `backend/app/engines/learning_engine/` | Placeholder |
-| AI Analyst | `backend/app/engines/ai_engine/` | Placeholder |
-| Backtesting | `backend/app/backtesting/` | Placeholder |
+| Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
+| Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
+| Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
+| Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
+| AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
+| Backtesting | `backend/app/backtesting/` | **Implemented** |
 | Broker Adapters | `backend/app/adapters/brokers/` | **Not yet created** |
 
 ---
@@ -172,7 +172,7 @@ class EvidenceEngine:
 
 ### Status
 
-`IMPLEMENTED` — accumulation, scoring, persistence, and API live. Collectors return stub evidence until Milestone 3 engines are built.
+`IMPLEMENTED` — accumulation, scoring, persistence, and API live. Specialized collectors contribute real evidence (see §4).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -200,13 +200,12 @@ Each engine is an independent module with a single public method, strong typing,
 
 **Inputs:** OHLCV candles, EMA, RSI, MACD (via `backend/app/indicators/`)
 
-**Logic (planned):**
-- Multi-timeframe trend alignment (e.g. 1h + 4h + 1d)
+**Logic:**
+- Multi-timeframe-friendly OHLCV inputs
 - EMA stack analysis (price vs 20/50/200 EMA)
-- RSI divergence detection
-- MACD crossover and histogram momentum
+- RSI / MACD confirmation into direction + confidence
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED`
 
 ---
 
@@ -221,9 +220,9 @@ Each engine is an independent module with a single public method, strong typing,
 | `absorption` | `float 0–100` | Large orders absorbed without price move |
 | `momentum` | `float 0–100` | Directional order flow momentum |
 
-**Inputs:** Volume profile, trade tape, bid/ask depth (where available)
+**Inputs:** OHLCV volume / range proxies (tape depth when available later)
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED` — buyer/seller strength + momentum evidence
 
 ---
 
@@ -238,9 +237,9 @@ Each engine is an independent module with a single public method, strong typing,
 | `liquidations_24h` | `float` | 24h liquidation volume |
 | `long_short_ratio` | `float` | Long/short positioning ratio |
 
-**Inputs:** Exchange derivatives APIs, Coinglass or equivalent aggregator
+**Inputs:** Exchange derivatives APIs / public funding proxies (crypto); neutral for equities
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED`
 
 ---
 
@@ -257,9 +256,9 @@ Each engine is an independent module with a single public method, strong typing,
 | `unemployment_rate` | `float` | Unemployment rate |
 | `upcoming_events` | `list[str]` | High-impact calendar events |
 
-**Inputs:** FRED API, economic calendar feeds
+**Inputs:** FRED API (optional), macro proxies / calendar hooks
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED`
 
 ---
 
@@ -274,11 +273,11 @@ Each engine is an independent module with a single public method, strong typing,
 
 **Inputs:** ATR, Bollinger bandwidth, ADX, cross-asset correlation
 
-**Logic (planned):**
+**Logic:**
 - Regime affects weight adjustments in the Evidence Engine (e.g. reduce trend weight in ranging markets)
 - Regime is global (not per-asset) but can have per-asset overrides
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED`
 
 ---
 
@@ -312,7 +311,7 @@ These engines consume evidence and produce actionable recommendations.
 | D | 50–59 |
 | F | 0–49 |
 
-**Status:** `NOT IMPLEMENTED` — REST placeholder at `GET /api/v1/opportunities`
+**Status:** `IMPLEMENTED` — ranking + EV (formula, blended with learning when n≥3); `GET /api/v1/opportunities`
 
 ---
 
@@ -325,12 +324,12 @@ These engines consume evidence and produce actionable recommendations.
 | `signal` | `WAIT \| WATCH \| EXECUTE` | Entry timing recommendation |
 | `confidence` | `float 0–100` | Timing confidence |
 
-**Logic (planned):**
+**Logic:**
 - `WAIT` — Opportunity exists but conditions not yet aligned (e.g. waiting for pullback)
 - `WATCH` — Key level approaching; alert user
-- `EXECUTE` — Entry conditions met; hand off to Risk Engine
+- `EXECUTE` — Entry conditions met; hand off to Risk Engine / pipeline veto
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED`
 
 ---
 
@@ -351,10 +350,10 @@ These engines consume evidence and produce actionable recommendations.
 **Design Rules:**
 - Default max risk per trade: 1–2% of account (configurable)
 - Stop loss always derived from structure (support/resistance) or ATR — never arbitrary
-- Risk Engine can **veto** an EXECUTE signal if risk/reward is unfavorable
+- Risk Engine can **veto** an EXECUTE signal if risk/reward is unfavorable (pipeline: quality score + min R:R; ATR% adjusts R:R)
 - Position size never exceeds user-defined maximum
 
-**Status:** `NOT IMPLEMENTED`
+**Status:** `IMPLEMENTED` — ATR stops/targets, position sizing, evidence contribution + pipeline veto
 
 ---
 
@@ -411,7 +410,7 @@ class AIAnalyst:
 
 ### Status
 
-`NOT IMPLEMENTED` — interface stub exists in `ai_engine/__init__.py`
+`IMPLEMENTED` — OpenAI integration with local fallback; `GET /api/v1/assets/{symbol}/analysis`
 
 ---
 
@@ -451,7 +450,7 @@ class SignalRecord:
 
 ### Status
 
-`NOT IMPLEMENTED`
+`IMPLEMENTED` — signal storage (memory/Postgres), similarity, outcome logging, EV blend hooks
 
 ---
 
@@ -481,7 +480,7 @@ class SignalRecord:
 
 ### Status
 
-`NOT IMPLEMENTED` — module placeholder exists
+`IMPLEMENTED` — weights, grades, formula EV + learning blend, regime multipliers
 
 ---
 
@@ -501,18 +500,19 @@ IGNORE ──→ WATCH ──→ EXECUTE ──→ MANAGE ──→ EXIT
 | `IGNORE` | No actionable evidence | Score below threshold |
 | `WATCH` | Evidence building; monitor | Score crosses watch threshold |
 | `EXECUTE` | Entry conditions met | Execution Engine signal + Risk Engine approval |
-| `MANAGE` | Active position tracking | User entered trade (manual or via broker adapter) |
-| `EXIT` | Close recommended | Stop hit, target hit, or evidence reversal |
+| `MANAGE` | Active position tracking | Open learning signal in EXECUTE/MANAGE + holdable conditions |
+| `EXIT` | Close recommended | Open context degrades, or recent outcome closed amid collapse |
 
 ### Rules
 
-- State transitions are logged by the Learning Engine
-- Downgrade transitions (EXECUTE → WATCH) are as important as upgrades
-- Dashboard displays current state per asset in real time via WebSocket
+- Final `trade_state` is resolved by `DecisionPipelineService` (Opportunity does not emit EXECUTE)
+- Risk veto can downgrade EXECUTE → WATCH when quality/R:R fails
+- MANAGE/EXIT use learning open-signal / recent-outcome context (no broker adapter yet)
+- Dashboard polls `/api/v1/assets`; backend `WS /api/v1/ws/dashboard` exists (frontend client deferred)
 
 ### Status
 
-`NOT IMPLEMENTED` — enum defined in schemas only
+`IMPLEMENTED` — full IGNORE→EXIT resolution in the decision pipeline
 
 ---
 
@@ -556,7 +556,7 @@ BTC, ETH, SOL, SUI
 
 ### Status
 
-`NOT IMPLEMENTED` — module placeholder exists
+`IMPLEMENTED` — multi-provider OHLCV (Kraken/Binance/Yahoo), warm cache, Celery warm task
 
 ---
 
@@ -624,7 +624,7 @@ class BrokerAdapter(Protocol):
 
 ### Status
 
-`NOT IMPLEMENTED` — module placeholder exists
+`IMPLEMENTED` — walk-forward backtests + weight optimizer APIs
 
 ---
 
@@ -635,12 +635,13 @@ class BrokerAdapter(Protocol):
 | Method | Path | Description | Status |
 |--------|------|-------------|--------|
 | `GET` | `/api/v1/health` | Service health check | **Live** |
-| `GET` | `/api/v1/assets` | Dashboard asset summaries | Placeholder data |
-| `GET` | `/api/v1/assets/{symbol}` | Single asset summary | Placeholder data |
-| `GET` | `/api/v1/opportunities` | Ranked opportunities | Placeholder data |
-| `GET` | `/api/v1/assets/{symbol}/evidence` | Full evidence bundle | Planned |
-| `GET` | `/api/v1/assets/{symbol}/analysis` | AI explanation | Planned |
-| `WS` | `/api/v1/ws/dashboard` | Real-time dashboard updates | Planned |
+| `GET` | `/api/v1/assets` | Dashboard asset summaries | **Live** |
+| `GET` | `/api/v1/assets/{symbol}` | Single asset summary | **Live** |
+| `GET` | `/api/v1/opportunities` | Ranked opportunities | **Live** |
+| `GET` | `/api/v1/assets/{symbol}/evidence` | Full evidence bundle | **Live** |
+| `GET` | `/api/v1/assets/{symbol}/decision` | Full decision pipeline | **Live** |
+| `GET` | `/api/v1/assets/{symbol}/analysis` | AI explanation | **Live** |
+| `WS` | `/api/v1/ws/dashboard` | Real-time dashboard updates | **Live** (backend; FE deferred) |
 
 ### Design Rules
 

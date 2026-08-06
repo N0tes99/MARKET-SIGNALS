@@ -54,6 +54,12 @@ class TTLCache[T]:
                 expires_at=datetime.now(UTC) + timedelta(seconds=self._ttl),
             )
 
+    def clear(self) -> None:
+        """Drop all cached entries."""
+        with self._lock:
+            self._entries.clear()
+            self._refreshing.clear()
+
     def get_or_set(self, key: str, factory: Callable[[], T]) -> T:
         """Return cached value or compute, store, and return a new one."""
         cached = self.get(key)

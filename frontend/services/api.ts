@@ -26,14 +26,6 @@ export interface AssetSummary {
   asset_class: "crypto" | "stock" | "etf";
 }
 
-export interface OpportunitySummary {
-  symbol: string;
-  opportunity_score: number;
-  trade_grade: string;
-  expected_value: number;
-  trade_state: string;
-}
-
 export interface HealthResponse {
   status: string;
   app_name: string;
@@ -215,10 +207,6 @@ export async function fetchAssets(): Promise<AssetSummary[]> {
 
 export async function fetchAsset(symbol: string): Promise<AssetSummary> {
   return apiFetch<AssetSummary>(`/api/v1/assets/${symbol}`);
-}
-
-export async function fetchOpportunities(): Promise<OpportunitySummary[]> {
-  return apiFetch<OpportunitySummary[]>("/api/v1/opportunities");
 }
 
 export async function fetchEvidence(symbol: string): Promise<EvidenceBundle> {

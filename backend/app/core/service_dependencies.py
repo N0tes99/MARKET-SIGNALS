@@ -33,7 +33,10 @@ def get_evidence_service() -> EvidenceService:
 def get_decision_pipeline() -> DecisionPipelineService:
     """Return the full decision pipeline with live market data."""
     md = get_market_data_service()
-    return DecisionPipelineService(market_data=md)
+    return DecisionPipelineService(
+        market_data=md,
+        learning_engine=get_learning_engine(),
+    )
 
 
 def get_test_market_data_service() -> MarketDataService:
@@ -51,7 +54,10 @@ def get_test_evidence_service() -> EvidenceService:
 def get_test_decision_pipeline() -> DecisionPipelineService:
     """Return decision pipeline with mock market data for tests."""
     md = get_test_market_data_service()
-    return DecisionPipelineService(market_data=md)
+    return DecisionPipelineService(
+        market_data=md,
+        learning_engine=get_test_learning_engine(),
+    )
 
 
 def get_ai_analyst():

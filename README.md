@@ -121,10 +121,10 @@ See [docs/deploy.md](docs/deploy.md) for Railway (API + Postgres) + Vercel (fron
 - [x] Project foundation (structure, Docker, health endpoint, linting, testing)
 - [x] Evidence Engine (accumulation, scoring, persistence, API)
 - [x] Analysis engines (Trend, Buyer/Seller, Derivatives, Macro, Regime, Risk)
-- [ ] Decision pipeline (Opportunity, Execution)
-- [ ] Dashboard with live data
-- [ ] AI Analyst integration
-- [ ] Backtesting framework
+- [x] Decision pipeline (Opportunity, Execution, Risk veto, MANAGE/EXIT)
+- [x] Dashboard with live data (TanStack Query polling on `/api/v1/assets`)
+- [x] AI Analyst integration
+- [x] Backtesting framework
 
 ## License
 

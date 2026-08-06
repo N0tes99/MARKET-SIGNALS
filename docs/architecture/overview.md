@@ -18,7 +18,7 @@ Market Data → [Specialized Engines] → Evidence Engine → Opportunity Engine
 
 ## Engine Status
 
-All engines are currently **placeholder stubs**. See `ARCHITECTURE.md` §3–§7 for planned interfaces and design rules.
+Analysis engines, decision pipeline (Opportunity / Execution / Risk), Learning Engine, AI Analyst, and backtesting are **implemented**. Dashboard rankings come from `GET /api/v1/assets` (TanStack Query poll). Backend `WS /api/v1/ws/dashboard` exists; a frontend live client is deferred (Next.js API proxy does not upgrade WebSockets). See `ARCHITECTURE.md` §3–§9 and `docs/roadmap/milestones.md`.
 
 ## Scoring Weights (Default)
 
@@ -38,3 +38,5 @@ All engines are currently **placeholder stubs**. See `ARCHITECTURE.md` §3–§7
 ```
 IGNORE → WATCH → EXECUTE → MANAGE → EXIT
 ```
+
+Pipeline resolver rules (see `DecisionPipelineService._resolve_trade_state`): Risk veto can hold EXECUTE back to WATCH; MANAGE/EXIT use learning open-signal context when available.

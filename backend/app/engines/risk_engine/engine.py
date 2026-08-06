@@ -49,8 +49,19 @@ class RiskEngine:
 
         price = float(df["close"].iloc[-1])
         atr = float(calculate_atr(df["high"], df["low"], df["close"]).iloc[-1])
-        stop_loss = price - (2 * atr)
-        take_profit = price + (3 * atr)
+        atr_pct = (atr / price) * 100 if price > 0 else 0.0
+
+        # Elevated ATR% shrinks feasible reward vs stop → weaker R:R (veto-capable)
+        stop_mult = 2.0
+        if atr_pct >= 4.0:
+            tp_mult = 2.0
+        elif atr_pct >= 2.5:
+            tp_mult = 2.5
+        else:
+            tp_mult = 3.5
+
+        stop_loss = price - (stop_mult * atr)
+        take_profit = price + (tp_mult * atr)
         risk_per_unit = price - stop_loss
         reward_per_unit = take_profit - price
         risk_reward = reward_per_unit / risk_per_unit if risk_per_unit > 0 else 0.0
@@ -58,10 +69,13 @@ class RiskEngine:
         risk_amount = account_balance * (self._default_risk_percent / 100)
         position_size = risk_amount / risk_per_unit if risk_per_unit > 0 else 0.0
 
-        score = clamp_score(min(risk_reward / 3 * 100, 100)) if risk_reward > 0 else 0.0
+        # Quality score from R:R; extra drag when volatility is stretched
+        rr_score = min(risk_reward / 3 * 100, 100) if risk_reward > 0 else 0.0
+        vol_penalty = max(0.0, (atr_pct - 2.0) * 8.0)
+        score = clamp_score(rr_score - vol_penalty)
         description = (
             f"{symbol}: Stop {stop_loss:.2f}, target {take_profit:.2f}, "
-            f"R:R {risk_reward:.1f}:1, ATR {atr:.2f}"
+            f"R:R {risk_reward:.1f}:1, ATR {atr:.2f} ({atr_pct:.1f}%)"
         )
 
         return RiskAssessment(
