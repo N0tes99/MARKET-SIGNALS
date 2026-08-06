@@ -363,6 +363,7 @@ export interface AuthUser {
   id: string;
   email: string;
   username: string;
+  email_verified: boolean;
   created_at: string;
 }
 
@@ -384,6 +385,23 @@ export interface DiscussionPost {
   created_at: string;
   comments: DiscussionComment[];
   comment_count: number;
+  like_count: number;
+  liked_by_me: boolean;
+}
+
+export interface PublicProfile {
+  id: string;
+  username: string;
+  created_at: string;
+  follower_count: number;
+  following_count: number;
+  post_count: number;
+  followed_by_me: boolean;
+}
+
+export interface FavoriteSymbol {
+  symbol: string;
+  created_at: string;
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
@@ -437,8 +455,37 @@ export async function logoutAccount(): Promise<void> {
   }
 }
 
+export async function verifyEmailToken(token: string): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/verify-email"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
+export async function resendVerification(email?: string): Promise<void> {
+  const response = await fetch(apiUrl("/api/v1/auth/resend-verification"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(email ? { email } : {}),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
 export async function fetchAssetPosts(symbol: string): Promise<DiscussionPost[]> {
   return apiFetch<DiscussionPost[]>(`/api/v1/assets/${symbol}/posts`);
+}
+
+export async function fetchSocialFeed(): Promise<DiscussionPost[]> {
+  return apiFetch<DiscussionPost[]>("/api/v1/social/feed");
 }
 
 export async function createAssetPost(symbol: string, body: string): Promise<DiscussionPost> {
@@ -447,6 +494,19 @@ export async function createAssetPost(symbol: string, body: string): Promise<Dis
     credentials: FETCH_CREDENTIALS,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ body }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<DiscussionPost>;
+}
+
+export async function createFeedPost(symbol: string, body: string): Promise<DiscussionPost> {
+  const response = await fetch(apiUrl("/api/v1/social/posts"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol, body }),
   });
   if (!response.ok) {
     throw new Error(await readErrorDetail(response));
@@ -468,4 +528,81 @@ export async function createPostComment(
     throw new Error(await readErrorDetail(response));
   }
   return response.json() as Promise<DiscussionComment>;
+}
+
+export async function likePost(postId: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/posts/${postId}/like`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function unlikePost(postId: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/posts/${postId}/like`), {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function fetchPublicProfile(username: string): Promise<PublicProfile> {
+  return apiFetch<PublicProfile>(`/api/v1/users/${encodeURIComponent(username)}`);
+}
+
+export async function followUser(userId: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/users/${userId}/follow`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function unfollowUser(userId: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/users/${userId}/follow`), {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function fetchFavorites(): Promise<FavoriteSymbol[]> {
+  const response = await fetch(apiUrl("/api/v1/me/favorites"), {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<FavoriteSymbol[]>;
+}
+
+export async function addFavorite(symbol: string): Promise<FavoriteSymbol> {
+  const response = await fetch(apiUrl("/api/v1/me/favorites"), {
+    method: "PUT",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<FavoriteSymbol>;
+}
+
+export async function removeFavorite(symbol: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/me/favorites/${encodeURIComponent(symbol)}`), {
+    method: "DELETE",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await readErrorDetail(response));
+  }
 }

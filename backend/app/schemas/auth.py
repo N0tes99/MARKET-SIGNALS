@@ -31,12 +31,25 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class VerifyEmailRequest(BaseModel):
+    """Confirm email with token from the verification link."""
+
+    token: str = Field(min_length=16, max_length=256)
+
+
+class ResendVerificationRequest(BaseModel):
+    """Resend verification email by address (pre-login) or authenticated user."""
+
+    email: EmailStr | None = None
+
+
 class UserSchema(BaseModel):
     """Public user profile."""
 
     id: uuid.UUID
     email: EmailStr
     username: str
+    email_verified: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

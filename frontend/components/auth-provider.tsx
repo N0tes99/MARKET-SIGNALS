@@ -15,6 +15,8 @@ import {
   loginAccount,
   logoutAccount,
   registerAccount,
+  resendVerification,
+  verifyEmailToken,
   type AuthUser,
 } from "@/services/api";
 
@@ -25,6 +27,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (email: string, username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<AuthUser>;
+  resendVerificationEmail: (email?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,7 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (email: string, username: string, password: string) => {
       const next = await registerAccount(email, username, password);
-      setUser(next);
+      // Session only when auto-verified (local/dev without SMTP)
+      if (next.email_verified) {
+        setUser(next);
+      }
       return next;
     },
     [],
@@ -68,9 +75,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const verifyEmail = useCallback(async (token: string) => {
+    const next = await verifyEmailToken(token);
+    setUser(next);
+    return next;
+  }, []);
+
+  const resendVerificationEmail = useCallback(async (email?: string) => {
+    await resendVerification(email);
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, refresh, login, register, logout }),
-    [user, loading, refresh, login, register, logout],
+    () => ({
+      user,
+      loading,
+      refresh,
+      login,
+      register,
+      logout,
+      verifyEmail,
+      resendVerificationEmail,
+    }),
+    [
+      user,
+      loading,
+      refresh,
+      login,
+      register,
+      logout,
+      verifyEmail,
+      resendVerificationEmail,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

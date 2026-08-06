@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
 
 export function AuthNav() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, resendVerificationEmail } = useAuth();
 
   if (loading) {
     return (
@@ -35,10 +35,23 @@ export function AuthNav() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="font-mono text-[11px] tracking-wide text-foreground/90">
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {!user.email_verified ? (
+        <button
+          type="button"
+          onClick={() => void resendVerificationEmail()}
+          className="font-mono text-[11px] uppercase tracking-widest text-amber-200/80 transition-colors hover:text-foreground"
+          title="Resend confirmation email"
+        >
+          Verify email
+        </button>
+      ) : null}
+      <Link
+        href={`/u/${encodeURIComponent(user.username)}`}
+        className="font-mono text-[11px] tracking-wide text-foreground/90 underline-offset-4 hover:underline"
+      >
         {user.username}
-      </span>
+      </Link>
       <button
         type="button"
         onClick={() => void logout()}

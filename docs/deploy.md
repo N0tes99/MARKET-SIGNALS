@@ -44,16 +44,24 @@ Browser → Vercel (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `APP_DEBUG` | `false` |
 | `SECRET_KEY` | long random string (**required strong in prod** — signs social JWT cookies) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
-| `DATABASE_URL` | from Railway Postgres |
+| `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://signals27.netlify.app` (falls back to first `CORS_ORIGINS`) |
+| `DATABASE_URL` | from Render Postgres |
 | `SIGNAL_STORE` | `postgres` (or `auto`) |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
-| `CORS_ORIGINS` | your Vercel/Netlify URL, e.g. `https://your-app.netlify.app` |
+| `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 
-### Optional alert vars
+### Optional alert / email-verify vars
 
-Same as local: `ALERT_*`, Discord bot token/channel, SMTP, etc.
+Same SMTP as alerts (`ALERT_SMTP_*`, `ALERT_EMAIL_FROM`). Registration sends a confirmation link when SMTP is configured (always required in `APP_ENV=production`). Social writes (post/like/follow/favorites) need a verified email.
+
+### Social features
+
+- `/social` — feed + compose (tracked ticker required)
+- `/favorites` — per-user watchlist from tracked symbols
+- Alembic migrations `004`–`006` run on API boot (`alembic upgrade head`)
+
 
 ### Verify API
 

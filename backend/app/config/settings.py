@@ -78,6 +78,10 @@ class Settings(BaseSettings):
 
     # Comma-separated browser origins (Vercel URL in production)
     cors_origins: str = "http://localhost:3000"
+    # Public frontend URL for email verification links
+    public_app_url: str = ""
+    # Min seconds between verification email sends
+    email_verify_cooldown_seconds: int = 60
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -95,6 +99,15 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of origins."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    def resolved_public_app_url(self) -> str:
+        """Frontend base URL for verification links."""
+        if self.public_app_url.strip():
+            return self.public_app_url.strip().rstrip("/")
+        origins = self.cors_origin_list()
+        if origins:
+            return origins[0].rstrip("/")
+        return "http://localhost:3000"
 
 
 settings = Settings()

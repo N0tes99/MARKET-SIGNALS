@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import logging
-import smtplib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from email.message import EmailMessage
 from threading import Lock
 
 import httpx
 
 from app.config import settings
 from app.schemas.assets import AssetSummary
+from app.services.mailer import send_mail, smtp_configured
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +112,10 @@ class AlertService:
             "cooldown_minutes": settings.alert_cooldown_minutes,
             "discord_configured": self.discord_configured(),
             "discord_mode": discord_mode,
-            "email_configured": bool(
-                settings.alert_email_to.strip()
-                and settings.alert_smtp_host.strip()
-                and settings.alert_smtp_user.strip()
-            ),
+            "email_configured": bool(settings.alert_email_to.strip() and smtp_configured()),
             "channels": {
                 "discord": self.discord_configured(),
-                "email": bool(settings.alert_email_to.strip() and settings.alert_smtp_host.strip()),
+                "email": bool(settings.alert_email_to.strip() and smtp_configured()),
             },
         }
 
@@ -235,32 +230,13 @@ class AlertService:
     def send_email(self, event: AlertEvent) -> bool:
         """Send alert email via SMTP."""
         to_addr = settings.alert_email_to.strip()
-        host = settings.alert_smtp_host.strip()
-        user = settings.alert_smtp_user.strip()
-        password = settings.alert_smtp_password
-        if not (to_addr and host and user):
+        if not to_addr:
             return False
-
-        msg = EmailMessage()
-        msg["Subject"] = f"[Signal Engine] {event.symbol} {event.trade_grade} @ {event.confidence:.0f}%"
-        msg["From"] = settings.alert_email_from.strip() or user
-        msg["To"] = to_addr
-        msg.set_content(format_alert_text(event))
-
-        try:
-            if settings.alert_smtp_use_tls:
-                with smtplib.SMTP(host, settings.alert_smtp_port, timeout=15) as server:
-                    server.starttls()
-                    server.login(user, password)
-                    server.send_message(msg)
-            else:
-                with smtplib.SMTP_SSL(host, settings.alert_smtp_port, timeout=15) as server:
-                    server.login(user, password)
-                    server.send_message(msg)
-            return True
-        except Exception:
-            logger.exception("Email alert failed for %s", event.symbol)
-            return False
+        return send_mail(
+            to_addr,
+            f"[Signal Engine] {event.symbol} {event.trade_grade} @ {event.confidence:.0f}%",
+            format_alert_text(event),
+        )
 
     def dispatch(self, assets: list[AssetSummary], *, force: bool = False) -> AlertDispatchResult:
         """Evaluate assets and send alerts for new crosses."""
@@ -294,11 +270,7 @@ class AlertService:
                     d_ok = self.send_discord(event)
                     discord_ok = (discord_ok is True) or d_ok
                     channel_hit = channel_hit or d_ok
-                if (
-                    settings.alert_email_to.strip()
-                    and settings.alert_smtp_host.strip()
-                    and settings.alert_smtp_user.strip()
-                ):
+                if settings.alert_email_to.strip() and smtp_configured():
                     e_ok = self.send_email(event)
                     email_ok = (email_ok is True) or e_ok
                     channel_hit = channel_hit or e_ok
@@ -309,10 +281,7 @@ class AlertService:
                     fired.append(event)
                 elif not (
                     self.discord_configured()
-                    or (
-                        settings.alert_email_to.strip()
-                        and settings.alert_smtp_host.strip()
-                    )
+                    or (settings.alert_email_to.strip() and smtp_configured())
                 ):
                     logger.warning(
                         "Alert matched %s but no Discord/email channel is configured",
@@ -349,11 +318,7 @@ class AlertService:
         if channel in {"both", "email"}:
             result["email"] = (
                 self.send_email(event)
-                if (
-                    settings.alert_email_to.strip()
-                    and settings.alert_smtp_host.strip()
-                    and settings.alert_smtp_user.strip()
-                )
+                if (settings.alert_email_to.strip() and smtp_configured())
                 else False
             )
         return result

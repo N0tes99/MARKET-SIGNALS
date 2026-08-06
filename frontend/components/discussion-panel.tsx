@@ -5,111 +5,11 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/components/auth-provider";
-import {
-  createAssetPost,
-  createPostComment,
-  fetchAssetPosts,
-  type DiscussionPost,
-} from "@/services/api";
+import { SocialPostCard } from "@/components/social-post-card";
+import { createAssetPost, fetchAssetPosts } from "@/services/api";
 
 interface DiscussionPanelProps {
   symbol: string;
-}
-
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-function PostCard({
-  post,
-  canComment,
-  onComment,
-  pending,
-}: {
-  post: DiscussionPost;
-  canComment: boolean;
-  onComment: (postId: string, body: string) => Promise<void>;
-  pending: boolean;
-}) {
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function submitComment(event: FormEvent) {
-    event.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setError(null);
-    try {
-      await onComment(post.id, body);
-      setDraft("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to comment");
-    }
-  }
-
-  return (
-    <article className="border-t border-white/[0.06] pt-4 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="font-mono text-xs text-foreground">{post.username}</span>
-        <time className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          {formatWhen(post.created_at)}
-        </time>
-      </div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-        {post.body}
-      </p>
-
-      {post.comments.length > 0 ? (
-        <ul className="mt-3 space-y-2 border-l border-white/[0.08] pl-3">
-          {post.comments.map((comment) => (
-            <li key={comment.id}>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="font-mono text-[11px] text-foreground/80">
-                  {comment.username}
-                </span>
-                <time className="font-mono text-[10px] text-muted-foreground">
-                  {formatWhen(comment.created_at)}
-                </time>
-              </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                {comment.body}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {canComment ? (
-        <form onSubmit={submitComment} className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="text"
-            maxLength={1000}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add a comment"
-            className="min-w-0 flex-1 border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
-          />
-          <button
-            type="submit"
-            disabled={pending || !draft.trim()}
-            className="border border-white/[0.1] px-3 py-2 font-mono text-[11px] uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
-          >
-            Reply
-          </button>
-          {error ? <p className="text-sm text-bearish sm:basis-full">{error}</p> : null}
-        </form>
-      ) : null}
-    </article>
-  );
 }
 
 export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
@@ -117,6 +17,7 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
   const queryClient = useQueryClient();
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const canWrite = Boolean(user?.email_verified);
 
   const postsQuery = useQuery({
     queryKey: ["posts", symbol],
@@ -128,21 +29,14 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
     onSuccess: () => {
       setBody("");
       void queryClient.invalidateQueries({ queryKey: ["posts", symbol] });
-    },
-  });
-
-  const commentMutation = useMutation({
-    mutationFn: ({ postId, text }: { postId: string; text: string }) =>
-      createPostComment(postId, text),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["posts", symbol] });
+      void queryClient.invalidateQueries({ queryKey: ["social-feed"] });
     },
   });
 
   async function onCreatePost(event: FormEvent) {
     event.preventDefault();
     const text = body.trim();
-    if (!text) return;
+    if (!text || !canWrite) return;
     setError(null);
     try {
       await postMutation.mutateAsync(text);
@@ -159,7 +53,7 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
         <div>
           <h2 className="label-caps">Discussion</h2>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Share thesis notes on {symbol}. Public to read; sign in to post.
+            Share thesis notes on {symbol}. Public to read; verified account to post.
           </p>
         </div>
         <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -180,7 +74,16 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
         </p>
       ) : null}
 
-      {user ? (
+      {user && !user.email_verified ? (
+        <p className="mt-4 border-t border-white/[0.06] pt-4 text-sm text-muted-foreground">
+          Confirm your email before posting.{" "}
+          <Link href="/verify-email" className="text-foreground underline-offset-4 hover:underline">
+            Verify email
+          </Link>
+        </p>
+      ) : null}
+
+      {canWrite ? (
         <form onSubmit={onCreatePost} className="mt-4 border-t border-white/[0.06] pt-4">
           <label className="block">
             <span className="label-caps">New post</span>
@@ -220,13 +123,12 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
           <p className="text-sm text-muted-foreground">No posts yet — start the thread.</p>
         ) : null}
         {posts.map((post) => (
-          <PostCard
+          <SocialPostCard
             key={post.id}
             post={post}
-            canComment={Boolean(user)}
-            pending={commentMutation.isPending}
-            onComment={async (postId, text) => {
-              await commentMutation.mutateAsync({ postId, text });
+            showTickerLink={false}
+            onChanged={() => {
+              void queryClient.invalidateQueries({ queryKey: ["posts", symbol] });
             }}
           />
         ))}

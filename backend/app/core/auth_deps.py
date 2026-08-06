@@ -45,3 +45,15 @@ async def get_optional_user(
 ) -> User | None:
     """Return the current user if logged in, else None."""
     return await _user_from_cookie(request, session)
+
+
+async def require_verified_user(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Require login and a verified email for write actions."""
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required",
+        )
+    return user

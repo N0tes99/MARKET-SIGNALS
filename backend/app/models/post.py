@@ -41,3 +41,7 @@ class Post(Base):
         cascade="all, delete-orphan",
         order_by="Comment.created_at",
     )
+    likes: Mapped[list["PostLike"]] = relationship(  # noqa: F821
+        back_populates="post",
+        cascade="all, delete-orphan",
+    )
