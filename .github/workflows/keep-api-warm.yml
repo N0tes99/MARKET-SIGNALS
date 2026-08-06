@@ -109,8 +109,10 @@ jobs:
             echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /assets will 401"
           fi
 
-          echo "Pinging ${URL} (max 120s; timeouts/502 are non-fatal)"
-          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 120 "${AUTH_ARGS[@]}" "$URL" || true)
+          # Cold rank_all can exceed 2m on free Render — give it enough time so
+          # memory + disk caches populate for the Netlify dashboard proxy.
+          echo "Pinging ${URL} (max 180s; timeouts/502 are non-fatal)"
+          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 180 "${AUTH_ARGS[@]}" "$URL" || true)
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD secrets match Render AUTH_*"
           elif [ "$HTTP_CODE" != "200" ]; then

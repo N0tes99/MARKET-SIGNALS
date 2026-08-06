@@ -52,3 +52,26 @@ def test_stale_while_revalidate_returns_stale_immediately() -> None:
 def test_stale_while_revalidate_cold_miss_blocks() -> None:
     cache: TTLCache[int] = TTLCache(ttl_seconds=60.0)
     assert cache.get_stale_while_revalidate("cold", lambda: 42) == 42
+
+
+def test_seed_stale_returns_immediately_and_refreshes() -> None:
+    cache: TTLCache[str] = TTLCache(ttl_seconds=60.0)
+    cache.seed_stale("k", "disk")
+    # Seeded value is readable as stale; do not call get(allow_stale=False)
+    # first — that deletes expired entries and forces a cold miss.
+    assert cache.get("k", allow_stale=True) == "disk"
+
+    started = Event()
+    done = Event()
+
+    def slow_factory() -> str:
+        started.set()
+        time.sleep(0.08)
+        done.set()
+        return "fresh"
+
+    assert cache.get_stale_while_revalidate("k", slow_factory) == "disk"
+    assert started.wait(timeout=1.0)
+    assert done.wait(timeout=1.0)
+    time.sleep(0.05)
+    assert cache.get("k") == "fresh"

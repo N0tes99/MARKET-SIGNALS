@@ -54,6 +54,14 @@ class TTLCache[T]:
                 expires_at=datetime.now(UTC) + timedelta(seconds=self._ttl),
             )
 
+    def seed_stale(self, key: str, value: T) -> None:
+        """Store a value already expired so the next SWR hit refreshes in background."""
+        with self._lock:
+            self._entries[key] = _CacheEntry(
+                value=value,
+                expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            )
+
     def clear(self) -> None:
         """Drop all cached entries."""
         with self._lock:

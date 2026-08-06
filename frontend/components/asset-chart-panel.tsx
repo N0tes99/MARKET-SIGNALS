@@ -1,19 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
+import { MiniSparkline } from "@/components/mini-sparkline";
 import { fetchCandles } from "@/services/api";
-
-const MiniSparkline = dynamic(
-  () => import("@/components/mini-sparkline").then((mod) => mod.MiniSparkline),
-  {
-    ssr: false,
-    loading: () => (
-      <p className="pt-16 text-center font-mono text-[11px] text-muted-foreground">Loading chart…</p>
-    ),
-  },
-);
 
 export function AssetChartPanel({ symbol }: { symbol: string }) {
   const candlesQuery = useQuery({
@@ -21,6 +11,8 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
     queryFn: () => fetchCandles(symbol, "15m", 48),
     staleTime: 120_000,
     refetchOnWindowFocus: false,
+    retry: 1,
+    retryDelay: 3_000,
   });
 
   const points =
@@ -50,7 +42,16 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
           </p>
         ) : null}
         {candlesQuery.isError ? (
-          <p className="pt-16 text-center text-sm text-bearish">Chart unavailable</p>
+          <div className="flex flex-col items-center gap-2 pt-12">
+            <p className="text-sm text-bearish">Chart unavailable</p>
+            <button
+              type="button"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
+              onClick={() => void candlesQuery.refetch()}
+            >
+              Retry
+            </button>
+          </div>
         ) : null}
         {!candlesQuery.isLoading && !candlesQuery.isError && points.length === 0 ? (
           <p className="pt-16 text-center font-mono text-[11px] text-muted-foreground">

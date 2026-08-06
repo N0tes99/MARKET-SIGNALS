@@ -78,8 +78,8 @@ export function AssetListRow({
       {rank != null ? (
         <span
           className={cn(
-            "w-6 shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground",
-            rank <= 3 && "text-foreground/80",
+            "w-7 shrink-0 text-sm",
+            rank <= 3 ? "rank-num" : "rank-num-muted",
           )}
         >
           {rank}
@@ -155,7 +155,12 @@ export function AssetChip({
       )}
     >
       {rank != null ? (
-        <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-white/[0.12] bg-[#0c0e12] font-mono text-[9px] text-muted-foreground">
+        <span
+          className={cn(
+            "absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border border-white/[0.16] bg-[#0c0e12] px-1 text-[11px]",
+            rank <= 3 ? "rank-num" : "rank-num-muted",
+          )}
+        >
           {rank}
         </span>
       ) : null}

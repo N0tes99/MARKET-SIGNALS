@@ -22,13 +22,14 @@ export function useAssets() {
     staleTime: 120_000,
     gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,
-    // Cold rank_all already takes ~1 min; stacking 2× backoff on 504 adds minutes.
-    // Fail fast on gateway timeouts; at most one retry for transient errors.
+    // Gateway failures are expected until keep-warm fills the disk/memory cache.
+    // Poll every 20s so rankings appear without a manual refresh.
     retry: (failureCount, error) => {
-      if (isGatewayTimeout(error)) return false;
+      if (isGatewayTimeout(error)) return failureCount < 2;
       return failureCount < 1;
     },
-    retryDelay: 3_000,
+    retryDelay: (attempt) => Math.min(5_000 * (attempt + 1), 20_000),
+    refetchInterval: (query) => (query.state.error ? 20_000 : false),
     placeholderData: (previous) => previous,
   });
 }

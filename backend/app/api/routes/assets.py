@@ -2,8 +2,11 @@
 
 import asyncio
 import logging
+import os
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import TypeAdapter
 
 from app.api.tracked import TRACKED_SYMBOLS, is_tracked
 from app.core.service_dependencies import (
@@ -17,6 +20,7 @@ from app.market_data.symbols import get_asset_class
 from app.schemas.assets import AssetSummary
 from app.services.alert_service import AlertService
 from app.services.decision_pipeline import DecisionPipelineService
+from app.utils.disk_cache import read_json, write_json
 from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
@@ -24,6 +28,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _ASSETS_LIST_CACHE: TTLCache[list[AssetSummary]] = TTLCache(ttl_seconds=120.0)
+_ASSET_SUMMARY_LIST = TypeAdapter(list[AssetSummary])
+_DISK_CACHE_PATH = Path(
+    os.environ.get("ASSETS_DISK_CACHE_PATH", "/tmp/se_assets_dashboard.json")
+)
 
 
 def _score_for_category(decision, category: str) -> float:
@@ -79,7 +87,40 @@ def _load_asset_summaries(
     """Rank all tracked assets and build dashboard summaries."""
     decisions = pipeline.rank_all(list(TRACKED_SYMBOLS))
     _record_decisions(learning, decisions)
-    return [_build_summary(d) for d in decisions]
+    assets = [_build_summary(d) for d in decisions]
+    write_json(_DISK_CACHE_PATH, _ASSET_SUMMARY_LIST.dump_python(assets, mode="json"))
+    return assets
+
+
+def _read_disk_summaries() -> list[AssetSummary] | None:
+    """Reload last successful dashboard payload from disk (survives restarts)."""
+    raw = read_json(_DISK_CACHE_PATH)
+    if raw is None:
+        return None
+    try:
+        return _ASSET_SUMMARY_LIST.validate_python(raw)
+    except Exception:
+        logger.exception("Invalid assets disk cache at %s", _DISK_CACHE_PATH)
+        return None
+
+
+def _get_dashboard_assets(
+    pipeline: DecisionPipelineService,
+    learning: LearningEngine,
+) -> list[AssetSummary]:
+    """Memory SWR first; seed from disk on cold miss so Netlify never waits on rank_all."""
+    def factory() -> list[AssetSummary]:
+        return _load_asset_summaries(pipeline, learning)
+
+    if _ASSETS_LIST_CACHE.get("dashboard", allow_stale=True) is not None:
+        return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+
+    disk = _read_disk_summaries()
+    if disk:
+        _ASSETS_LIST_CACHE.seed_stale("dashboard", disk)
+        return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+
+    return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
 
 
 @router.get("", response_model=list[AssetSummary])
@@ -88,12 +129,8 @@ async def list_assets(
     learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
 ) -> list[AssetSummary]:
-    """Return summary metrics for all tracked dashboard assets (SWR ~120s)."""
-    assets = await asyncio.to_thread(
-        _ASSETS_LIST_CACHE.get_stale_while_revalidate,
-        "dashboard",
-        lambda: _load_asset_summaries(pipeline, learning),
-    )
+    """Return summary metrics for all tracked dashboard assets (SWR ~120s + disk)."""
+    assets = await asyncio.to_thread(_get_dashboard_assets, pipeline, learning)
 
     # Don't block the response on Discord/email dispatch
     async def _dispatch() -> None:

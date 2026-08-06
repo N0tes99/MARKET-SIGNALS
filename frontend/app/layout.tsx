@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono, Syne } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { VoidBackground } from "@/components/void-background";
@@ -16,6 +16,12 @@ const mono = IBM_Plex_Mono({
   variable: "--font-mono",
 });
 
+const rank = Syne({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-rank",
+});
+
 export const metadata: Metadata = {
   title: "Signal Engine",
   description: "Evidence-based market intelligence",
@@ -28,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${sans.variable} ${mono.variable} font-sans`}>
+      <body className={`${sans.variable} ${mono.variable} ${rank.variable} font-sans`}>
         <VoidBackground />
         <Providers>{children}</Providers>
       </body>

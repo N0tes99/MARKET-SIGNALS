@@ -130,7 +130,8 @@ class DecisionPipelineService:
         except Exception:
             pass
 
-        workers = min(len(symbols), 18)
+        # Free-tier Render OOMs / 502s with 18 concurrent evaluates; 8 stays stable.
+        workers = min(len(symbols), 8)
         if len(symbols) <= 1:
             results = [self.evaluate(symbol, timeframe) for symbol in symbols]
         else:

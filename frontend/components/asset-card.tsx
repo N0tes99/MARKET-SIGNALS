@@ -72,8 +72,8 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
       {rank != null ? (
         <span
           className={cn(
-            "absolute right-3 top-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground",
-            rank <= 3 && "text-foreground/75",
+            "absolute right-3 top-2.5 text-sm",
+            rank <= 3 ? "rank-num" : "rank-num-muted",
           )}
         >
           #{rank}
