@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AssetChartPanel } from "@/components/asset-chart-panel";
 import { AssetPriceHeader } from "@/components/asset-price-header";
 import { DecisionBanner } from "@/components/decision-banner";
 import { DiscussionPanel } from "@/components/discussion-panel";
@@ -32,6 +33,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
           <AssetPriceHeader symbol={normalized} />
         </header>
 
+        <AssetChartPanel symbol={normalized} />
         <DecisionBanner symbol={normalized} />
         <OutcomeLogger symbol={normalized} />
         <DiscussionPanel symbol={normalized} />

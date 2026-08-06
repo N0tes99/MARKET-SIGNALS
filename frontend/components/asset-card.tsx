@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { TickerMiniChart } from "@/components/ticker-mini-chart";
 import type { DashboardDensity } from "@/hooks/use-dashboard-view";
 import { cn } from "@/lib/utils";
 import type { AssetQuote, AssetSummary } from "@/services/api";
@@ -88,7 +87,15 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
       >
         <div>
           <div className="flex items-center gap-2">
-            <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
+            <Link
+              href={`/assets/${asset.symbol}`}
+              className={cn(
+                "font-mono tracking-wide text-foreground hover:underline hover:underline-offset-4",
+                compact ? "text-sm" : "text-lg",
+              )}
+            >
+              {asset.symbol}
+            </Link>
             <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
               {asset.asset_class}
             </span>

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 
-import { TickerMiniChart } from "@/components/ticker-mini-chart";
 import type { DashboardDensity } from "@/hooks/use-dashboard-view";
 import { cn } from "@/lib/utils";
 import type { AssetQuote, AssetSummary } from "@/services/api";
@@ -86,9 +85,15 @@ export function AssetListRow({
           {rank}
         </span>
       ) : null}
-      <div className="w-[4.5rem] shrink-0 sm:w-20">
-        <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
-      </div>
+      <Link
+        href={`/assets/${asset.symbol}`}
+        className={cn(
+          "w-[4.5rem] shrink-0 font-mono tracking-wide text-foreground sm:w-20",
+          compact ? "text-xs" : "text-sm",
+        )}
+      >
+        {asset.symbol}
+      </Link>
       <Link
         href={`/assets/${asset.symbol}`}
         className="flex min-w-0 flex-1 items-center justify-between gap-3"
@@ -154,8 +159,15 @@ export function AssetChip({
           {rank}
         </span>
       ) : null}
-      <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
-      <Link href={`/assets/${asset.symbol}`} className="mt-0.5 block w-full">
+      <Link href={`/assets/${asset.symbol}`} className="mt-0.5 block w-full px-1">
+        <p
+          className={cn(
+            "font-mono tracking-wide text-foreground",
+            compact ? "text-[11px]" : "text-sm",
+          )}
+        >
+          {asset.symbol}
+        </p>
         <p className={cn("font-mono text-foreground/90", compact ? "text-[10px]" : "text-xs")}>
           {asset.trade_grade}
         </p>
