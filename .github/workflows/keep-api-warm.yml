@@ -16,15 +16,45 @@ jobs:
     steps:
       - name: Ping health endpoint
         env:
-          # Repo variable — must include path, e.g.
+          # Repo variable — prefer full path:
           # https://market-signals-51f0.onrender.com/api/v1/health
+          # Bare host / trailing slash is auto-appended to /api/v1/health.
           API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
         run: |
+          set -euo pipefail
           URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
-          echo "Pinging $URL"
-          curl -fsS --max-time 60 "$URL"
-          echo
-          echo "OK"
+          # Strip trailing slashes for path checks
+          TRIMMED="${URL%/}"
+          case "${TRIMMED}" in
+            http://*|https://*)
+              # scheme://host with no path (or only "/") → append health path
+              REST="${TRIMMED#*://}"
+              if [[ "$REST" != */* ]]; then
+                echo "::warning::API_HEALTH_URL has no path (got: $URL) — appending /api/v1/health"
+                URL="${TRIMMED}/api/v1/health"
+              fi
+              ;;
+            *)
+              echo "::error::API_HEALTH_URL must be an http(s) URL (got: $URL)"
+              exit 1
+              ;;
+          esac
+
+          echo "Pinging ${URL}"
+          HTTP_CODE=$(curl -sS -o /tmp/health_body -w "%{http_code}" --max-time 60 "$URL" || true)
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::error::Health returned HTTP ${HTTP_CODE}. /api/v1/health must be public (no Basic Auth)."
+            echo "Check repo variable API_HEALTH_URL — set to https://<host>/api/v1/health (not bare hostname)."
+            echo "If the path is correct but still 401, AUTH middleware may be applying to /health — fix Render AUTH exclusions."
+            exit 1
+          fi
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Health returned HTTP ${HTTP_CODE} (expected 200)"
+            head -c 500 /tmp/health_body || true
+            echo
+            exit 1
+          fi
+          echo "OK (HTTP ${HTTP_CODE})"
 
   ping-assets:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
@@ -34,7 +64,7 @@ jobs:
       - name: Ping assets endpoint
         continue-on-error: true
         env:
-          # Variables (include full path):
+          # Variables (include full path preferred):
           # API_HEALTH_URL=https://….onrender.com/api/v1/health
           # API_ASSETS_URL=https://….onrender.com/api/v1/assets
           API_ASSETS_URL: ${{ vars.API_ASSETS_URL }}
@@ -43,10 +73,25 @@ jobs:
           API_USERNAME: ${{ secrets.API_USERNAME }}
           API_PASSWORD: ${{ secrets.API_PASSWORD }}
         run: |
-          HEALTH_URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
-          URL="${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}"
+          set -euo pipefail
+          normalize_path() {
+            # $1 = URL, $2 = path to append if host-only
+            local raw="$1"
+            local append="$2"
+            local trimmed="${raw%/}"
+            local rest="${trimmed#*://}"
+            if [[ "$rest" != */* ]]; then
+              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
+              echo "${trimmed}${append}"
+            else
+              echo "$trimmed"
+            fi
+          }
 
-          echo "Waking API via health ($HEALTH_URL)"
+          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
+          URL=$(normalize_path "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" "/api/v1/assets")
+
+          echo "Waking API via health (${HEALTH_URL})"
           curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
             || echo "::warning::Health wake ping failed (continuing to assets)"
           sleep 8
@@ -59,7 +104,13 @@ jobs:
             echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /assets will 401"
           fi
 
-          echo "Pinging $URL (max 120s; timeouts/502 are non-fatal)"
-          curl -fsS --max-time 120 "${AUTH_ARGS[@]}" "$URL" -o /dev/null \
-            || echo "::warning::Assets ping failed or timed out (cold start / 401 / 502)"
+          echo "Pinging ${URL} (max 120s; timeouts/502 are non-fatal)"
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 "${AUTH_ARGS[@]}" "$URL" || true)
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD secrets match Render AUTH_*"
+          elif [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Assets ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
+          else
+            echo "OK (HTTP ${HTTP_CODE})"
+          fi
           exit 0

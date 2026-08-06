@@ -152,7 +152,9 @@ Defaults use the Netlify proxy when variables are unset. Prefer **direct Render 
 | `API_USERNAME` | same as Render `AUTH_USERNAME` |
 | `API_PASSWORD` | same as Render `AUTH_PASSWORD` |
 
-Do **not** set the variables to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**.
+Do **not** set the variables to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the variable is host-only, but prefer setting the full paths above so logs match intent.
+
+If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 
 The assets job wakes health first, waits a few seconds, then hits `/assets` (120s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
 
