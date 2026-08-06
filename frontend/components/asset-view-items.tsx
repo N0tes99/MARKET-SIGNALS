@@ -59,10 +59,12 @@ export function AssetListRow({
   asset,
   quote,
   density,
+  rank,
 }: {
   asset: AssetSummary;
   quote?: AssetQuote | null;
   density: DashboardDensity;
+  rank?: number;
 }) {
   const change = quote?.change_pct;
   const compact = density === "s";
@@ -74,6 +76,16 @@ export function AssetListRow({
         compact ? "py-2" : "py-3",
       )}
     >
+      {rank != null ? (
+        <span
+          className={cn(
+            "w-6 shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground",
+            rank <= 3 && "text-foreground/80",
+          )}
+        >
+          {rank}
+        </span>
+      ) : null}
       <div className="w-[4.5rem] shrink-0 sm:w-20">
         <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
       </div>
@@ -115,10 +127,12 @@ export function AssetChip({
   asset,
   quote,
   density,
+  rank,
 }: {
   asset: AssetSummary;
   quote?: AssetQuote | null;
   density: DashboardDensity;
+  rank?: number;
 }) {
   const change = quote?.change_pct;
   const compact = density === "s";
@@ -135,6 +149,11 @@ export function AssetChip({
           : "h-[6.25rem] w-[6.25rem] rounded-full px-2",
       )}
     >
+      {rank != null ? (
+        <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-white/[0.12] bg-[#0c0e12] font-mono text-[9px] text-muted-foreground">
+          {rank}
+        </span>
+      ) : null}
       <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
       <Link href={`/assets/${asset.symbol}`} className="mt-0.5 block w-full">
         <p className={cn("font-mono text-foreground/90", compact ? "text-[10px]" : "text-xs")}>

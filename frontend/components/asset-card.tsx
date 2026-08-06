@@ -9,6 +9,7 @@ interface AssetCardProps {
   asset: AssetSummary;
   quote?: AssetQuote | null;
   density?: DashboardDensity;
+  rank?: number;
 }
 
 function trendColor(trend: string): string {
@@ -50,7 +51,7 @@ function formatChange(changePct: number): string {
   return `${sign}${changePct.toFixed(2)}%`;
 }
 
-export function AssetCard({ asset, quote, density = "m" }: AssetCardProps) {
+export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps) {
   const change = quote?.change_pct;
   const compact = density === "s";
   const changeClass =
@@ -69,6 +70,16 @@ export function AssetCard({ asset, quote, density = "m" }: AssetCardProps) {
         compact ? "p-3" : "p-5",
       )}
     >
+      {rank != null ? (
+        <span
+          className={cn(
+            "absolute right-3 top-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground",
+            rank <= 3 && "text-foreground/75",
+          )}
+        >
+          #{rank}
+        </span>
+      ) : null}
       <div
         className={cn(
           "flex items-start justify-between border-b border-white/[0.06]",
