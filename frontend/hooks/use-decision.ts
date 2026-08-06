@@ -8,5 +8,7 @@ export function useDecision(symbol: string) {
   return useQuery({
     queryKey: ["decision", symbol],
     queryFn: () => fetchDecision(symbol),
+    staleTime: 120_000,
+    refetchOnWindowFocus: false,
   });
 }

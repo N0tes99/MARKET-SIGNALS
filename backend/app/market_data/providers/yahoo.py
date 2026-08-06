@@ -21,8 +21,8 @@ _YF_INTERVAL_MAP: dict[str, str] = {
 _YF_PERIOD_MAP: dict[str, str] = {
     "1m": "7d",
     "5m": "5d",
-    "15m": "5d",  # ~480 bars max; enough for mini charts without 60d download
-    "1h": "60d",  # ~400 hourly bars — enough for indicators, much faster than 2y
+    "15m": "1d",  # mini charts need ~48 bars; avoid multi-day Yahoo dumps
+    "1h": "60d",
     "4h": "60d",
     "1d": "2y",
 }

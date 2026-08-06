@@ -1,12 +1,25 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 
 import { fetchCandles } from "@/services/api";
 import { cn } from "@/lib/utils";
+
+const MiniSparkline = dynamic(
+  () =>
+    import("@/components/mini-sparkline").then((mod) => mod.MiniSparkline),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="pt-8 text-center font-mono text-[10px] text-muted-foreground">
+        Loading…
+      </p>
+    ),
+  },
+);
 
 interface TickerMiniChartProps {
   symbol: string;
@@ -36,12 +49,11 @@ export function TickerMiniChart({ symbol, className, size = "md" }: TickerMiniCh
     };
   }, [open]);
 
-  // Fetch only after an explicit click opens the popup — never on hover/mount.
   const candlesQuery = useQuery({
     queryKey: ["candles", symbol, "15m"],
-    queryFn: () => fetchCandles(symbol, "15m", 48),
+    queryFn: () => fetchCandles(symbol, "15m", 32),
     enabled: open,
-    staleTime: 60_000,
+    staleTime: 120_000,
     refetchOnWindowFocus: false,
   });
 
@@ -117,21 +129,7 @@ export function TickerMiniChart({ symbol, className, size = "md" }: TickerMiniCh
               </p>
             ) : null}
             {points.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={points} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                  <YAxis domain={["dataMin", "dataMax"]} hide />
-                  <Area
-                    type="monotone"
-                    dataKey="close"
-                    stroke={stroke}
-                    fill={fill}
-                    strokeWidth={1.5}
-                    isAnimationActive={false}
-                    dot={false}
-                    activeDot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <MiniSparkline points={points} stroke={stroke} fill={fill} />
             ) : null}
           </div>
 

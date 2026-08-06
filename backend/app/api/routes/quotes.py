@@ -42,7 +42,16 @@ async def get_candles(
     cache_key = f"{normalized}:{timeframe}:{limit}"
 
     def _load() -> CandleSeries:
-        df = market_data.safe_get_ohlcv(normalized, timeframe=timeframe, limit=limit)
+        # Mini charts: accept short series; do not require engine-grade min_rows.
+        try:
+            df = market_data.get_ohlcv(
+                normalized,
+                timeframe=timeframe,
+                limit=limit,
+                min_rows=8,
+            )
+        except Exception:
+            df = None
         if df is None or df.empty:
             return CandleSeries(symbol=normalized, timeframe=timeframe, candles=[])
         candles: list[CandlePoint] = []
