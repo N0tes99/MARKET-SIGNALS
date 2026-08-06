@@ -11,7 +11,7 @@ import { fetchPublicProfile, followUser, unfollowUser } from "@/services/api";
 
 export default function UserProfilePage() {
   const params = useParams<{ username: string }>();
-  const username = decodeURIComponent(params.username ?? "");
+  const username = decodeURIComponent(params?.username ?? "");
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
