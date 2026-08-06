@@ -14,6 +14,22 @@ interface SiteHeaderProps {
   trailing?: ReactNode;
 }
 
+const builtByLinkClassName =
+  "font-mono text-[11px] tracking-widest text-muted-foreground/70 transition-colors hover:text-muted-foreground";
+
+function BuiltByNotes() {
+  return (
+    <a
+      href="https://x.com/notesonchain"
+      target="_blank"
+      rel="noopener noreferrer"
+      className={builtByLinkClassName}
+    >
+      Built by Notes
+    </a>
+  );
+}
+
 function MainNav() {
   const { user } = useAuth();
   return (
@@ -47,11 +63,14 @@ export function SiteHeader({
     return (
       <header className="border-b border-white/[0.06] bg-card/25 backdrop-blur-xl">
         <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-4">
-          <Link href="/" className="group">
-            <p className="label-caps transition-colors group-hover:text-foreground">
-              Signal Engine
-            </p>
-          </Link>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <Link href="/" className="group">
+              <p className="label-caps transition-colors group-hover:text-foreground">
+                Signal Engine
+              </p>
+            </Link>
+            <BuiltByNotes />
+          </div>
           <MainNav />
         </div>
       </header>
@@ -62,7 +81,10 @@ export function SiteHeader({
     <header className="border-b border-white/[0.06] bg-card/25 backdrop-blur-xl">
       <div className="container mx-auto flex items-end justify-between gap-4 px-4 py-8">
         <div>
-          <p className="label-caps mb-3">Signal Engine</p>
+          <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="label-caps">Signal Engine</p>
+            <BuiltByNotes />
+          </div>
           <h1 className="text-2xl font-light tracking-tight text-foreground">{title}</h1>
         </div>
         <div className="flex flex-col items-end gap-2 pb-1">
