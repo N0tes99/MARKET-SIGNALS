@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { TickerMiniChart } from "@/components/ticker-mini-chart";
+import type { DashboardDensity } from "@/hooks/use-dashboard-view";
 import { cn } from "@/lib/utils";
 import type { AssetQuote, AssetSummary } from "@/services/api";
 
 interface AssetCardProps {
   asset: AssetSummary;
   quote?: AssetQuote | null;
+  density?: DashboardDensity;
 }
 
 function trendColor(trend: string): string {
@@ -48,8 +50,9 @@ function formatChange(changePct: number): string {
   return `${sign}${changePct.toFixed(2)}%`;
 }
 
-export function AssetCard({ asset, quote }: AssetCardProps) {
+export function AssetCard({ asset, quote, density = "m" }: AssetCardProps) {
   const change = quote?.change_pct;
+  const compact = density === "s";
   const changeClass =
     change == null
       ? "text-muted-foreground"
@@ -60,11 +63,21 @@ export function AssetCard({ asset, quote }: AssetCardProps) {
           : "text-neutral";
 
   return (
-    <article className="surface-interactive group relative p-5">
-      <div className="flex items-start justify-between border-b border-white/[0.06] pb-4">
+    <article
+      className={cn(
+        "surface-interactive group relative",
+        compact ? "p-3" : "p-5",
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-start justify-between border-b border-white/[0.06]",
+          compact ? "pb-3" : "pb-4",
+        )}
+      >
         <div>
           <div className="flex items-center gap-2">
-            <TickerMiniChart symbol={asset.symbol} />
+            <TickerMiniChart symbol={asset.symbol} size={compact ? "sm" : "md"} />
             <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
               {asset.asset_class}
             </span>
@@ -74,7 +87,7 @@ export function AssetCard({ asset, quote }: AssetCardProps) {
               {stateLabel(asset.trade_state)} · {asset.execution_signal.toLowerCase()}
             </p>
             {quote?.available && quote.price != null ? (
-              <p className="mt-2 flex items-baseline gap-2 font-mono text-sm">
+              <p className={cn("mt-2 flex items-baseline gap-2 font-mono", compact ? "text-xs" : "text-sm")}>
                 <span className="text-foreground/90">${formatPrice(quote.price)}</span>
                 {change != null ? (
                   <span className={cn("text-[11px]", changeClass)}>{formatChange(change)}</span>
@@ -87,22 +100,33 @@ export function AssetCard({ asset, quote }: AssetCardProps) {
         </div>
         <Link
           href={`/assets/${asset.symbol}`}
-          className="font-mono text-sm text-foreground/80 hover:text-foreground"
+          className={cn(
+            "font-mono text-foreground/80 hover:text-foreground",
+            compact ? "text-xs" : "text-sm",
+          )}
         >
           {asset.trade_grade}
         </Link>
       </div>
 
-      <Link href={`/assets/${asset.symbol}`} className="mt-4 block space-y-2.5">
-        <MetricRow label="Confidence" value={`${asset.confidence.toFixed(0)}%`} />
+      <Link
+        href={`/assets/${asset.symbol}`}
+        className={cn("block space-y-2.5", compact ? "mt-3" : "mt-4")}
+      >
+        <MetricRow label="Confidence" value={`${asset.confidence.toFixed(0)}%`} compact={compact} />
         <MetricRow
           label="Trend"
           value={asset.trend.toLowerCase()}
           valueClassName={trendColor(asset.trend)}
+          compact={compact}
         />
-        <MetricRow label="Momentum" value={`${asset.buyer_strength.toFixed(0)}%`} />
-        <MetricRow label="Risk" value={`${asset.risk.toFixed(0)}%`} />
-        <MetricRow label="EV" value={asset.expected_value.toFixed(2)} />
+        {!compact ? (
+          <>
+            <MetricRow label="Momentum" value={`${asset.buyer_strength.toFixed(0)}%`} />
+            <MetricRow label="Risk" value={`${asset.risk.toFixed(0)}%`} />
+            <MetricRow label="EV" value={asset.expected_value.toFixed(2)} />
+          </>
+        ) : null}
       </Link>
     </article>
   );
@@ -112,15 +136,23 @@ function MetricRow({
   label,
   value,
   valueClassName,
+  compact,
 }: {
   label: string;
   value: string;
   valueClassName?: string;
+  compact?: boolean;
 }) {
   return (
     <div className="flex items-baseline justify-between text-sm">
       <span className="label-caps">{label}</span>
-      <span className={cn("font-mono text-[13px]", valueClassName ?? "text-foreground/90")}>
+      <span
+        className={cn(
+          "font-mono",
+          compact ? "text-xs" : "text-[13px]",
+          valueClassName ?? "text-foreground/90",
+        )}
+      >
         {value}
       </span>
     </div>

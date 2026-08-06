@@ -2,10 +2,14 @@
 
 import { useMemo } from "react";
 
-import { useAssets } from "@/hooks/use-assets";
-import { useQuotes } from "@/hooks/use-quotes";
 import { AssetCard } from "@/components/asset-card";
+import { AssetChip, AssetListRow } from "@/components/asset-view-items";
+import { DashboardViewControls } from "@/components/dashboard-view-controls";
 import { ASSET_SECTIONS, TRACKED_SYMBOLS, type AssetClass } from "@/config/assets";
+import { useAssets } from "@/hooks/use-assets";
+import { useDashboardView } from "@/hooks/use-dashboard-view";
+import { useQuotes } from "@/hooks/use-quotes";
+import { cn } from "@/lib/utils";
 import type { AssetQuote, AssetSummary } from "@/services/api";
 
 function placeholderAsset(symbol: string, assetClass: AssetClass): AssetSummary {
@@ -23,38 +27,10 @@ function placeholderAsset(symbol: string, assetClass: AssetClass): AssetSummary 
   };
 }
 
-function SectionGrid({
-  label,
-  assets,
-  quotesBySymbol,
-}: {
-  label: string;
-  assets: AssetSummary[];
-  quotesBySymbol: Map<string, AssetQuote>;
-}) {
-  if (assets.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="space-y-3">
-      <h2 className="label-caps px-1 text-muted-foreground">{label}</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
-        {assets.map((asset) => (
-          <AssetCard
-            key={asset.symbol}
-            asset={asset}
-            quote={quotesBySymbol.get(asset.symbol)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export function AssetGrid() {
   const { data: assets, isLoading, isFetching, error } = useAssets();
   const { data: quotes, isLoading: quotesLoading } = useQuotes();
+  const { layout, density, setLayout, setDensity, ready } = useDashboardView();
 
   const quotesBySymbol = useMemo(() => {
     const map = new Map<string, AssetQuote>();
@@ -83,16 +59,25 @@ export function AssetGrid() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
+      {ready ? (
+        <DashboardViewControls
+          layout={layout}
+          density={density}
+          onLayout={setLayout}
+          onDensity={setDensity}
+        />
+      ) : (
+        <div className="h-10 border-b border-white/[0.06]" />
+      )}
+
       {(isLoading || isFetching) && (
         <div className="rounded-md border border-white/[0.06] bg-card/40 px-4 py-3">
           <p className="text-sm text-foreground/90">
             {isLoading ? "Loading market signals…" : "Refreshing rankings in the background…"}
           </p>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            {isLoading
-              ? "Showing tickers now; grades fill in when ranking finishes."
-              : null}
+            {isLoading ? "Showing tickers now; grades fill in when ranking finishes." : null}
             {quotesLoading
               ? " Fetching live quotes…"
               : quotes
@@ -101,17 +86,70 @@ export function AssetGrid() {
           </p>
         </div>
       )}
-      {ASSET_SECTIONS.map((section) => (
-        <SectionGrid
-          key={section.label}
-          label={section.label}
-          quotesBySymbol={quotesBySymbol}
-          assets={section.symbols.map(
-            (symbol) =>
-              bySymbol.get(symbol) ?? placeholderAsset(symbol, section.class),
-          )}
-        />
-      ))}
+
+      {ASSET_SECTIONS.map((section) => {
+        const sectionAssets = section.symbols.map(
+          (symbol) => bySymbol.get(symbol) ?? placeholderAsset(symbol, section.class),
+        );
+
+        return (
+          <section key={section.label} className="space-y-3">
+            <h2 className="label-caps px-1 text-muted-foreground">{section.label}</h2>
+
+            {layout === "list" ? (
+              <div className="surface px-3 sm:px-4">
+                {sectionAssets.map((asset) => (
+                  <AssetListRow
+                    key={asset.symbol}
+                    asset={asset}
+                    quote={quotesBySymbol.get(asset.symbol)}
+                    density={density}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {layout === "chips" ? (
+              <div
+                className={cn(
+                  "flex flex-wrap",
+                  density === "s" ? "gap-2" : "gap-3",
+                )}
+              >
+                {sectionAssets.map((asset) => (
+                  <AssetChip
+                    key={asset.symbol}
+                    asset={asset}
+                    quote={quotesBySymbol.get(asset.symbol)}
+                    density={density}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {layout === "grid" ? (
+              <div
+                className={cn(
+                  "grid gap-3",
+                  density === "s"
+                    ? "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
+                    : "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4",
+                )}
+              >
+                {sectionAssets.map((asset) => (
+                  <AssetCard
+                    key={asset.symbol}
+                    asset={asset}
+                    quote={quotesBySymbol.get(asset.symbol)}
+                    density={density}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
+
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
         <p className="px-1 font-mono text-xs text-muted-foreground">
           Showing {assets.length} of {TRACKED_SYMBOLS.length} tracked assets

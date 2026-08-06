@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 interface TickerMiniChartProps {
   symbol: string;
   className?: string;
+  size?: "sm" | "md";
 }
 
-export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
+export function TickerMiniChart({ symbol, className, size = "md" }: TickerMiniChartProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -72,7 +73,8 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
         }}
         onMouseEnter={(e) => e.stopPropagation()}
         className={cn(
-          "font-mono text-lg tracking-wide text-foreground",
+          "font-mono tracking-wide text-foreground",
+          size === "sm" ? "text-xs" : "text-lg",
           open && "text-foreground underline underline-offset-4",
         )}
         aria-expanded={open}
