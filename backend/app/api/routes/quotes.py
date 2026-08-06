@@ -10,8 +10,11 @@ from app.market_data.service import MarketDataService
 from app.market_data.symbols import TIMEFRAME_MAP
 from app.schemas.quotes import AssetQuote, CandlePoint, CandleSeries
 from app.services.quote_service import build_quote, load_all_quotes
+from app.utils.ttl_cache import TTLCache
 
 router = APIRouter()
+
+_CANDLES_CACHE: TTLCache[CandleSeries] = TTLCache(ttl_seconds=120.0)
 
 
 @router.get("", response_model=list[AssetQuote])
@@ -36,6 +39,8 @@ async def get_candles(
     if timeframe not in TIMEFRAME_MAP:
         raise HTTPException(status_code=400, detail=f"Unsupported timeframe '{timeframe}'")
 
+    cache_key = f"{normalized}:{timeframe}:{limit}"
+
     def _load() -> CandleSeries:
         df = market_data.safe_get_ohlcv(normalized, timeframe=timeframe, limit=limit)
         if df is None or df.empty:
@@ -55,7 +60,11 @@ async def get_candles(
             )
         return CandleSeries(symbol=normalized, timeframe=timeframe, candles=candles)
 
-    return await asyncio.to_thread(_load)
+    return await asyncio.to_thread(
+        _CANDLES_CACHE.get_stale_while_revalidate,
+        cache_key,
+        _load,
+    )
 
 
 @router.get("/{symbol}", response_model=AssetQuote)

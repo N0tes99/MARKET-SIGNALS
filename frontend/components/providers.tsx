@@ -11,8 +11,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
-            refetchInterval: 30_000,
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+            // No global polling — opt in per-query (e.g. quotes).
           },
         },
       }),

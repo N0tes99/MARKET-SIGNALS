@@ -5,8 +5,23 @@ import { useMemo } from "react";
 import { useAssets } from "@/hooks/use-assets";
 import { useQuotes } from "@/hooks/use-quotes";
 import { AssetCard } from "@/components/asset-card";
-import { ASSET_SECTIONS, TRACKED_SYMBOLS } from "@/config/assets";
+import { ASSET_SECTIONS, TRACKED_SYMBOLS, type AssetClass } from "@/config/assets";
 import type { AssetQuote, AssetSummary } from "@/services/api";
+
+function placeholderAsset(symbol: string, assetClass: AssetClass): AssetSummary {
+  return {
+    symbol,
+    confidence: 0,
+    trend: "Neutral",
+    trade_grade: "—",
+    buyer_strength: 0,
+    risk: 0,
+    expected_value: 0,
+    trade_state: "LOADING",
+    execution_signal: "…",
+    asset_class: assetClass,
+  };
+}
 
 function SectionGrid({
   label,
@@ -49,35 +64,12 @@ export function AssetGrid() {
     return map;
   }, [quotes]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-8">
-        <div className="rounded-md border border-white/[0.06] bg-card/40 px-4 py-3">
-          <p className="text-sm text-foreground/90">Loading market signals…</p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            First load after idle can take up to ~1 minute (API cold start + ranking).
-            {quotesLoading
-              ? " Fetching live quotes in parallel…"
-              : quotes
-                ? ` Quotes ready for ${quotes.filter((q) => q.available).length} assets.`
-                : ""}
-          </p>
-        </div>
-        {ASSET_SECTIONS.map((section) => (
-          <div key={section.label} className="space-y-3">
-            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
-              {section.symbols.map((symbol) => (
-                <div key={symbol} className="surface h-52 animate-pulse" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const bySymbol = useMemo(
+    () => new Map(assets?.map((asset) => [asset.symbol, asset]) ?? []),
+    [assets],
+  );
 
-  if (error) {
+  if (error && !assets) {
     return (
       <div className="surface p-10 text-center">
         <p className="text-sm text-muted-foreground">
@@ -90,23 +82,34 @@ export function AssetGrid() {
     );
   }
 
-  const bySymbol = new Map(assets?.map((asset) => [asset.symbol, asset]) ?? []);
-
   return (
     <div className="space-y-10">
-      {isFetching && (
-        <p className="px-1 font-mono text-[11px] text-muted-foreground">
-          Refreshing rankings in the background…
-        </p>
+      {(isLoading || isFetching) && (
+        <div className="rounded-md border border-white/[0.06] bg-card/40 px-4 py-3">
+          <p className="text-sm text-foreground/90">
+            {isLoading ? "Loading market signals…" : "Refreshing rankings in the background…"}
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            {isLoading
+              ? "Showing tickers now; grades fill in when ranking finishes."
+              : null}
+            {quotesLoading
+              ? " Fetching live quotes…"
+              : quotes
+                ? ` Quotes ready for ${quotes.filter((q) => q.available).length} assets.`
+                : ""}
+          </p>
+        </div>
       )}
       {ASSET_SECTIONS.map((section) => (
         <SectionGrid
           key={section.label}
           label={section.label}
           quotesBySymbol={quotesBySymbol}
-          assets={section.symbols
-            .map((symbol) => bySymbol.get(symbol))
-            .filter((asset): asset is AssetSummary => asset !== undefined)}
+          assets={section.symbols.map(
+            (symbol) =>
+              bySymbol.get(symbol) ?? placeholderAsset(symbol, section.class),
+          )}
         />
       ))}
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
