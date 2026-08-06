@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
+import { PasswordInput } from "@/components/password-input";
 import { SiteHeader } from "@/components/site-header";
 
 export default function RegisterPage() {
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,6 +27,12 @@ export default function RegisterPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await register(email.trim(), username.trim(), password);
@@ -74,18 +82,26 @@ export default function RegisterPage() {
           </label>
           <label className="block">
             <span className="label-caps">Password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               autoComplete="new-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+              onChange={setPassword}
             />
             <span className="mt-1 block font-mono text-[10px] text-muted-foreground">
               At least 8 characters
             </span>
+          </label>
+          <label className="block">
+            <span className="label-caps">Confirm password</span>
+            <PasswordInput
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+            />
           </label>
           {error ? <p className="text-sm text-bearish">{error}</p> : null}
           <button

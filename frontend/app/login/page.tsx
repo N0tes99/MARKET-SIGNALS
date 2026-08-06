@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
+import { PasswordInput } from "@/components/password-input";
 import { SiteHeader } from "@/components/site-header";
 
 export default function LoginPage() {
@@ -59,13 +60,11 @@ export default function LoginPage() {
           </label>
           <label className="block">
             <span className="label-caps">Password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+              onChange={setPassword}
             />
           </label>
           {error ? <p className="text-sm text-bearish">{error}</p> : null}
