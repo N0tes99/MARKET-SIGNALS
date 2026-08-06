@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 
 import { fetchCandles } from "@/services/api";
 import { cn } from "@/lib/utils";
@@ -41,11 +35,13 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
     };
   }, [open]);
 
+  // Fetch only after an explicit click opens the popup — never on hover/mount.
   const candlesQuery = useQuery({
     queryKey: ["candles", symbol, "15m"],
     queryFn: () => fetchCandles(symbol, "15m", 48),
     enabled: open,
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const points =
@@ -61,7 +57,12 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
   const fill = up ? "rgba(143,168,138,0.2)" : "rgba(166,124,124,0.2)";
 
   return (
-    <div ref={rootRef} className={cn("relative inline-flex", className)}>
+    <div
+      ref={rootRef}
+      className={cn("relative inline-flex", className)}
+      onMouseEnter={(e) => e.stopPropagation()}
+      onMouseLeave={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         onClick={(e) => {
@@ -69,10 +70,15 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="font-mono text-lg tracking-wide text-foreground underline-offset-4 transition-colors hover:underline"
+        onMouseEnter={(e) => e.stopPropagation()}
+        className={cn(
+          "font-mono text-lg tracking-wide text-foreground",
+          open && "text-foreground underline underline-offset-4",
+        )}
         aria-expanded={open}
-        aria-label={`${symbol} 15 minute chart`}
-        title="15m chart"
+        aria-haspopup="dialog"
+        aria-label={`Show ${symbol} 15 minute chart`}
+        title="Click for 15m chart"
       >
         {symbol}
       </button>
@@ -94,7 +100,7 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
             </p>
           </div>
 
-          <div className="mt-2 h-[88px] w-full">
+          <div className="mt-2 h-[88px] w-full pointer-events-none">
             {candlesQuery.isLoading ? (
               <p className="pt-8 text-center font-mono text-[10px] text-muted-foreground">
                 Loading…
@@ -112,19 +118,6 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={points} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                   <YAxis domain={["dataMin", "dataMax"]} hide />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(12,14,18,0.95)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      fontSize: 11,
-                      fontFamily: "ui-monospace, monospace",
-                    }}
-                    labelFormatter={() => ""}
-                    formatter={(value: number) => [
-                      value.toLocaleString(undefined, { maximumFractionDigits: 6 }),
-                      "Close",
-                    ]}
-                  />
                   <Area
                     type="monotone"
                     dataKey="close"
@@ -133,6 +126,7 @@ export function TickerMiniChart({ symbol, className }: TickerMiniChartProps) {
                     strokeWidth={1.5}
                     isAnimationActive={false}
                     dot={false}
+                    activeDot={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
