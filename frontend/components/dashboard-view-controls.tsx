@@ -40,7 +40,7 @@ export function DashboardViewControls({
               type="button"
               onClick={() => onLayout(item.id)}
               className={cn(
-                "px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors",
+                "px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-[color,background-color] duration-200",
                 layout === item.id
                   ? "bg-white/[0.1] text-foreground"
                   : "text-muted-foreground hover:text-foreground",

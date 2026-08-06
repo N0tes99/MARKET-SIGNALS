@@ -72,7 +72,7 @@ export function AssetListRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 border-b border-white/[0.06] transition-colors hover:bg-white/[0.03]",
+        "flex items-center gap-3 border-b border-white/[0.06] transition-[background-color] duration-200 hover:bg-white/[0.03]",
         compact ? "py-2" : "py-3",
       )}
     >
@@ -140,7 +140,7 @@ export function AssetChip({
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center border text-center transition-colors",
+        "relative flex flex-col items-center justify-center border text-center transition-[transform,border-color,background-color] duration-200 hover:scale-[1.03]",
         trendAccent(asset.trend),
         "ring-1",
         confidenceRing(asset.confidence),

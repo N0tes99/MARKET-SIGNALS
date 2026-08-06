@@ -57,24 +57,30 @@ function SectionBody({
   layout,
   density,
   showRank,
+  emphasizeFirst,
 }: {
   assets: AssetSummary[];
   quotesBySymbol: Map<string, AssetQuote>;
   layout: "list" | "chips" | "grid";
   density: "s" | "m";
   showRank: boolean;
+  emphasizeFirst?: boolean;
 }) {
   if (layout === "list") {
     return (
-      <div className="surface px-3 sm:px-4">
+      <div key={layout} className="surface motion-view-pane motion-stagger px-3 sm:px-4">
         {assets.map((asset, index) => (
-          <AssetListRow
+          <div
             key={asset.symbol}
-            asset={asset}
-            quote={quotesBySymbol.get(asset.symbol)}
-            density={density}
-            rank={showRank ? index + 1 : undefined}
-          />
+            className={cn(emphasizeFirst && index === 0 && "motion-rank-1 rounded-sm")}
+          >
+            <AssetListRow
+              asset={asset}
+              quote={quotesBySymbol.get(asset.symbol)}
+              density={density}
+              rank={showRank ? index + 1 : undefined}
+            />
+          </div>
         ))}
       </div>
     );
@@ -82,15 +88,25 @@ function SectionBody({
 
   if (layout === "chips") {
     return (
-      <div className={cn("flex flex-wrap", density === "s" ? "gap-2" : "gap-3")}>
+      <div
+        key={layout}
+        className={cn(
+          "motion-view-pane motion-stagger flex flex-wrap",
+          density === "s" ? "gap-2" : "gap-3",
+        )}
+      >
         {assets.map((asset, index) => (
-          <AssetChip
+          <div
             key={asset.symbol}
-            asset={asset}
-            quote={quotesBySymbol.get(asset.symbol)}
-            density={density}
-            rank={showRank ? index + 1 : undefined}
-          />
+            className={cn(emphasizeFirst && index === 0 && "rounded-full motion-rank-1")}
+          >
+            <AssetChip
+              asset={asset}
+              quote={quotesBySymbol.get(asset.symbol)}
+              density={density}
+              rank={showRank ? index + 1 : undefined}
+            />
+          </div>
         ))}
       </div>
     );
@@ -98,21 +114,26 @@ function SectionBody({
 
   return (
     <div
+      key={layout}
       className={cn(
-        "grid gap-3",
+        "motion-view-pane motion-stagger grid gap-3",
         density === "s"
           ? "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
           : "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4",
       )}
     >
       {assets.map((asset, index) => (
-        <AssetCard
+        <div
           key={asset.symbol}
-          asset={asset}
-          quote={quotesBySymbol.get(asset.symbol)}
-          density={density}
-          rank={showRank ? index + 1 : undefined}
-        />
+          className={cn(emphasizeFirst && index === 0 && "rounded-lg motion-rank-1")}
+        >
+          <AssetCard
+            asset={asset}
+            quote={quotesBySymbol.get(asset.symbol)}
+            density={density}
+            rank={showRank ? index + 1 : undefined}
+          />
+        </div>
       ))}
     </div>
   );
@@ -209,6 +230,7 @@ export function AssetGrid() {
             layout={layout}
             density={density}
             showRank
+            emphasizeFirst
           />
         </section>
       ) : null}
