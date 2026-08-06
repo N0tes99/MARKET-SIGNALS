@@ -1,4 +1,4 @@
-# Deploy Signal Engine — Railway (API + Postgres) + Vercel (frontend)
+# Deploy Signal Engine — Render (API + Postgres) + Netlify (frontend)
 
 This locks the API with HTTP Basic Auth and keeps credentials off the browser
 via a Next.js proxy.
@@ -6,35 +6,39 @@ via a Next.js proxy.
 ## Architecture
 
 ```
-Browser → Vercel (Next.js) → /api/backend/* proxy (+ Basic Auth)
+Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
                               ↓
-                         Railway FastAPI
+                         Render FastAPI
                               ↓
-                       Railway Postgres
+                       Render Postgres
 ```
 
-- `GET /api/v1/health` is public (Railway healthchecks).
+- `GET /api/v1/health` is public (Render healthchecks).
 - All other API routes require Basic Auth when `AUTH_PASSWORD` is set (proxy injects it).
 - Social accounts use a second layer: email/password JWT in httpOnly cookie `se_session`
   (Secure + SameSite=Lax). The `/api/backend/*` proxy forwards `Cookie` / `Set-Cookie`.
 - `/docs` is disabled when `APP_ENV=production`.
 
+> **Legacy:** Older Railway / Vercel notes are obsolete — do not use them as the
+> primary path. Keep any leftover `railway.toml` / Vercel project configs only if
+> you still have a legacy deployment; new deploys should be Render + Netlify.
+
 ---
 
-## 1. Railway — Postgres
+## 1. Render — Postgres
 
-1. Create a Railway project.
-2. **New → Database → PostgreSQL**.
-3. Note the `DATABASE_URL` variable (Railway often uses `postgres://…`).
+1. Create a Render account and a new **PostgreSQL** instance.
+2. Note the internal / external `DATABASE_URL` (often `postgres://…`).
    The app normalizes it to `postgresql+asyncpg://…` automatically.
 
-## 2. Railway — API service
+## 2. Render — API (Web Service)
 
-1. **New → GitHub Repo** (or empty service + Dockerfile).
-2. Set **Root Directory** to `backend`.
-3. Builder uses [`backend/Dockerfile`](../backend/Dockerfile) + [`railway.toml`](../backend/railway.toml).
-4. Start command runs `alembic upgrade head` then uvicorn on `$PORT`.
-5. Attach the Postgres service / copy `DATABASE_URL` into the API service.
+1. **New → Web Service** from the GitHub repo.
+2. **Root Directory:** `backend`
+3. Build/start use [`backend/Dockerfile`](../backend/Dockerfile) (or Render’s Docker runtime).
+4. Start command should run `alembic upgrade head` then uvicorn on `$PORT`
+   (match the Dockerfile `CMD` / entrypoint).
+5. Attach the Postgres instance / copy `DATABASE_URL` into the API service env.
 
 ### Required API env vars
 
@@ -62,47 +66,46 @@ Same SMTP as alerts (`ALERT_SMTP_*`, `ALERT_EMAIL_FROM`). Registration sends a c
 - `/favorites` — per-user watchlist from tracked symbols
 - Alembic migrations `004`–`006` run on API boot (`alembic upgrade head`)
 
+### Optional Celery / Redis (local Compose primary)
+
+Local Docker Compose runs `celery-worker` + `celery-beat` against Redis for the
+warm-cache schedule (`warm_market_and_decisions` every 5 minutes). On Render’s
+free web tier you typically rely on GitHub keep-warm (below) instead of a
+persistent Beat process. If you add a Render Redis + background workers later,
+reuse the same `CELERY_BROKER_URL` / beat schedule from `app.core.celery_app`.
 
 ### Verify API
 
 ```bash
-curl https://YOUR-RAILWAY-URL/api/v1/health
+curl https://YOUR-RENDER-URL/api/v1/health
 # → 200 healthy
 
-curl -u signal:YOUR_PASSWORD https://YOUR-RAILWAY-URL/api/v1/alerts/status
+curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/alerts/status
 # → 200
 ```
 
 ---
 
-## 3. Vercel — frontend
+## 3. Netlify — frontend
 
-1. Import the same GitHub repo in Vercel.
-2. **Root Directory:** `frontend`
-3. Framework preset: Next.js (default).
-4. Environment variables:
+Repo root includes [`netlify.toml`](../netlify.toml) with `base = "frontend"` and the Next.js plugin.
+
+1. Import the GitHub repo in Netlify (e.g. `N0tes99/MARKET-SIGNALS`).
+2. In Build settings clear Publish / Functions if they show nested `frontend/` paths — rely on `netlify.toml`.
+3. Environment variables:
 
 | Variable | Value |
 |----------|-------|
 | `NEXT_PUBLIC_USE_API_PROXY` | `true` |
-| `API_BACKEND_URL` | `https://YOUR-API-URL` (no trailing slash) |
+| `API_BACKEND_URL` | `https://YOUR-RENDER-API-URL` (no trailing slash) |
 | `API_USERNAME` | same as `AUTH_USERNAME` |
 | `API_PASSWORD` | same as `AUTH_PASSWORD` |
 
 Do **not** set `NEXT_PUBLIC_API_PASSWORD`. Server-only `API_*` stays off the client bundle.
 
-5. Deploy. Open the Vercel URL — the UI calls `/api/backend/api/v1/...`, which proxies to the API with Basic Auth.
+4. Deploy. Open the Netlify URL — the UI calls `/api/backend/api/v1/...`, which proxies to the API with Basic Auth.
 
-6. After you have the frontend URL, add it to the API `CORS_ORIGINS` (comma-separated if multiple) and redeploy the API if needed.
-
-## 3b. Netlify — frontend (alternative to Vercel)
-
-Repo root includes [`netlify.toml`](../netlify.toml) with `base = "frontend"` and the Next.js plugin.
-
-1. Import **N0tes99/MARKET-SIGNALS** in Netlify.
-2. In Build settings clear Publish / Functions if they show nested `frontend/` paths — rely on `netlify.toml`.
-3. Same env vars as Vercel (`NEXT_PUBLIC_USE_API_PROXY`, `API_BACKEND_URL`, `API_USERNAME`, `API_PASSWORD`).
-4. Deploy, then set API `CORS_ORIGINS` to `https://your-site.netlify.app`.
+5. After you have the frontend URL, add it to the API `CORS_ORIGINS` (comma-separated if multiple) and redeploy the API if needed.
 
 ---
 
@@ -126,6 +129,13 @@ API_PASSWORD=dev-secret
 ```
 
 Or keep auth off locally (empty `AUTH_PASSWORD`) and use direct `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+
+### Celery warm schedule (Compose)
+
+`docker compose up` starts **`celery-worker`** and **`celery-beat`** on the same
+Redis broker as the API. Beat publishes `app.tasks.warm_cache.warm_market_and_decisions`
+every **300s** (see `beat_schedule` in `backend/app/core/celery_app.py`), which
+prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 ---
 
@@ -162,8 +172,9 @@ The assets job wakes health first, waits a few seconds, then hits `/assets` (120
 
 ## Checklist
 
-- [ ] Railway Postgres linked
+- [ ] Render Postgres linked
 - [ ] Migrations succeed on API boot (`alembic upgrade head`)
 - [ ] Health public, other routes 401 without auth
-- [ ] Vercel proxy env set; dashboard loads assets
+- [ ] Netlify proxy env set; dashboard loads assets
 - [ ] Discord/email alerts only if you want them (`ALERT_ENABLED=true`)
+- [ ] Keep-warm repo vars use **full** `/api/v1/health` and `/api/v1/assets` paths

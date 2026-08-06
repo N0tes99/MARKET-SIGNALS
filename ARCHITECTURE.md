@@ -556,7 +556,7 @@ BTC, ETH, SOL, SUI
 
 ### Status
 
-`IMPLEMENTED` — multi-provider OHLCV (Kraken/Binance/Yahoo), warm cache, Celery warm task
+`IMPLEMENTED` — multi-provider OHLCV (Kraken/Binance/Yahoo), warm cache, Celery warm task + Beat in Compose, product freshness / `data_degraded` flag
 
 ---
 
@@ -693,15 +693,14 @@ class BrokerAdapter(Protocol):
 | `redis` | redis:7-alpine | 6379 | Cache + Celery broker |
 | `backend` | Custom (Python 3.12) | 8000 | FastAPI application |
 | `celery-worker` | Custom (Python 3.12) | — | Background tasks |
+| `celery-beat` | Custom (Python 3.12) | — | Periodic schedule (warm cache) |
 | `frontend` | Custom (Node 20) | 3000 | Next.js dashboard |
 
-### Background Tasks (Celery, planned)
+### Background Tasks (Celery)
 
-- Periodic OHLCV ingestion
-- Evidence recalculation on candle close
-- Macro data refresh (daily)
-- Derivatives snapshot (every 5 min)
-- Stale data detection and alerting
+- `warm_market_and_decisions` every 5 min via Beat (`celery-beat` service)
+- Stale data detection: `DataFreshnessTracker` sets `data_degraded` on assets/decision when last successful OHLCV/ticker fetch exceeds `MARKET_DATA_STALE_SECONDS` or providers fail repeatedly (`MARKET_DATA_FAILURE_THRESHOLD`)
+- Macro / derivatives refresh remain on-demand / cached today (not separate Beat jobs yet)
 
 ### CI/CD (GitHub Actions)
 
@@ -767,10 +766,10 @@ When adding a new system, follow this checklist:
 | M2 — Evidence Engine | Evidence accumulation, scoring, persistence | **Complete** |
 | M3 — Analysis Engines | Trend, Buyer/Seller, Derivatives, Macro, Regime | **Complete** |
 | M4 — Decision Pipeline | Opportunity, Execution, Risk | **Complete** |
-| M5 — AI & Dashboard | AI Analyst, live dashboard, WebSocket | **Complete** |
+| M5 — AI & Dashboard | AI Analyst, live dashboard (WS client deferred) | **Complete** (partial: no FE WS client) |
 | M6 — Learning & Backtesting | Signal storage, backtesting, weight tuning | **Complete** |
-| M7 — Market Data | Provider adapters, ingestion pipeline | Not started |
-| M8 — Broker Adapters | Read-only portfolio, paper trading | Not started |
+| M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
+| M8 — Broker Adapters | Read-only portfolio, paper trading | Not started / deferred |
 
 ---
 

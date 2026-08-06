@@ -12,6 +12,7 @@ from app.core.service_dependencies import (
     get_learning_engine,
 )
 from app.engines.learning_engine import LearningEngine
+from app.market_data.freshness import freshness_tracker
 from app.market_data.symbols import get_asset_class
 from app.schemas.assets import AssetSummary
 from app.services.alert_service import AlertService
@@ -47,6 +48,7 @@ def _trend_label(trend_score: float) -> str:
 def _build_summary(decision) -> AssetSummary:
     """Build dashboard summary from a pipeline decision."""
     trend_score = _score_for_category(decision, "Trend")
+    snap = freshness_tracker.status(decision.symbol)
     return AssetSummary(
         symbol=decision.symbol,
         confidence=decision.evidence.total_confidence,
@@ -58,6 +60,9 @@ def _build_summary(decision) -> AssetSummary:
         trade_state=decision.trade_state.value,
         execution_signal=decision.execution.signal.value,
         asset_class=get_asset_class(decision.symbol).value,
+        data_degraded=snap.degraded,
+        data_age_seconds=snap.age_seconds,
+        data_stale_reason=snap.reason,
     )
 
 

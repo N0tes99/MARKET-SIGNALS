@@ -34,6 +34,7 @@ function placeholderAsset(symbol: string, assetClass: AssetClass): AssetSummary 
     trade_state: "LOADING",
     execution_signal: "…",
     asset_class: assetClass,
+    data_degraded: false,
   };
 }
 

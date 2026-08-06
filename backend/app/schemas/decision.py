@@ -38,3 +38,6 @@ class DecisionSchema(BaseModel):
     execution: ExecutionSchema
     risk: RiskSchema | None = None
     summary: str
+    data_degraded: bool = False
+    data_age_seconds: float | None = None
+    data_stale_reason: str | None = None

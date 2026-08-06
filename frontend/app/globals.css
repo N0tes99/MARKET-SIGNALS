@@ -85,6 +85,10 @@
     animation: idle-breathe 6s ease-in-out infinite;
   }
 
+  .idle-dot-degraded {
+    @apply bg-amber-200/80;
+  }
+
   .motion-fade-in {
     animation: motion-fade-in 380ms ease-out both;
   }

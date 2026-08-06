@@ -24,6 +24,9 @@ export interface AssetSummary {
   trade_state: string;
   execution_signal: string;
   asset_class: "crypto" | "stock" | "etf";
+  data_degraded?: boolean;
+  data_age_seconds?: number | null;
+  data_stale_reason?: string | null;
 }
 
 export interface HealthResponse {
@@ -63,6 +66,9 @@ export interface DecisionResult {
     description: string;
   };
   summary: string;
+  data_degraded?: boolean;
+  data_age_seconds?: number | null;
+  data_stale_reason?: string | null;
   risk?: {
     stop_loss: number;
     take_profit: number;

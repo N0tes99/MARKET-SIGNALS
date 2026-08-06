@@ -1,9 +1,11 @@
 """Unified market data access for analysis engines."""
 
 import logging
+from datetime import UTC, datetime
 
 import pandas as pd
 
+from app.market_data.freshness import freshness_tracker
 from app.market_data.normalizer import validate_ohlcv
 from app.market_data.providers.base import MarketDataProvider
 from app.market_data.providers.binance import BinanceProvider
@@ -32,6 +34,22 @@ def build_default_provider() -> MarketDataProvider:
     return AssetRouterProvider(crypto=crypto)
 
 
+def _ohlcv_observed_at(df: pd.DataFrame) -> datetime | None:
+    """Extract the last candle timestamp from an OHLCV frame."""
+    if df is None or df.empty or "timestamp" not in df.columns:
+        return None
+    raw = df["timestamp"].iloc[-1]
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
+    try:
+        ts = pd.Timestamp(raw)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize("UTC")
+        return ts.to_pydatetime()
+    except (TypeError, ValueError):
+        return None
+
+
 class MarketDataService:
     """Unified market data access for analysis engines."""
 
@@ -55,7 +73,20 @@ class MarketDataService:
         cache_key = f"ohlcv:{symbol.upper()}:{timeframe}:{limit}"
 
         def fetch() -> pd.DataFrame:
-            return self._provider.get_ohlcv(symbol, timeframe, limit)
+            try:
+                raw = self._provider.get_ohlcv(symbol, timeframe, limit)
+            except Exception:
+                freshness_tracker.record_failure(symbol)
+                raise
+            if raw is None or (isinstance(raw, pd.DataFrame) and raw.empty):
+                freshness_tracker.record_failure(symbol)
+                msg = f"Empty OHLCV for {symbol}"
+                raise ValueError(msg)
+            freshness_tracker.record_success(
+                symbol,
+                observed_at=_ohlcv_observed_at(raw),
+            )
+            return raw
 
         df = _OHLCV_CACHE.get_or_set(cache_key, fetch)
         return validate_ohlcv(df.copy(), min_rows=min_rows)
@@ -63,10 +94,24 @@ class MarketDataService:
     def get_ticker(self, symbol: str) -> TickerSnapshot:
         """Fetch latest ticker snapshot."""
         cache_key = f"ticker:{symbol.upper()}"
-        return _TICKER_CACHE.get_or_set(
-            cache_key,
-            lambda: self._provider.get_ticker(symbol),
-        )
+
+        def fetch() -> TickerSnapshot:
+            try:
+                ticker = self._provider.get_ticker(symbol)
+            except Exception:
+                freshness_tracker.record_failure(symbol)
+                raise
+            if ticker is None:
+                freshness_tracker.record_failure(symbol)
+                msg = f"Empty ticker for {symbol}"
+                raise ValueError(msg)
+            freshness_tracker.record_success(
+                symbol,
+                observed_at=ticker.timestamp,
+            )
+            return ticker
+
+        return _TICKER_CACHE.get_or_set(cache_key, fetch)
 
     def get_derivatives(self, symbol: str) -> DerivativesSnapshot:
         """Fetch derivatives market snapshot."""

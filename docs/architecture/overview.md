@@ -18,7 +18,7 @@ Market Data → [Specialized Engines] → Evidence Engine → Opportunity Engine
 
 ## Engine Status
 
-Analysis engines, decision pipeline (Opportunity / Execution / Risk), Learning Engine, AI Analyst, and backtesting are **implemented**. Dashboard rankings come from `GET /api/v1/assets` (TanStack Query poll). Backend `WS /api/v1/ws/dashboard` exists; a frontend live client is deferred (Next.js API proxy does not upgrade WebSockets). See `ARCHITECTURE.md` §3–§9 and `docs/roadmap/milestones.md`.
+Analysis engines, decision pipeline (Opportunity / Execution / Risk), Learning Engine, AI Analyst, and backtesting are **implemented**. Dashboard rankings come from `GET /api/v1/assets` (TanStack Query poll); responses include `data_degraded` when market data is stale or providers fail repeatedly. Backend `WS /api/v1/ws/dashboard` exists; a frontend live client is deferred (Next.js API proxy does not upgrade WebSockets). Compose runs `celery-beat` for the warm-cache schedule. See `ARCHITECTURE.md` §3–§9 and `docs/roadmap/milestones.md`.
 
 ## Scoring Weights (Default)
 

@@ -83,6 +83,7 @@ Services:
 | API Docs | http://localhost:8000/docs |
 | Frontend | http://localhost:3000 |
 | Health | http://localhost:8000/api/v1/health |
+| Celery worker / beat | background (Redis broker; warm cache every 5m) |
 
 ### Local Development
 
@@ -114,7 +115,9 @@ ruff check .
 
 ## Production deploy
 
-See [docs/deploy.md](docs/deploy.md) for Railway (API + Postgres) + Vercel (frontend) with HTTP Basic Auth via a Next.js proxy.
+See [docs/deploy.md](docs/deploy.md) for **Render (API + Postgres) + Netlify (frontend)** with HTTP Basic Auth via a Next.js proxy. Railway/Vercel are legacy — ignore for new deploys.
+
+Local Compose also runs `celery-worker` + `celery-beat` (Redis) so `warm_market_and_decisions` fires every 5 minutes.
 
 ## Milestone Status
 

@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     kraken_api_url: str = "https://api.kraken.com"
     fred_api_key: str = ""
 
+    # Product freshness gate (not TTL SWR): seconds since last successful
+    # OHLCV/ticker fetch, and consecutive empty/error responses.
+    market_data_stale_seconds: int = 900
+    market_data_failure_threshold: int = 3
+
     # Learning store: auto (Postgres if reachable), postgres, or memory
     signal_store: str = "auto"
 
@@ -76,7 +81,7 @@ class Settings(BaseSettings):
     auth_username: str = "signal"
     auth_password: str = ""
 
-    # Comma-separated browser origins (Vercel URL in production)
+    # Comma-separated browser origins (Netlify URL in production)
     cors_origins: str = "http://localhost:3000"
     # Public frontend URL for email verification links
     public_app_url: str = ""
@@ -86,7 +91,7 @@ class Settings(BaseSettings):
     @field_validator("database_url", mode="before")
     @classmethod
     def normalize_database_url(cls, value: object) -> object:
-        """Accept Railway ``postgres://`` URLs and force asyncpg driver."""
+        """Accept postgres:// URLs and force asyncpg driver."""
         if not isinstance(value, str) or not value:
             return value
         url = value

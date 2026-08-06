@@ -25,3 +25,15 @@ class AssetSummary(BaseModel):
         default="crypto",
         description="Asset category: crypto, stock, or etf",
     )
+    data_degraded: bool = Field(
+        default=False,
+        description="True when market data is stale or providers are failing",
+    )
+    data_age_seconds: float | None = Field(
+        default=None,
+        description="Seconds since last successful OHLCV/ticker fetch, if known",
+    )
+    data_stale_reason: str | None = Field(
+        default=None,
+        description="stale_data | provider_errors when degraded",
+    )

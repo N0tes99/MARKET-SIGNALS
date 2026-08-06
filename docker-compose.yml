@@ -73,6 +73,29 @@ services:
         condition: service_healthy
     command: celery -A app.core.celery_app worker --loglevel=info
 
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: signal-engine-celery-beat
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-signal_engine}:${POSTGRES_PASSWORD:-signal_engine}@postgres:5432/${POSTGRES_DB:-signal_engine}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    command: celery -A app.core.celery_app beat --loglevel=info
+
   frontend:
     build:
       context: ./frontend

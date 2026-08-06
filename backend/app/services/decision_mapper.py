@@ -1,5 +1,6 @@
 """Decision pipeline API mapping helpers."""
 
+from app.market_data.freshness import freshness_tracker
 from app.schemas.decision import DecisionSchema, ExecutionSchema, RiskSchema
 from app.schemas.evidence import EvidenceBundleSchema, EvidenceItemSchema
 from app.services.decision_pipeline import DecisionResult
@@ -39,6 +40,7 @@ def decision_to_schema(result: DecisionResult) -> DecisionSchema:
             description=result.risk.description,
         )
 
+    snap = freshness_tracker.status(result.symbol)
     return DecisionSchema(
         symbol=result.symbol,
         evidence=evidence_schema,
@@ -53,4 +55,7 @@ def decision_to_schema(result: DecisionResult) -> DecisionSchema:
         ),
         risk=risk_schema,
         summary=result.summary,
+        data_degraded=snap.degraded,
+        data_age_seconds=snap.age_seconds,
+        data_stale_reason=snap.reason,
     )

@@ -55,6 +55,6 @@
 ## Milestone 7 — Market Data & Ops
 
 - [x] Celery market data ingestion / warm cache (`app.tasks.warm_cache.warm_market_and_decisions`)
-- [ ] Stale data detection
-- [x] Production deploy scaffolding (Basic Auth + Railway/Vercel docs) — wire accounts in [docs/deploy.md](../deploy.md)
+- [x] Stale data detection (`data_degraded` on assets/decision; Compose `celery-beat`)
+- [x] Production deploy scaffolding (Basic Auth + Render/Netlify docs) — wire accounts in [docs/deploy.md](../deploy.md)
 - [x] Alerting on high-confidence setups (Discord bot / webhook + email)
