@@ -141,8 +141,9 @@ class EvidenceItem:
     source: str        # e.g. "trend_engine"
     category: str      # e.g. "Trend"
     score: float       # 0–100 within category
-    weight: float      # category weight (e.g. 0.20)
+    weight: float      # category weight (e.g. 20.0)
     description: str   # human-readable factor
+    confidence: float = 1.0  # item confidence (scoring clamps 0.5–1.5)
 
 @dataclass
 class EvidenceBundle:
@@ -150,6 +151,8 @@ class EvidenceBundle:
     timestamp: datetime
     items: list[EvidenceItem]
     total_confidence: float  # weighted sum, 0–100
+    regime: str | None = None
+    regime_confidence: float | None = None
 
 class EvidenceEngine:
     def accumulate(self, symbol: str, timeframe: str) -> EvidenceBundle: ...
@@ -274,8 +277,10 @@ Each engine is an independent module with a single public method, strong typing,
 **Inputs:** ATR, Bollinger bandwidth, ADX, cross-asset correlation
 
 **Logic:**
-- Regime affects weight adjustments in the Evidence Engine (e.g. reduce trend weight in ranging markets)
-- Regime is global (not per-asset) but can have per-asset overrides
+- Regime selects a full scoring weight profile (Trending / Choppy / High-vol) — no stacked multipliers
+- Mapping: TRENDING→Trending; RANGING+QUIET→Choppy; VOLATILE and/or VIX≥25→High-vol
+- Manual weight presets disable auto-regime until reset to default
+- Regime label + confidence are attached to `EvidenceBundle` for the API/UI
 
 **Status:** `IMPLEMENTED`
 
@@ -460,27 +465,57 @@ class SignalRecord:
 
 ### Default Weights
 
+Core categories keep Structure / Momentum / Trend / Risk / Volume / Macro / Derivatives as relative shares of ~80–85 points; a residual pool (~15–20) covers Correlation, Volatility, Events, Sector RS, On-Chain, and Sentiment. Values below are normalized to 100.
+
 | Category | Weight | Source Engine |
 |----------|--------|---------------|
-| Trend | 20 | Trend Engine |
-| Momentum | 15 | Buyer/Seller Engine |
-| Volume | 10 | Buyer/Seller Engine |
-| Structure | 20 | Trend Engine |
-| Risk | 15 | Risk Engine |
-| Macro | 10 | Macro Engine |
-| Derivatives | 10 | Derivatives Engine |
+| Structure | ~21 | Trend Engine |
+| Momentum | ~17 | Buyer/Seller Engine |
+| Trend | ~12.5 | Trend Engine |
+| Risk | ~12.5 | Risk Engine |
+| Volume | ~8 | Buyer/Seller Engine |
+| Macro | ~8 | Macro Engine |
+| Derivatives | ~4 | Derivatives Engine |
+| Correlation | ~3 | Correlation Engine |
+| Volatility | ~3 | Volatility Engine |
+| Events | ~3 | Event Engine |
+| Sector RS | ~3 | Sector RS Engine |
+| On-Chain | ~2.5 | On-Chain Engine |
+| Sentiment | ~2.5 | Sentiment Engine |
 | **Total** | **100** | |
+
+Exact floats: `DEFAULT_WEIGHTS` in `backend/app/scoring/weights.py`.
+
+### Regime weight profiles
+
+Regime Engine selects a **full weight profile** (not soft multipliers):
+
+| Regime labels | Profile |
+|---------------|---------|
+| Trending | Trending |
+| Ranging, Quiet | Choppy |
+| Volatile and/or VIX ≥ 25 | High-vol |
+
+Profiles live in `REGIME_WEIGHT_PROFILES`. Manual preset apply via `/tuning/weights/apply` disables auto-regime until reset / default.
+
+### Item confidence
+
+`EvidenceItem.confidence` defaults to `1.0`. Contribution:
+
+`weight × (score / 100) × clamp(confidence, 0.5, 1.5)`
+
+Final total is clamped to 0–100 (**no** weight renormalization).
 
 ### Rules
 
 - Weights are configurable per user tier (future) but must sum to 100
-- Regime Engine can apply multipliers (e.g. 0.8× trend weight in ranging markets)
+- Regime Engine swaps the active weight profile (unless tuning override is on)
 - Confidence recalculates every candle close for active timeframes
 - Scoring logic lives in `backend/app/scoring/` — not inside individual engines
 
 ### Status
 
-`IMPLEMENTED` — weights, grades, formula EV + learning blend, regime multipliers
+`IMPLEMENTED` — 13-cat defaults, regime profiles, item confidence stub, grades, formula EV + learning blend
 
 ---
 

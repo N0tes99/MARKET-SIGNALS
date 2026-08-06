@@ -22,16 +22,7 @@ Analysis engines, decision pipeline (Opportunity / Execution / Risk), Learning E
 
 ## Scoring Weights (Default)
 
-| Category | Weight |
-|----------|--------|
-| Trend | 20 |
-| Momentum | 15 |
-| Volume | 10 |
-| Structure | 20 |
-| Risk | 15 |
-| Macro | 10 |
-| Derivatives | 10 |
-| **Total** | **100** |
+13 categories normalized to 100. Core seven (Structure / Momentum / Trend / Risk / Volume / Macro / Derivatives) are relative shares of ~80–85; residual ~15–20 across Correlation, Volatility, Events, Sector RS, On-Chain, Sentiment. See `DEFAULT_WEIGHTS` and `REGIME_WEIGHT_PROFILES` in `backend/app/scoring/weights.py`. Regime swaps full profiles (Trending / Choppy / High-vol); item `confidence` defaults to 1.0.
 
 ## Trade State Machine
 

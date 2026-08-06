@@ -42,6 +42,7 @@ export interface EvidenceItem {
   score: number;
   weight: number;
   description: string;
+  confidence?: number;
 }
 
 export interface AIExplanation {
@@ -154,6 +155,8 @@ export interface EvidenceBundle {
   total_confidence: number;
   items: EvidenceItem[];
   timestamp: string;
+  regime?: string | null;
+  regime_confidence?: number | null;
 }
 
 const DEFAULT_FETCH_TIMEOUT_MS = 55_000;
@@ -301,6 +304,7 @@ export interface WeightTuningResult {
 export interface ActiveWeights {
   preset: string;
   weights: Record<string, number>;
+  regime_auto?: boolean;
 }
 
 export async function fetchWeightTuning(symbol: string): Promise<WeightTuningResult> {

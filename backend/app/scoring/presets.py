@@ -1,24 +1,17 @@
 """Named weight presets for optimization experiments."""
 
-from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
+from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory, _normalize
 
 
-def _normalize(raw: dict[ScoringCategory, float]) -> dict[ScoringCategory, float]:
+def _preset_normalize(raw: dict[ScoringCategory, float]) -> dict[ScoringCategory, float]:
     """Scale weights to sum to exactly 100, filling missing categories from defaults."""
     merged = {cat: raw.get(cat, DEFAULT_WEIGHTS[cat]) for cat in ScoringCategory}
-    total = sum(merged.values())
-    scaled = {cat: (value / total) * 100.0 for cat, value in merged.items()}
-    rounded = {cat: round(value, 2) for cat, value in scaled.items()}
-    drift = 100.0 - sum(rounded.values())
-    if rounded:
-        first = next(iter(rounded))
-        rounded[first] = round(rounded[first] + drift, 2)
-    return rounded
+    return _normalize(merged)
 
 
 WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
     "default": dict(DEFAULT_WEIGHTS),
-    "trend_focused": _normalize(
+    "trend_focused": _preset_normalize(
         {
             ScoringCategory.TREND: 28,
             ScoringCategory.STRUCTURE: 27,
@@ -29,7 +22,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 10,
         }
     ),
-    "momentum_focused": _normalize(
+    "momentum_focused": _preset_normalize(
         {
             ScoringCategory.TREND: 12,
             ScoringCategory.STRUCTURE: 13,
@@ -40,7 +33,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 10,
         }
     ),
-    "risk_adjusted": _normalize(
+    "risk_adjusted": _preset_normalize(
         {
             ScoringCategory.TREND: 16,
             ScoringCategory.STRUCTURE: 16,
@@ -51,7 +44,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 10,
         }
     ),
-    "macro_aware": _normalize(
+    "macro_aware": _preset_normalize(
         {
             ScoringCategory.TREND: 16,
             ScoringCategory.STRUCTURE: 16,
@@ -62,7 +55,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 14,
         }
     ),
-    "structure_breakout": _normalize(
+    "structure_breakout": _preset_normalize(
         {
             ScoringCategory.TREND: 14,
             ScoringCategory.STRUCTURE: 32,
@@ -73,7 +66,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 7,
         }
     ),
-    "volume_confirmed": _normalize(
+    "volume_confirmed": _preset_normalize(
         {
             ScoringCategory.TREND: 16,
             ScoringCategory.STRUCTURE: 14,
@@ -84,7 +77,7 @@ WEIGHT_PRESETS: dict[str, dict[ScoringCategory, float]] = {
             ScoringCategory.DERIVATIVES: 10,
         }
     ),
-    "derivatives_heavy": _normalize(
+    "derivatives_heavy": _preset_normalize(
         {
             ScoringCategory.TREND: 14,
             ScoringCategory.STRUCTURE: 14,

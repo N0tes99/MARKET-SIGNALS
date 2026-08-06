@@ -21,8 +21,12 @@ async def test_apply_and_reset_weights(client: AsyncClient) -> None:
 
     applied = await client.post("/api/v1/tuning/weights/apply", json={"preset": preset})
     assert applied.status_code == 200
-    assert applied.json()["preset"] == preset
+    body = applied.json()
+    assert body["preset"] == preset
+    if preset != "default":
+        assert body["regime_auto"] is False
 
     reset = await client.post("/api/v1/tuning/weights/reset")
     assert reset.status_code == 200
     assert reset.json()["preset"] == "default"
+    assert reset.json()["regime_auto"] is True

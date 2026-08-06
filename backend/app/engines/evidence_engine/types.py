@@ -14,6 +14,7 @@ class EvidenceItem:
     score: float
     weight: float
     description: str
+    confidence: float = 1.0
 
     def __post_init__(self) -> None:
         """Validate evidence item fields."""
@@ -32,3 +33,5 @@ class EvidenceBundle:
     total_confidence: float = 0.0
     id: UUID = field(default_factory=uuid4)
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    regime: str | None = None
+    regime_confidence: float | None = None

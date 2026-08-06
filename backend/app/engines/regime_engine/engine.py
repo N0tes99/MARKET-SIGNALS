@@ -6,7 +6,7 @@ from enum import StrEnum
 from app.engines.volatility_engine import fetch_vix_level
 from app.indicators.atr import calculate_atr
 from app.market_data.service import MarketDataService
-from app.scoring.weights import ScoringCategory
+from app.scoring.weights import WeightProfile, resolve_weight_profile
 
 
 class MarketRegime(StrEnum):
@@ -24,12 +24,13 @@ class RegimeResult:
 
     regime: MarketRegime
     confidence: float
-    weight_multipliers: dict[ScoringCategory, float]
+    weight_profile: WeightProfile
     description: str
+    vix: float | None = None
 
 
 class RegimeEngine:
-    """Classifies the current market regime and adjusts scoring weights."""
+    """Classifies the current market regime for scoring weight profile selection."""
 
     def __init__(self, market_data: MarketDataService | None = None) -> None:
         """Initialize with optional market data service."""
@@ -38,12 +39,16 @@ class RegimeEngine:
     def classify(self, symbol: str, timeframe: str = "1h") -> RegimeResult:
         """Determine the current market regime for an asset."""
         df = self._market_data.safe_get_ohlcv(symbol, timeframe)
+        vix = fetch_vix_level(self._market_data)
+
         if df is None:
+            profile = resolve_weight_profile(MarketRegime.RANGING.value, vix=vix)
             return RegimeResult(
                 regime=MarketRegime.RANGING,
                 confidence=0.0,
-                weight_multipliers={},
+                weight_profile=profile,
                 description=f"{symbol}: Regime unknown — insufficient data",
+                vix=vix,
             )
 
         atr = calculate_atr(df["high"], df["low"], df["close"])
@@ -56,38 +61,27 @@ class RegimeEngine:
 
         if current_atr_pct > avg_atr_pct * 1.5:
             regime = MarketRegime.VOLATILE
-            multipliers = {
-                ScoringCategory.TREND: 0.7,
-                ScoringCategory.STRUCTURE: 0.8,
-            }
             description = f"{symbol}: Volatile regime — ATR {current_atr_pct:.2%} above average"
         elif current_atr_pct < avg_atr_pct * 0.6:
             regime = MarketRegime.QUIET
-            multipliers = {ScoringCategory.MOMENTUM: 0.8}
             description = f"{symbol}: Quiet regime — compressed volatility"
         elif directional_move > 0.03:
             regime = MarketRegime.TRENDING
-            multipliers = {}
             description = f"{symbol}: Trending regime — directional move {directional_move:.1%}"
         else:
             regime = MarketRegime.RANGING
-            multipliers = {ScoringCategory.TREND: 0.8}
-            description = f"{symbol}: Ranging regime — reduced trend weight"
+            description = f"{symbol}: Ranging regime — choppy weight profile"
 
         confidence = min(abs(current_atr_pct - avg_atr_pct) / avg_atr_pct * 100, 100)
+        weight_profile = resolve_weight_profile(regime.value, vix=vix)
 
-        vix = fetch_vix_level(self._market_data)
         if vix is not None and vix >= 25:
-            multipliers = {
-                **multipliers,
-                ScoringCategory.TREND: multipliers.get(ScoringCategory.TREND, 1.0) * 0.85,
-                ScoringCategory.STRUCTURE: multipliers.get(ScoringCategory.STRUCTURE, 1.0) * 0.9,
-            }
-            description = f"{description}; VIX {vix:.1f} suppresses trend/structure weights"
+            description = f"{description}; VIX {vix:.1f} → High-vol weight profile"
 
         return RegimeResult(
             regime=regime,
             confidence=round(confidence, 2),
-            weight_multipliers=multipliers,
+            weight_profile=weight_profile,
             description=description,
+            vix=vix,
         )

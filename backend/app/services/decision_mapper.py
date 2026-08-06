@@ -21,10 +21,13 @@ def decision_to_schema(result: DecisionResult) -> DecisionSchema:
                 score=item.score,
                 weight=item.weight,
                 description=item.description,
+                confidence=item.confidence,
             )
             for item in evidence.items
         ],
         timestamp=evidence.timestamp,
+        regime=evidence.regime,
+        regime_confidence=evidence.regime_confidence,
     )
 
     risk_schema = None

@@ -7,6 +7,7 @@ from app.engines.regime_engine import RegimeEngine
 from app.market_data.service import MarketDataService
 from app.scoring.calculator import calculate_total_confidence
 from app.scoring.weight_config import get_weight_config
+from app.scoring.weights import REGIME_WEIGHT_PROFILES
 
 
 class EvidenceEngine:
@@ -44,17 +45,19 @@ class EvidenceEngine:
             items.extend(collector.contribute_evidence(normalized_symbol, timeframe))
 
         regime = self._regime_engine.classify(normalized_symbol, timeframe)
-        multipliers = regime.weight_multipliers
-        active_weights = get_weight_config().get_weights()
-        total_confidence = calculate_total_confidence(
-            items,
-            weights=active_weights,
-            regime_multiplier=multipliers,
-        )
+        weight_config = get_weight_config()
+        if weight_config.is_regime_auto():
+            active_weights = REGIME_WEIGHT_PROFILES[regime.weight_profile]
+        else:
+            active_weights = weight_config.get_weights()
+
+        total_confidence = calculate_total_confidence(items, weights=active_weights)
 
         return EvidenceBundle(
             symbol=normalized_symbol,
             timeframe=timeframe,
             items=items,
             total_confidence=total_confidence,
+            regime=regime.regime.value,
+            regime_confidence=regime.confidence,
         )

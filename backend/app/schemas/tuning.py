@@ -49,3 +49,7 @@ class ActiveWeightsSchema(BaseModel):
 
     preset: str
     weights: dict[str, float]
+    regime_auto: bool = Field(
+        default=True,
+        description="True = regime profiles; false after custom/preset apply",
+    )

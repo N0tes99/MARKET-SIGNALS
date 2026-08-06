@@ -14,6 +14,10 @@ class EvidenceItemSchema(BaseModel):
     score: float = Field(..., ge=0, le=100, description="Category score 0–100")
     weight: float = Field(..., description="Category weight in total confidence")
     description: str = Field(..., description="Human-readable evidence description")
+    confidence: float = Field(
+        default=1.0,
+        description="Item confidence multiplier (scoring clamps to 0.5–1.5)",
+    )
 
 
 class EvidenceBundleSchema(BaseModel):
@@ -25,6 +29,11 @@ class EvidenceBundleSchema(BaseModel):
     total_confidence: float = Field(..., ge=0, le=100, description="Weighted confidence")
     items: list[EvidenceItemSchema] = Field(..., description="Contributing evidence factors")
     timestamp: datetime = Field(..., description="When evidence was accumulated")
+    regime: str | None = Field(default=None, description="Market regime label")
+    regime_confidence: float | None = Field(
+        default=None,
+        description="Regime classification confidence 0–100",
+    )
 
 
 class EvidenceSnapshotSchema(EvidenceBundleSchema):

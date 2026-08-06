@@ -26,6 +26,7 @@ async def get_active_weights(
     return ActiveWeightsSchema(
         preset=preset,
         weights={cat.value: w for cat, w in weights.items()},
+        regime_auto=optimizer.regime_auto(),
     )
 
 
@@ -85,6 +86,7 @@ async def apply_weight_preset(
     return ActiveWeightsSchema(
         preset=body.preset,
         weights={cat.value: w for cat, w in weights.items()},
+        regime_auto=optimizer.regime_auto(),
     )
 
 
@@ -92,10 +94,11 @@ async def apply_weight_preset(
 async def reset_weights(
     optimizer: WeightOptimizer = Depends(get_weight_optimizer),
 ) -> ActiveWeightsSchema:
-    """Restore default scoring weights."""
+    """Restore default scoring weights and re-enable auto-regime."""
     await asyncio.to_thread(optimizer.reset)
     preset, weights = optimizer.active_weights()
     return ActiveWeightsSchema(
         preset=preset,
         weights={cat.value: w for cat, w in weights.items()},
+        regime_auto=optimizer.regime_auto(),
     )

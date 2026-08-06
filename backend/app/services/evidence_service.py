@@ -19,6 +19,7 @@ def _item_to_schema(item: EvidenceItem) -> EvidenceItemSchema:
         score=item.score,
         weight=item.weight,
         description=item.description,
+        confidence=item.confidence,
     )
 
 
@@ -31,6 +32,8 @@ def _bundle_to_schema(bundle: EvidenceBundle) -> EvidenceBundleSchema:
         total_confidence=bundle.total_confidence,
         items=[_item_to_schema(item) for item in bundle.items],
         timestamp=bundle.timestamp,
+        regime=bundle.regime,
+        regime_confidence=bundle.regime_confidence,
     )
 
 
@@ -43,6 +46,7 @@ def _items_to_json(items: list[EvidenceItem]) -> list[dict]:
             "score": item.score,
             "weight": item.weight,
             "description": item.description,
+            "confidence": item.confidence,
         }
         for item in items
     ]

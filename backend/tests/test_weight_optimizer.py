@@ -26,11 +26,17 @@ def test_apply_preset_updates_active_weights() -> None:
         weight_config=config,
     )
 
+    assert config.is_regime_auto() is True
     optimizer.apply_preset("momentum_focused")
     preset, weights = optimizer.active_weights()
 
     assert preset == "momentum_focused"
     assert weights[ScoringCategory.MOMENTUM] > weights[ScoringCategory.TREND]
+    assert config.is_regime_auto() is False
+
+    optimizer.reset()
+    assert config.is_regime_auto() is True
+    assert config.get_preset_name() == "default"
 
 
 def test_confidence_from_scores_uses_weights() -> None:

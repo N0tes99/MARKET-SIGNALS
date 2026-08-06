@@ -176,12 +176,16 @@ class WeightOptimizer:
         return weights
 
     def reset(self) -> None:
-        """Restore default weights."""
+        """Restore default weights and re-enable auto-regime."""
         self._weight_config.reset()
 
     def active_weights(self) -> tuple[str, dict[ScoringCategory, float]]:
         """Return active preset name and weights."""
         return self._weight_config.get_preset_name(), self._weight_config.get_weights()
+
+    def regime_auto(self) -> bool:
+        """Whether regime weight-profile swaps are active."""
+        return self._weight_config.is_regime_auto()
 
     def _backtest_preset(
         self,
