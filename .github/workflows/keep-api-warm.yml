@@ -1,17 +1,20 @@
 # Ping endpoints so Render free-tier spins down less often, and so
 # /assets scoring (+ Discord alerts) can run without site visitors.
-# Schedules can drift on free Actions minutes.
+# Schedules can drift on free Actions minutes; ~5–10m assets keeps
+# in-process rank cache warm for dashboard cold windows.
 name: Keep API warm
 
 on:
   schedule:
-    - cron: "*/12 * * * *"
-    - cron: "*/30 * * * *"
+    # Health: light keep-alive (~every 10m)
+    - cron: "*/10 * * * *"
+    # Assets: full rank_all warm (~every 7m — between 5–10m)
+    - cron: "*/7 * * * *"
   workflow_dispatch:
 
 jobs:
   ping-health:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/12 * * * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *'
     runs-on: ubuntu-latest
     steps:
       - name: Ping health endpoint
@@ -57,7 +60,7 @@ jobs:
           echo "OK (HTTP ${HTTP_CODE})"
 
   ping-assets:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/30 * * * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -89,6 +92,8 @@ jobs:
           }
 
           HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
+          # Prefer vars.API_ASSETS_URL (full Render /api/v1/assets) so keep-warm
+          # fills in-process caches without Netlify proxy timeouts.
           URL=$(normalize_path "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" "/api/v1/assets")
 
           echo "Waking API via health (${HEALTH_URL})"
@@ -105,11 +110,13 @@ jobs:
           fi
 
           echo "Pinging ${URL} (max 120s; timeouts/502 are non-fatal)"
-          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 "${AUTH_ARGS[@]}" "$URL" || true)
+          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 120 "${AUTH_ARGS[@]}" "$URL" || true)
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD secrets match Render AUTH_*"
           elif [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Assets ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
+            head -c 200 /tmp/assets_body || true
+            echo
           else
             echo "OK (HTTP ${HTTP_CODE})"
           fi

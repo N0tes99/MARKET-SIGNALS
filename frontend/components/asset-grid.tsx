@@ -176,14 +176,24 @@ export function AssetGrid() {
   );
 
   if (error && !assets) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const timedOut =
+      /504|502|timed out|timeout/i.test(message);
     return (
       <div className="surface p-10 text-center">
         <p className="text-sm text-muted-foreground">
-          Unable to load asset rankings. The API may still be warming up — wait a minute and refresh.
+          {timedOut
+            ? "Rankings timed out while the API was cold. Quotes above still work — refresh once, or wait a few minutes for keep-warm and try again."
+            : "Unable to load asset rankings. The API may still be warming up — wait a minute and refresh."}
         </p>
-        <p className="mt-2 font-mono text-xs text-muted-foreground">
-          {error instanceof Error ? error.message : "Unknown error"}
-        </p>
+        <p className="mt-2 font-mono text-xs text-muted-foreground">{message}</p>
+        <button
+          type="button"
+          className="mt-4 text-sm text-foreground underline underline-offset-4"
+          onClick={() => window.location.reload()}
+        >
+          Refresh now
+        </button>
       </div>
     );
   }

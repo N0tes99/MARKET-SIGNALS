@@ -115,8 +115,10 @@ class DecisionPipelineService:
         timeframe: str = "1h",
     ) -> list[DecisionResult]:
         """Evaluate and rank all symbols by opportunity score."""
-        # Prefetch shared benchmarks at the same limit engines use (cache-key match)
-        self._market_data.warm(["SPY", "QQQ", "BTC"], timeframe=timeframe, limit=200)
+        # Prefetch all listed symbols (+ shared benches) at limit=200 so trend /
+        # correlation / sector collectors hit the same OHLCV cache key.
+        warm_symbols = list(dict.fromkeys([*symbols, "SPY", "QQQ", "BTC"]))
+        self._market_data.warm(warm_symbols, timeframe=timeframe, limit=200)
         with suppress(Exception):
             self._market_data.get_ticker("^VIX")
 
@@ -128,7 +130,7 @@ class DecisionPipelineService:
         except Exception:
             pass
 
-        workers = min(len(symbols), 10)
+        workers = min(len(symbols), 18)
         if len(symbols) <= 1:
             results = [self.evaluate(symbol, timeframe) for symbol in symbols]
         else:

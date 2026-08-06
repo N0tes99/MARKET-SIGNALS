@@ -58,8 +58,12 @@ async function proxyRequest(
     headers.set("authorization", auth);
   }
 
-  // Stay under typical Netlify/serverless upstream limits; return 504 instead of hanging.
-  const PROXY_TIMEOUT_MS = 50_000;
+  // Cold /assets runs rank_all over ~60 symbols and often needs 50–90s.
+  // Default stays short so other routes fail fast; assets gets a longer budget
+  // so Netlify does not 504 mid-compute when keep-warm has not run yet.
+  const isAssetsList =
+    targetPath === "api/v1/assets" || targetPath === "api/v1/assets/";
+  const PROXY_TIMEOUT_MS = isAssetsList ? 100_000 : 50_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
 

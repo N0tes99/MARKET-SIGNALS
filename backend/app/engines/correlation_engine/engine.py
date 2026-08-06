@@ -85,7 +85,8 @@ class CorrelationEngine:
         asset_class = get_asset_class(normalized)
         benchmarks = _benchmarks_for(normalized, asset_class)
 
-        asset_df = self._market_data.safe_get_ohlcv(normalized, timeframe, limit=80)
+        # Default limit=200 matches trend/rank_all warm cache key.
+        asset_df = self._market_data.safe_get_ohlcv(normalized, timeframe)
         if asset_df is None:
             return None
 
@@ -95,7 +96,7 @@ class CorrelationEngine:
         for benchmark in benchmarks:
             if benchmark == normalized:
                 continue
-            bench_df = self._market_data.safe_get_ohlcv(benchmark, timeframe, limit=80)
+            bench_df = self._market_data.safe_get_ohlcv(benchmark, timeframe)
             if bench_df is None:
                 continue
             corr = _rolling_correlation(asset_returns, _returns(bench_df["close"]))

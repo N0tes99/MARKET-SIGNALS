@@ -1,6 +1,7 @@
 """Unified market data access for analysis engines."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
 import pandas as pd
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 _OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(ttl_seconds=180.0)
 _TICKER_CACHE: TTLCache[TickerSnapshot] = TTLCache(ttl_seconds=60.0)
 _DERIVATIVES_CACHE: TTLCache[DerivativesSnapshot] = TTLCache(ttl_seconds=120.0)
+_WARM_WORKERS = 16
 
 
 def build_default_provider() -> MarketDataProvider:
@@ -58,9 +60,20 @@ class MarketDataService:
         self._provider = provider or build_default_provider()
 
     def warm(self, symbols: list[str], timeframe: str = "1h", limit: int = 200) -> None:
-        """Prefetch OHLCV for shared benchmarks and listed symbols."""
-        for symbol in symbols:
-            self.safe_get_ohlcv(symbol, timeframe, limit)
+        """Prefetch OHLCV for shared benchmarks and listed symbols (parallel)."""
+        if not symbols:
+            return
+        if len(symbols) == 1:
+            self.safe_get_ohlcv(symbols[0], timeframe, limit)
+            return
+        workers = min(len(symbols), _WARM_WORKERS)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(self.safe_get_ohlcv, symbol, timeframe, limit)
+                for symbol in symbols
+            ]
+            for future in as_completed(futures):
+                future.result()  # safe_get_ohlcv already swallows errors
 
     def get_ohlcv(
         self,

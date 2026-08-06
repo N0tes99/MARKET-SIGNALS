@@ -114,7 +114,8 @@ class SectorRSEngine:
             )
 
         benches = benchmarks_for(normalized, asset_class)
-        asset_df = self._market_data.safe_get_ohlcv(normalized, timeframe, limit=80)
+        # Default limit=200 matches trend/rank_all warm cache key.
+        asset_df = self._market_data.safe_get_ohlcv(normalized, timeframe)
         if asset_df is None or len(asset_df) < _MIN_BARS:
             return SectorRSResult(
                 score=50.0,
@@ -136,7 +137,7 @@ class SectorRSEngine:
         if primary == normalized:
             primary = benches[1] if len(benches) > 1 else "SPY"
 
-        bench_df = self._market_data.safe_get_ohlcv(primary, timeframe, limit=80)
+        bench_df = self._market_data.safe_get_ohlcv(primary, timeframe)
         if bench_df is None:
             return SectorRSResult(
                 score=50.0,

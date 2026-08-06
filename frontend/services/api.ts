@@ -208,7 +208,8 @@ export async function fetchHealth(): Promise<HealthResponse> {
 }
 
 export async function fetchAssets(): Promise<AssetSummary[]> {
-  return apiFetch<AssetSummary[]>("/api/v1/assets");
+  // Match Netlify proxy budget for cold rank_all (see backend/[...path]/route.ts).
+  return apiFetch<AssetSummary[]>("/api/v1/assets", 110_000);
 }
 
 export async function fetchAsset(symbol: string): Promise<AssetSummary> {
