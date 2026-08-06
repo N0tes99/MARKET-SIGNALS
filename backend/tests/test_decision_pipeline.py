@@ -1,8 +1,8 @@
 """Decision pipeline unit tests."""
 
-from app.market_data.symbols import TRACKED_SYMBOLS
 from app.market_data.providers.mock import MockMarketDataProvider
 from app.market_data.service import MarketDataService
+from app.market_data.symbols import TRACKED_SYMBOLS
 from app.scoring.grading import TradeState
 from app.services.decision_pipeline import DecisionPipelineService
 

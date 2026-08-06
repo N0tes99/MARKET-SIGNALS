@@ -342,7 +342,7 @@ export interface CandlePoint {
   t: string;
   o: number;
   h: number;
-  l: number;
+  low: number;
   c: number;
   v: number;
 }

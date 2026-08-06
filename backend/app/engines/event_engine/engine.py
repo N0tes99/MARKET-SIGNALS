@@ -63,7 +63,10 @@ def _score_from_events(events: list[tuple[str, float]]) -> tuple[float, list[str
 
     events.sort(key=lambda item: item[1])
     nearest_days = events[0][1]
-    labels = [f"{label} in {days:.0f}d" if days >= 1 else f"{label} today" for label, days in events[:4]]
+    labels = [
+        f"{label} in {days:.0f}d" if days >= 1 else f"{label} today"
+        for label, days in events[:4]
+    ]
 
     if nearest_days <= 1:
         score = 35.0

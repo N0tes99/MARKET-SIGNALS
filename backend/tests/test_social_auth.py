@@ -192,7 +192,7 @@ async def test_follow_and_favorites(social_client) -> None:
     client, factory = social_client
     a = await _register_verified(client, factory, prefix="alice")
     await client.post("/api/v1/auth/logout")
-    b = await _register_verified(client, factory, prefix="bob")
+    await _register_verified(client, factory, prefix="bob")
 
     follow = await client.post(f"/api/v1/users/{a['id']}/follow")
     assert follow.status_code == 204

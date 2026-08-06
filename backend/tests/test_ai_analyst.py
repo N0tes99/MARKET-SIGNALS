@@ -5,7 +5,6 @@ from httpx import AsyncClient
 
 from app.engines.ai_engine import AIAnalyst
 from app.engines.evidence_engine.types import EvidenceItem
-from app.engines.regime_engine import MarketRegime, RegimeResult
 from app.market_data.providers.mock import MockMarketDataProvider
 from app.market_data.service import MarketDataService
 from app.services.decision_pipeline import DecisionPipelineService, DecisionResult

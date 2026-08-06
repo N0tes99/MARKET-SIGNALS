@@ -4,8 +4,8 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.backtesting import BacktestRunner
 from app.api.tracked import is_tracked
+from app.backtesting import BacktestRunner
 from app.core.service_dependencies import get_backtest_runner
 from app.schemas.backtest import BacktestResultSchema
 

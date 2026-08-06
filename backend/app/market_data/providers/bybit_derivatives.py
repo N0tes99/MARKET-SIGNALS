@@ -110,10 +110,9 @@ def _http_get_json(
 ) -> dict | list | None:
     """GET JSON; treat geo/auth blocks as soft misses."""
     response = client.get(url, params=params)
-    if response.status_code in {403, 404, 418, 451}:
-        if soft_fail:
-            logger.debug("HTTP %s for %s params=%s", response.status_code, url, params)
-            return None
+    if response.status_code in {403, 404, 418, 451} and soft_fail:
+        logger.debug("HTTP %s for %s params=%s", response.status_code, url, params)
+        return None
     response.raise_for_status()
     return response.json()
 

@@ -1,10 +1,11 @@
 """Simple thread-safe TTL cache with optional stale-while-revalidate."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import Lock, Thread
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
@@ -40,10 +41,9 @@ class TTLCache[T]:
             entry = self._entries.get(key)
             if entry is None:
                 return None
-            if datetime.now(UTC) >= entry.expires_at:
-                if not allow_stale:
-                    del self._entries[key]
-                    return None
+            if datetime.now(UTC) >= entry.expires_at and not allow_stale:
+                del self._entries[key]
+                return None
             return entry.value
 
     def set(self, key: str, value: T) -> None:

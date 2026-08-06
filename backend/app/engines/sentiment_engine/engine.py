@@ -31,7 +31,10 @@ class SentimentResult:
 def score_from_fear_greed(value: int, classification: str) -> tuple[float, str]:
     """Contrarian-leaning map: extreme fear supportive, extreme greed caution."""
     if value <= 20:
-        return clamp_score(64.0), f"Fear & Greed {value} ({classification}) — extreme fear, contrarian supportive"
+        return (
+            clamp_score(64.0),
+            f"Fear & Greed {value} ({classification}) — extreme fear, contrarian supportive",
+        )
     if value <= 40:
         return clamp_score(56.0), f"Fear & Greed {value} ({classification}) — fear zone"
     if value <= 55:

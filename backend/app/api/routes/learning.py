@@ -13,8 +13,8 @@ from app.schemas.learning import (
     OutcomeStatsSchema,
     OutcomeUpdateSchema,
     SignalRecordSchema,
-    SimilarMatchSchema,
     SimilarityResponseSchema,
+    SimilarMatchSchema,
 )
 from app.services.decision_pipeline import DecisionPipelineService
 
@@ -131,7 +131,10 @@ async def update_signal_outcome(
 
     existing = learning.store.get(record_id)
     if existing is None or existing.symbol != normalized:
-        raise HTTPException(status_code=404, detail=f"Signal '{record_id}' not found for {normalized}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Signal '{record_id}' not found for {normalized}",
+        )
 
     try:
         record = await asyncio.to_thread(

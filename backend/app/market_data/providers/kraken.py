@@ -7,9 +7,8 @@ import pandas as pd
 
 from app.config import settings
 from app.market_data.normalizer import STANDARD_COLUMNS
-from app.market_data.types import DerivativesSnapshot, TickerSnapshot
-
 from app.market_data.symbols import to_kraken_pair
+from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
 KRAKEN_INTERVAL_MAP: dict[str, int] = {
     "1m": 1,

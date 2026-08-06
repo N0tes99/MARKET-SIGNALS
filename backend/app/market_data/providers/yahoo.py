@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 from app.market_data.normalizer import STANDARD_COLUMNS
-from app.market_data.symbols import get_asset_class, AssetClass
+from app.market_data.symbols import AssetClass, get_asset_class
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
 _YF_INTERVAL_MAP: dict[str, str] = {

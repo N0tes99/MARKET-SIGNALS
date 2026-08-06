@@ -23,13 +23,11 @@ def is_public_path(path: str) -> bool:
     if path == "/api/v1/health" or path.rstrip("/") == "/api/v1/health":
         return True
     # Docs only in development when auth is otherwise on
-    if settings.app_env == "development" and path in {
+    return settings.app_env == "development" and path in {
         "/docs",
         "/redoc",
         "/openapi.json",
-    }:
-        return True
-    return False
+    }
 
 
 def credentials_valid(username: str, password: str) -> bool:

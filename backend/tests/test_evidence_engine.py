@@ -2,7 +2,7 @@
 
 from app.engines.evidence_engine import EvidenceEngine
 from app.engines.evidence_engine.types import EvidenceItem
-from app.engines.regime_engine import MarketRegime, RegimeEngine, RegimeResult
+from app.engines.regime_engine import MarketRegime, RegimeResult
 from app.market_data.providers.mock import MockMarketDataProvider
 from app.market_data.service import MarketDataService
 from app.scoring.weights import DEFAULT_WEIGHTS

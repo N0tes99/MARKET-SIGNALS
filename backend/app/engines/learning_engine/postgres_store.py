@@ -8,7 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import create_engine, desc, func, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from app.engines.learning_engine.types import SignalRecord
 from app.models.signal_record import SignalRecordModel
@@ -73,30 +73,29 @@ class PostgresSignalStore:
 
     def add(self, record: SignalRecord) -> None:
         """Insert a new signal record."""
-        with self._lock:
-            with self._session_factory() as session:
-                session.add(
-                    SignalRecordModel(
-                        id=record.id,
-                        symbol=record.symbol.upper(),
-                        timestamp=record.timestamp,
-                        confidence=record.confidence,
-                        trade_grade=record.trade_grade,
-                        trade_state=record.trade_state,
-                        execution_signal=record.execution_signal,
-                        opportunity_score=record.opportunity_score,
-                        category_scores=record.category_scores,
-                        expected_value=record.expected_value,
-                        entry_price=record.entry_price,
-                        stop_loss=record.stop_loss,
-                        take_profit=record.take_profit,
-                        outcome=record.outcome,
-                        realized_return_pct=record.realized_return_pct,
-                        notes=record.notes,
-                        resolved_at=record.resolved_at,
-                    )
+        with self._lock, self._session_factory() as session:
+            session.add(
+                SignalRecordModel(
+                    id=record.id,
+                    symbol=record.symbol.upper(),
+                    timestamp=record.timestamp,
+                    confidence=record.confidence,
+                    trade_grade=record.trade_grade,
+                    trade_state=record.trade_state,
+                    execution_signal=record.execution_signal,
+                    opportunity_score=record.opportunity_score,
+                    category_scores=record.category_scores,
+                    expected_value=record.expected_value,
+                    entry_price=record.entry_price,
+                    stop_loss=record.stop_loss,
+                    take_profit=record.take_profit,
+                    outcome=record.outcome,
+                    realized_return_pct=record.realized_return_pct,
+                    notes=record.notes,
+                    resolved_at=record.resolved_at,
                 )
-                session.commit()
+            )
+            session.commit()
 
     def list_for_symbol(self, symbol: str, limit: int = 50) -> list[SignalRecord]:
         """Return recent records for a symbol, newest first."""
@@ -127,22 +126,21 @@ class PostgresSignalStore:
 
     def update(self, record: SignalRecord) -> SignalRecord | None:
         """Update outcome fields for an existing record."""
-        with self._lock:
-            with self._session_factory() as session:
-                row = session.get(SignalRecordModel, record.id)
-                if row is None:
-                    return None
-                row.outcome = record.outcome
-                row.realized_return_pct = record.realized_return_pct
-                row.notes = record.notes
-                row.resolved_at = record.resolved_at
-                row.expected_value = record.expected_value
-                row.entry_price = record.entry_price
-                row.stop_loss = record.stop_loss
-                row.take_profit = record.take_profit
-                session.commit()
-                session.refresh(row)
-                return _row_to_record(row)
+        with self._lock, self._session_factory() as session:
+            row = session.get(SignalRecordModel, record.id)
+            if row is None:
+                return None
+            row.outcome = record.outcome
+            row.realized_return_pct = record.realized_return_pct
+            row.notes = record.notes
+            row.resolved_at = record.resolved_at
+            row.expected_value = record.expected_value
+            row.entry_price = record.entry_price
+            row.stop_loss = record.stop_loss
+            row.take_profit = record.take_profit
+            session.commit()
+            session.refresh(row)
+            return _row_to_record(row)
 
     def count(self, symbol: str | None = None) -> int:
         """Count stored records."""

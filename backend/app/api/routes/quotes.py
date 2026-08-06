@@ -62,7 +62,7 @@ async def get_candles(
                     t=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
                     o=float(row["open"]),
                     h=float(row["high"]),
-                    l=float(row["low"]),
+                    low=float(row["low"]),
                     c=float(row["close"]),
                     v=float(row.get("volume", 0) or 0),
                 )

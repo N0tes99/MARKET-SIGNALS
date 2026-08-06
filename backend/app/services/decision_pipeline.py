@@ -1,6 +1,7 @@
 """Decision pipeline — Evidence → Opportunity → Execution → Risk."""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from dataclasses import dataclass
 
 from app.engines.evidence_engine import EvidenceEngine
@@ -12,8 +13,6 @@ from app.market_data.service import MarketDataService
 from app.scoring.grading import TradeState
 from app.utils.ttl_cache import TTLCache
 
-# Collapse duplicate asset-page / concurrent evaluate hits
-_EVAL_CACHE: TTLCache[DecisionResult] = TTLCache(ttl_seconds=90.0)
 
 @dataclass
 class DecisionResult:
@@ -27,6 +26,9 @@ class DecisionResult:
     trade_state: TradeState
     summary: str
 
+
+# Collapse duplicate asset-page / concurrent evaluate hits
+_EVAL_CACHE: TTLCache[DecisionResult] = TTLCache(ttl_seconds=90.0)
 
 class DecisionPipelineService:
     """Orchestrates the full evidence-to-decision pipeline."""
@@ -87,10 +89,8 @@ class DecisionPipelineService:
         """Evaluate and rank all symbols by opportunity score."""
         # Prefetch shared benchmarks at the same limit engines use (cache-key match)
         self._market_data.warm(["SPY", "QQQ", "BTC"], timeframe=timeframe, limit=200)
-        try:
+        with suppress(Exception):
             self._market_data.get_ticker("^VIX")
-        except Exception:
-            pass
 
         # One CoinGecko batch for all alts (avoids per-symbol cold HTTP in on-chain)
         try:

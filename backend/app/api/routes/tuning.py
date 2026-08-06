@@ -6,8 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.tracked import is_tracked
 from app.core.service_dependencies import get_weight_optimizer
+from app.schemas.tuning import (
+    ActiveWeightsSchema,
+    ApplyPresetSchema,
+    PresetResultSchema,
+    WeightTuningSchema,
+)
 from app.scoring.optimizer import WeightOptimizer
-from app.schemas.tuning import ActiveWeightsSchema, ApplyPresetSchema, PresetResultSchema, WeightTuningSchema
 
 router = APIRouter()
 

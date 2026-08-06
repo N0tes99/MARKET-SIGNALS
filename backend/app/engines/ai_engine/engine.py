@@ -1,9 +1,9 @@
 """AI Analyst — converts numerical evidence into human-readable reasoning."""
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 import json
 import logging
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from openai import OpenAI
 
@@ -149,7 +149,14 @@ class AIAnalyst:
 
         return AIExplanation(
             symbol=decision.symbol,
-            summary=parsed.get("summary", self._local_summary(decision.symbol, decision.evidence.total_confidence, [])),
+            summary=parsed.get(
+                "summary",
+                self._local_summary(
+                    decision.symbol,
+                    decision.evidence.total_confidence,
+                    [],
+                ),
+            ),
             confidence=decision.evidence.total_confidence,
             factors=parsed.get("factors", []),
             conflicts=parsed.get("conflicts", []),
