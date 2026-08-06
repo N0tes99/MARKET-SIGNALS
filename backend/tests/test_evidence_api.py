@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.market_data.symbols import TRACKED_SYMBOLS
+from app.scoring.weights import DEFAULT_WEIGHTS
 
 
 @pytest.mark.asyncio
@@ -16,7 +17,8 @@ async def test_get_asset_evidence(client: AsyncClient) -> None:
     assert data["symbol"] == "BTC"
     assert data["timeframe"] == "1h"
     assert data["total_confidence"] > 0
-    assert len(data["items"]) == 10
+    categories = {item["category"] for item in data["items"]}
+    assert categories == {category.value for category in DEFAULT_WEIGHTS}
     assert "id" in data
     assert "timestamp" in data
 

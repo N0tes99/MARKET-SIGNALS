@@ -4,16 +4,23 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import create_engine
 
 from app.config import settings
+from app.database.base import Base
 from app.engines.learning_engine.postgres_store import PostgresSignalStore, to_sync_database_url
 from app.engines.learning_engine.types import SignalRecord
+from app.models.signal_record import SignalRecordModel  # noqa: F401
 
 
 def _store_or_skip() -> PostgresSignalStore:
     store = PostgresSignalStore(settings.database_url)
     if not store.ping():
         pytest.skip("Postgres not available")
+    # CI runs pytest without alembic; ensure tables exist (same pattern as social auth).
+    engine = create_engine(to_sync_database_url(settings.database_url))
+    Base.metadata.create_all(engine, tables=[SignalRecordModel.__table__])
+    engine.dispose()
     return store
 
 

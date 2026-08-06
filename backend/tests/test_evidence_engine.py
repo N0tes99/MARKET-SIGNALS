@@ -5,7 +5,9 @@ from app.engines.evidence_engine.types import EvidenceItem
 from app.engines.regime_engine import MarketRegime, RegimeResult
 from app.market_data.providers.mock import MockMarketDataProvider
 from app.market_data.service import MarketDataService
-from app.scoring.weights import DEFAULT_WEIGHTS
+from app.scoring.calculator import calculate_total_confidence
+from app.scoring.weight_config import get_weight_config
+from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
 
 
 class _NeutralRegimeEngine:
@@ -58,11 +60,12 @@ def test_accumulate_normalizes_symbol() -> None:
 
 def test_custom_collector_injection() -> None:
     """Custom collectors can be injected for testing."""
+    trend_weight = get_weight_config().get_weights()[ScoringCategory.TREND]
     custom_item = EvidenceItem(
         source="test_engine",
         category="Trend",
         score=100.0,
-        weight=20.0,
+        weight=trend_weight,
         description="Test trend signal",
     )
 
@@ -75,4 +78,8 @@ def test_custom_collector_injection() -> None:
     bundle = engine.accumulate("SOL")
 
     assert len(bundle.items) == 1
-    assert bundle.total_confidence == 16.0
+    expected = calculate_total_confidence(
+        [custom_item],
+        weights=get_weight_config().get_weights(),
+    )
+    assert bundle.total_confidence == expected
