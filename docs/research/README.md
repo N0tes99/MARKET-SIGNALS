@@ -6,7 +6,7 @@ Place research findings, data source evaluations, and strategy notes here.
 
 - Exchange APIs (Binance, Coinbase, etc.)
 - Macro data providers (FRED, Trading Economics)
-- Derivatives data (Coinglass liquidations) — wired via `COINGLASS_API_KEY`
+- Derivatives data (Coinglass liquidations) — optional paid; leave blank; free funding/OI remain
 
 ## Scoring Methodology
 
