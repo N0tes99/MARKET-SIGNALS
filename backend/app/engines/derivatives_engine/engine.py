@@ -1,4 +1,4 @@
-"""Derivatives Engine — funding level, trend, and OI change."""
+"""Derivatives Engine — funding, OI change, and Coinglass liquidations."""
 
 import logging
 from dataclasses import dataclass
@@ -8,6 +8,10 @@ from app.market_data.providers.bybit_derivatives import (
     fetch_derivatives_depth,
     oi_change_pct,
     score_derivatives_composite,
+)
+from app.market_data.providers.coinglass import (
+    fetch_aggregated_liquidations,
+    score_liquidations,
 )
 from app.market_data.service import MarketDataService
 from app.market_data.symbols import AssetClass, get_asset_class
@@ -29,7 +33,7 @@ class DerivativesResult:
 
 
 class DerivativesEngine:
-    """Analyzes funding rate trend and open-interest change (crowded vs empty)."""
+    """Analyzes funding trend, OI change, and optional liquidation cascades."""
 
     def __init__(self, market_data: MarketDataService | None = None) -> None:
         """Initialize with optional market data service (kept for DI compatibility)."""
@@ -53,6 +57,12 @@ class DerivativesEngine:
                 source="",
             )
 
+        liq_score: float | None = None
+        liq_note: str | None = None
+        liq = fetch_aggregated_liquidations(normalized)
+        if liq is not None:
+            liq_score, liq_note = score_liquidations(liq)
+
         depth = fetch_derivatives_depth(normalized)
         if depth is None or depth.funding_rate is None:
             # Legacy snapshot path (mock / tests)
@@ -62,6 +72,15 @@ class DerivativesEngine:
                 logger.exception("Failed to fetch derivatives for %s", normalized)
                 return None
             if snapshot.funding_rate is None:
+                if liq_score is not None and liq_note:
+                    return DerivativesResult(
+                        symbol=normalized,
+                        funding_rate=None,
+                        open_interest=None,
+                        score=liq_score,
+                        description=f"{normalized} [coinglass]: {liq_note}",
+                        source="coinglass",
+                    )
                 return DerivativesResult(
                     symbol=normalized,
                     funding_rate=None,
@@ -74,11 +93,11 @@ class DerivativesEngine:
                 snapshot.funding_rate,
                 [],
                 None,
+                liq_score,
+                liq_note,
             )
             if snapshot.open_interest is not None:
-                desc = (
-                    f"{normalized}: {desc}; OI {snapshot.open_interest:,.0f}"
-                )
+                desc = f"{normalized}: {desc}; OI {snapshot.open_interest:,.0f}"
             else:
                 desc = f"{normalized}: {desc}"
             return DerivativesResult(
@@ -95,17 +114,22 @@ class DerivativesEngine:
             depth.funding_rate,
             depth.funding_history,
             oi_delta,
+            liq_score,
+            liq_note,
         )
         oi_part = ""
         if depth.open_interest is not None:
             oi_part = f"; OI {depth.open_interest:,.0f}"
+        source = depth.source
+        if liq_note:
+            source = f"{source}+coinglass" if source else "coinglass"
         return DerivativesResult(
             symbol=normalized,
             funding_rate=depth.funding_rate,
             open_interest=depth.open_interest,
             score=score,
-            description=f"{normalized} [{depth.source}]: {desc}{oi_part}",
-            source=depth.source,
+            description=f"{normalized} [{source}]: {desc}{oi_part}",
+            source=source,
         )
 
     def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:

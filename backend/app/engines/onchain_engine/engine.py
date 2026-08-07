@@ -1,4 +1,4 @@
-"""On-chain / activity engine — BTC mempool + alt vol/mcap proxies."""
+"""On-chain / activity engine — BTC mempool+difficulty + alt vol/mcap proxies."""
 
 from __future__ import annotations
 
@@ -16,9 +16,11 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _MEMPOOL_FEES = "https://mempool.space/api/v1/fees/recommended"
+_MEMPOOL_DIFFICULTY = "https://mempool.space/api/v1/difficulty-adjustment"
 _COINGECKO_SIMPLE = "https://api.coingecko.com/api/v3/simple/price"
 
 _BTC_CACHE: TTLCache[dict | None] = TTLCache(ttl_seconds=300.0)
+_DIFF_CACHE: TTLCache[dict | None] = TTLCache(ttl_seconds=600.0)
 _CG_CACHE: TTLCache[dict[str, dict] | None] = TTLCache(ttl_seconds=300.0)
 _CG_ALL_KEY = "watchlist"
 
@@ -71,6 +73,15 @@ def score_btc_mempool(fastest_fee: float) -> tuple[float, str]:
     return clamp_score(34.0), f"BTC mempool congested ({fastest_fee:.0f} sat/vB)"
 
 
+def score_difficulty_progress(progress_percent: float) -> tuple[float, str]:
+    """Mild tilt from difficulty epoch progress (late epoch = hashrate pressure)."""
+    if progress_percent >= 90:
+        return 46.0, f"difficulty epoch late ({progress_percent:.0f}%)"
+    if progress_percent <= 15:
+        return 54.0, f"difficulty epoch early ({progress_percent:.0f}%)"
+    return 50.0, f"difficulty epoch mid ({progress_percent:.0f}%)"
+
+
 def score_vol_mcap(ratio: float) -> tuple[float, str]:
     """Map 24h volume / market cap to speculative heat (high = caution)."""
     pct = ratio * 100
@@ -81,6 +92,27 @@ def score_vol_mcap(ratio: float) -> tuple[float, str]:
     if pct < 20:
         return clamp_score(44.0), f"elevated turnover (vol/mcap {pct:.1f}%)"
     return clamp_score(36.0), f"speculative heat (vol/mcap {pct:.1f}%)"
+
+
+def blend_activity_with_change(
+    vol_score: float,
+    vol_desc: str,
+    change_24h: float | None,
+) -> tuple[float, str]:
+    """Fold 24h price change as a light confirmation on top of vol/mcap."""
+    if change_24h is None:
+        return vol_score, vol_desc
+    # Extreme up + hot vol → slightly more caution; dump + quiet → mild support
+    adj = 0.0
+    if change_24h >= 8 and vol_score <= 44:
+        adj = -4.0
+        tag = f"surge {change_24h:+.1f}%"
+    elif change_24h <= -8 and vol_score >= 52:
+        adj = 3.0
+        tag = f"washout {change_24h:+.1f}%"
+    else:
+        tag = f"24h {change_24h:+.1f}%"
+    return clamp_score(vol_score + adj), f"{vol_desc}; {tag}"
 
 
 def _fetch_btc_fees() -> dict | None:
@@ -95,6 +127,20 @@ def _fetch_btc_fees() -> dict | None:
             return None
 
     return _BTC_CACHE.get_or_set("fees", _load)
+
+
+def _fetch_btc_difficulty() -> dict | None:
+    def _load() -> dict | None:
+        try:
+            with httpx.Client(timeout=3.0) as client:
+                response = client.get(_MEMPOOL_DIFFICULTY)
+                response.raise_for_status()
+                return response.json()
+        except Exception:
+            logger.exception("mempool.space difficulty fetch failed")
+            return None
+
+    return _DIFF_CACHE.get_or_set("difficulty", _load)
 
 
 def _fetch_coingecko_batch(ids: list[str]) -> dict[str, dict] | None:
@@ -115,6 +161,7 @@ def _fetch_coingecko_batch(ids: list[str]) -> dict[str, dict] | None:
                         "vs_currencies": "usd",
                         "include_market_cap": "true",
                         "include_24hr_vol": "true",
+                        "include_24hr_change": "true",
                     },
                 )
                 response.raise_for_status()
@@ -140,6 +187,7 @@ def warm_coingecko_activity() -> None:
                         "vs_currencies": "usd",
                         "include_market_cap": "true",
                         "include_24hr_vol": "true",
+                        "include_24hr_change": "true",
                     },
                 )
                 response.raise_for_status()
@@ -152,7 +200,7 @@ def warm_coingecko_activity() -> None:
 
 
 class OnChainEngine:
-    """Orthogonal crypto activity signals (mempool / vol-mcap)."""
+    """Orthogonal crypto activity signals (mempool / difficulty / vol-mcap)."""
 
     def analyze(self, symbol: str) -> OnChainResult:
         """Return on-chain or activity proxy score for symbol."""
@@ -169,11 +217,25 @@ class OnChainEngine:
             )
 
         if normalized == "BTC":
+            parts: list[str] = []
+            scores: list[float] = []
             fees = _fetch_btc_fees()
             if fees and "fastestFee" in fees:
-                score, desc = score_btc_mempool(float(fees["fastestFee"]))
-                return OnChainResult(score, f"On-Chain: {desc}")
-            return OnChainResult(50.0, "On-Chain: BTC mempool unavailable — neutral")
+                fee_score, fee_desc = score_btc_mempool(float(fees["fastestFee"]))
+                scores.append(fee_score)
+                parts.append(fee_desc)
+            diff = _fetch_btc_difficulty()
+            progress = None
+            if isinstance(diff, dict):
+                progress = diff.get("progressPercent")
+            if progress is not None:
+                d_score, d_desc = score_difficulty_progress(float(progress))
+                scores.append(d_score)
+                parts.append(d_desc)
+            if not scores:
+                return OnChainResult(50.0, "On-Chain: BTC mempool unavailable — neutral")
+            blended = sum(scores) / len(scores)
+            return OnChainResult(clamp_score(blended), f"On-Chain: {'; '.join(parts)}")
 
         cg_id = _COINGECKO_IDS.get(normalized)
         if not cg_id:
@@ -186,10 +248,13 @@ class OnChainEngine:
         row = batch[cg_id]
         mcap = float(row.get("usd_market_cap") or 0)
         vol = float(row.get("usd_24h_vol") or 0)
+        change = row.get("usd_24h_change")
+        change_f = float(change) if change is not None else None
         if mcap <= 0:
             return OnChainResult(50.0, f"On-Chain: {normalized} mcap missing — neutral")
 
         score, tone = score_vol_mcap(vol / mcap)
+        score, tone = blend_activity_with_change(score, tone, change_f)
         return OnChainResult(score, f"On-Chain {normalized}: {tone}")
 
     def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:

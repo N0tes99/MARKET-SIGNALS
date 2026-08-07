@@ -55,8 +55,10 @@ def score_derivatives_composite(
     funding: float | None,
     history: list[float],
     oi_change_pct: float | None,
+    liquidation_score: float | None = None,
+    liquidation_note: str | None = None,
 ) -> tuple[float, str]:
-    """Crowded vs empty composite from funding level, trend, and OI Δ."""
+    """Crowded vs empty composite from funding, OI Δ, and optional liquidations."""
     from app.utils.scoring_helpers import clamp_score
 
     if funding is None:
@@ -96,6 +98,11 @@ def score_derivatives_composite(
             notes.append(f"OI falling {oi_change_pct:+.1f}% (unwind)")
         else:
             notes.append(f"OI Δ {oi_change_pct:+.1f}%")
+
+    if liquidation_score is not None and liquidation_note:
+        # Blend ~30% toward liquidation tilt (funding/OI remain primary)
+        score = score * 0.7 + liquidation_score * 0.3
+        notes.append(liquidation_note)
 
     description = f"Funding {funding_bps:.2f} bps — {', '.join(notes)}"
     return clamp_score(score), description

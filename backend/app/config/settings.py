@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     binance_futures_url: str = "https://fapi.binance.com"
     kraken_api_url: str = "https://api.kraken.com"
     fred_api_key: str = ""
+    # Coinglass (liquidations) — empty key skips fetch; funding/OI still work
+    coinglass_api_key: str = ""
+    coinglass_base_url: str = "https://open-api-v4.coinglass.com"
+    coinglass_exchange_list: str = "Binance,OKX,Bybit"
 
     # Product freshness gate (not TTL SWR): seconds since last successful
     # OHLCV/ticker fetch, and consecutive empty/error responses.

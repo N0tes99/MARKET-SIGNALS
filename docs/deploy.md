@@ -55,6 +55,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
+| `COINGLASS_API_KEY` | optional — unlocks futures liquidation tilt in Derivatives |
 
 ### Optional alert / email-verify vars
 
