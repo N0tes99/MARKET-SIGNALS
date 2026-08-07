@@ -71,27 +71,17 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
   return (
     <article
       className={cn(
-        "surface-interactive group relative",
+        "surface-interactive group",
         compact ? "p-3" : "p-5",
       )}
     >
-      {rank != null ? (
-        <span
-          className={cn(
-            "absolute right-3 top-2.5 text-sm",
-            rank <= 3 ? "rank-num" : "rank-num-muted",
-          )}
-        >
-          #{rank}
-        </span>
-      ) : null}
       <div
         className={cn(
-          "flex items-start justify-between border-b border-white/[0.06]",
+          "flex items-start justify-between gap-3 border-b border-white/[0.06]",
           compact ? "pb-3" : "pb-4",
         )}
       >
-        <div className={cn(rank != null && "pr-8")}>
+        <div className="min-w-0">
           <div className="flex items-baseline gap-2">
             <Link
               href={`/assets/${asset.symbol}`}
@@ -122,16 +112,28 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
             )}
           </Link>
         </div>
-        <Link
-          href={`/assets/${asset.symbol}`}
-          className={cn(
-            "font-mono transition-colors hover:text-foreground",
-            compact ? "text-xs" : "text-sm",
-            gradeClass(asset.trade_grade),
-          )}
-        >
-          {asset.trade_grade}
-        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
+          {rank != null ? (
+            <span
+              className={cn(
+                "text-sm leading-none",
+                rank <= 3 ? "rank-num" : "rank-num-muted",
+              )}
+            >
+              #{rank}
+            </span>
+          ) : null}
+          <Link
+            href={`/assets/${asset.symbol}`}
+            className={cn(
+              "font-mono leading-none transition-colors hover:text-foreground",
+              compact ? "text-xs" : "text-sm",
+              gradeClass(asset.trade_grade),
+            )}
+          >
+            {asset.trade_grade}
+          </Link>
+        </div>
       </div>
 
       <Link
