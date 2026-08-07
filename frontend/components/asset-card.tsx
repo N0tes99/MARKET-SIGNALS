@@ -112,7 +112,7 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
             )}
           </Link>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
+        <div className="flex shrink-0 flex-col items-end gap-2.5 pt-0.5">
           {rank != null ? (
             <span
               className={cn(
