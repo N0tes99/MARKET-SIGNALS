@@ -65,6 +65,7 @@ def _user_schema(user: User) -> UserSchema:
         username=user.username,
         email_verified=user.email_verified,
         created_at=user.created_at,
+        is_admin=settings.is_admin_username(user.username),
     )
 
 

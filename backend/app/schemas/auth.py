@@ -51,5 +51,6 @@ class UserSchema(BaseModel):
     username: str
     email_verified: bool
     created_at: datetime
+    is_admin: bool = False
 
     model_config = {"from_attributes": True}

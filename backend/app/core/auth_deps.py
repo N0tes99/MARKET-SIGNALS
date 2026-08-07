@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.dependencies import get_db
 from app.core.security import SESSION_COOKIE_NAME, decode_access_token
 from app.models.user import User
@@ -55,5 +56,17 @@ async def require_verified_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email verification required",
+        )
+    return user
+
+
+async def require_admin_user(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Require login as an ADMIN_USERNAMES account (Outcome log, etc.)."""
+    if not settings.is_admin_username(user.username):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
         )
     return user

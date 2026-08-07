@@ -36,13 +36,13 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
   const signalsQuery = useQuery({
     queryKey: ["signals", symbol],
     queryFn: () => fetchSignals(symbol, 12),
-    enabled: Boolean(user),
+    enabled: Boolean(user?.is_admin),
   });
 
   const statsQuery = useQuery({
     queryKey: ["outcome-stats", symbol],
     queryFn: () => fetchOutcomeStats(symbol),
-    enabled: Boolean(user),
+    enabled: Boolean(user?.is_admin),
   });
 
   const logMutation = useMutation({
@@ -71,8 +71,8 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
     },
   });
 
-  // Private coaching log (entry / TP / Hit / Miss) — hidden from visitors.
-  if (authLoading || !user) {
+  // Admin-only coaching log (entry / TP / Hit / Miss).
+  if (authLoading || !user?.is_admin) {
     return null;
   }
 
@@ -86,8 +86,7 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
         <div>
           <h2 className="label-caps">Outcome log</h2>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Private to you — log the thesis (entry / TP), then mark Hit / Miss with realized
-            return.
+            Admin only — log the thesis (entry / TP), then mark Hit / Miss with realized return.
           </p>
         </div>
         <button

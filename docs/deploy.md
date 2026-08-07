@@ -53,6 +53,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `SIGNAL_STORE` | `postgres` (or `auto`) |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
+| `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log (default `Admin`) |
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 | `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run without it |

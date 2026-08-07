@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     auth_username: str = "signal"
     auth_password: str = ""
 
+    # Comma-separated social usernames that may see Outcome log (TP / Hit / Miss)
+    admin_usernames: str = "Admin"
+
     # Comma-separated browser origins (Netlify URL in production)
     cors_origins: str = "http://localhost:3000"
     # Public frontend URL for email verification links
@@ -108,6 +111,18 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of origins."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    def admin_username_set(self) -> set[str]:
+        """Lowercased admin usernames allowed for private Outcome log."""
+        return {
+            name.strip().lower()
+            for name in self.admin_usernames.split(",")
+            if name.strip()
+        }
+
+    def is_admin_username(self, username: str) -> bool:
+        """True when username is listed in ADMIN_USERNAMES (case-insensitive)."""
+        return username.strip().lower() in self.admin_username_set()
 
     def resolved_public_app_url(self) -> str:
         """Frontend base URL for verification links."""

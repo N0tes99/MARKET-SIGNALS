@@ -391,6 +391,7 @@ export interface AuthUser {
   username: string;
   email_verified: boolean;
   created_at: string;
+  is_admin?: boolean;
 }
 
 export interface DiscussionComment {

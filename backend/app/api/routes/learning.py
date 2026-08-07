@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.tracked import is_tracked
-from app.core.auth_deps import get_current_user
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_decision_pipeline, get_learning_engine
 from app.engines.learning_engine import LearningEngine
 from app.engines.learning_engine.types import SignalOutcome, SignalRecord
@@ -93,9 +93,9 @@ async def get_asset_signals(
     symbol: str,
     limit: int = Query(default=20, ge=1, le=100),
     learning: LearningEngine = Depends(get_learning_engine),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_admin_user),
 ) -> list[SignalRecordSchema]:
-    """Return recent signal history (private — signed-in only)."""
+    """Return recent signal history (admin Outcome log only)."""
     normalized = symbol.upper()
     if not is_tracked(normalized):
         raise HTTPException(status_code=404, detail=f"Asset '{normalized}' is not tracked")
@@ -109,7 +109,7 @@ async def log_current_signal(
     symbol: str,
     pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
     learning: LearningEngine = Depends(get_learning_engine),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_admin_user),
 ) -> SignalRecordSchema:
     """Evaluate the asset now and explicitly log it for outcome tracking."""
     normalized = symbol.upper()
@@ -127,7 +127,7 @@ async def update_signal_outcome(
     record_id: UUID,
     body: OutcomeUpdateSchema,
     learning: LearningEngine = Depends(get_learning_engine),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_admin_user),
 ) -> SignalRecordSchema:
     """Record a realized win/loss/breakeven/no_trade outcome for a signal."""
     normalized = symbol.upper()
@@ -159,9 +159,9 @@ async def update_signal_outcome(
 async def get_outcome_stats(
     symbol: str,
     learning: LearningEngine = Depends(get_learning_engine),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_admin_user),
 ) -> OutcomeStatsSchema:
-    """Return win/loss stats for logged outcomes (private — signed-in only)."""
+    """Return win/loss stats for logged outcomes (admin Outcome log only)."""
     normalized = symbol.upper()
     if not is_tracked(normalized):
         raise HTTPException(status_code=404, detail=f"Asset '{normalized}' is not tracked")
