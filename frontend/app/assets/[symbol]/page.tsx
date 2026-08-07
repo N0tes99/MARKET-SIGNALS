@@ -6,6 +6,7 @@ import { DecisionBanner } from "@/components/decision-banner";
 import { DiscussionPanel } from "@/components/discussion-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
 import { OutcomeLogger } from "@/components/outcome-logger";
+import { SetupIdeasPanel } from "@/components/setup-ideas-panel";
 import { SiteHeader } from "@/components/site-header";
 
 interface AssetDetailPageProps {
@@ -39,6 +40,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
         <div className="mt-6 space-y-6">
           <AssetChartPanel symbol={normalized} />
           <DecisionBanner symbol={normalized} />
+          <SetupIdeasPanel symbol={normalized} />
           <OutcomeLogger symbol={normalized} />
           <DiscussionPanel symbol={normalized} />
           <EvidencePanel symbol={normalized} />
