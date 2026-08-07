@@ -414,6 +414,8 @@ export interface DiscussionPost {
   comment_count: number;
   like_count: number;
   liked_by_me: boolean;
+  is_shredded?: boolean;
+  shredded_at?: string | null;
 }
 
 export interface PublicProfile {
@@ -575,6 +577,22 @@ export async function unlikePost(postId: string): Promise<void> {
   if (!response.ok && response.status !== 204) {
     throw new Error(await readErrorDetail(response));
   }
+}
+
+export async function shredPost(
+  postId: string,
+  reason?: string,
+): Promise<DiscussionPost> {
+  const response = await fetch(apiUrl(`/api/v1/posts/${postId}/shred`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason ?? null }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<DiscussionPost>;
 }
 
 export async function fetchPublicProfile(username: string): Promise<PublicProfile> {

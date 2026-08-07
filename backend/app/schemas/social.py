@@ -49,6 +49,14 @@ class PostSchema(BaseModel):
     comment_count: int = 0
     like_count: int = 0
     liked_by_me: bool = False
+    is_shredded: bool = False
+    shredded_at: datetime | None = None
+
+
+class ShredPostRequest(BaseModel):
+    """Optional internal note when an admin shreds a post (not shown publicly)."""
+
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class PublicProfileSchema(BaseModel):

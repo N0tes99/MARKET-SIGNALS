@@ -8,6 +8,7 @@ import {
   createPostComment,
   followUser,
   likePost,
+  shredPost,
   unfollowUser,
   unlikePost,
   type DiscussionPost,
@@ -39,12 +40,34 @@ export function SocialPostCard({
 }: SocialPostCardProps) {
   const { user } = useAuth();
   const canWrite = Boolean(user?.email_verified);
+  const isAdmin = Boolean(user?.is_admin);
+  const shredded = Boolean(post.is_shredded);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [following, setFollowing] = useState(false);
+
+  async function handleShred() {
+    if (!isAdmin || shredded) return;
+    const ok = window.confirm(
+      "Shred this post? Original text is wiped and replaced with a removal notice.",
+    );
+    if (!ok) return;
+    const reason =
+      window.prompt("Optional note (private, admin-only log):", "offensive") ?? undefined;
+    setPending(true);
+    setError(null);
+    try {
+      await shredPost(post.id, reason?.trim() || undefined);
+      onChanged?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Shred failed");
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function toggleLike() {
     if (!canWrite) return;
@@ -143,27 +166,49 @@ export function SocialPostCard({
               {formatWhen(post.created_at)}
             </time>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+          <p
+            className={`mt-2 whitespace-pre-wrap text-sm leading-relaxed ${
+              shredded ? "italic text-muted-foreground" : "text-foreground/90"
+            }`}
+          >
             {post.body}
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              disabled={!canWrite || pending}
-              onClick={() => void toggleLike()}
-              className={`font-mono text-[11px] uppercase tracking-wide transition-colors disabled:opacity-40 ${
-                liked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {liked ? "Liked" : "Like"} · {likeCount}
-            </button>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {post.comment_count} comment{post.comment_count === 1 ? "" : "s"}
-            </span>
+            {!shredded ? (
+              <button
+                type="button"
+                disabled={!canWrite || pending}
+                onClick={() => void toggleLike()}
+                className={`font-mono text-[11px] uppercase tracking-wide transition-colors disabled:opacity-40 ${
+                  liked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {liked ? "Liked" : "Like"} · {likeCount}
+              </button>
+            ) : (
+              <span className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                Moderated
+              </span>
+            )}
+            {!shredded ? (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {post.comment_count} comment{post.comment_count === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            {isAdmin && !shredded ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void handleShred()}
+                className="font-mono text-[11px] uppercase tracking-wide text-bearish/80 transition-colors hover:text-bearish disabled:opacity-50"
+              >
+                Shred
+              </button>
+            ) : null}
           </div>
 
-          {post.comments.length > 0 ? (
+          {!shredded && post.comments.length > 0 ? (
             <ul className="mt-3 space-y-2 border-l border-white/[0.08] pl-3">
               {post.comments.map((comment) => (
                 <li key={comment.id}>
@@ -186,7 +231,7 @@ export function SocialPostCard({
             </ul>
           ) : null}
 
-          {canWrite ? (
+          {!shredded && canWrite ? (
             <form onSubmit={submitComment} className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
@@ -204,7 +249,7 @@ export function SocialPostCard({
                 Reply
               </button>
             </form>
-          ) : user && !user.email_verified ? (
+          ) : !shredded && user && !user.email_verified ? (
             <p className="mt-3 text-xs text-muted-foreground">
               <Link href="/verify-email" className="underline-offset-4 hover:underline">
                 Verify your email

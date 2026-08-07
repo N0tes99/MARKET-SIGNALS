@@ -38,7 +38,10 @@ class User(Base):
         nullable=False,
     )
 
-    posts: Mapped[list["Post"]] = relationship(back_populates="author")  # noqa: F821
+    posts: Mapped[list["Post"]] = relationship(  # noqa: F821
+        back_populates="author",
+        foreign_keys="Post.user_id",
+    )
     comments: Mapped[list["Comment"]] = relationship(back_populates="author")  # noqa: F821
     favorites: Mapped[list["Favorite"]] = relationship(  # noqa: F821
         back_populates="user",

@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.auth_deps import get_optional_user, require_verified_user
+from app.core.auth_deps import get_optional_user, require_admin_user, require_verified_user
 from app.core.dependencies import get_db
 from app.market_data.symbols import is_tracked
 from app.models.comment import Comment
 from app.models.follow import Follow
-from app.models.post import Post
+from app.models.post import SHREDDED_POST_BODY, Post
 from app.models.post_like import PostLike
 from app.models.user import User
 from app.schemas.social import (
@@ -24,9 +27,14 @@ from app.schemas.social import (
     CreatePostRequest,
     PostSchema,
     PublicProfileSchema,
+    ShredPostRequest,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+SHREDDED_COMMENT_BODY = "[removed]"
 
 
 def _comment_schema(comment: Comment) -> CommentSchema:
@@ -46,7 +54,7 @@ def _post_schema(
     liked_by_me: bool = False,
     like_count: int | None = None,
 ) -> PostSchema:
-    comments = [_comment_schema(c) for c in post.comments]
+    comments = [] if post.is_shredded else [_comment_schema(c) for c in post.comments]
     likes = like_count if like_count is not None else len(post.likes)
     return PostSchema(
         id=post.id,
@@ -56,9 +64,11 @@ def _post_schema(
         body=post.body,
         created_at=post.created_at,
         comments=comments,
-        comment_count=len(comments),
+        comment_count=0 if post.is_shredded else len(post.comments),
         like_count=likes,
         liked_by_me=liked_by_me,
+        is_shredded=post.is_shredded,
+        shredded_at=post.shredded_at,
     )
 
 
@@ -76,6 +86,14 @@ async def _liked_post_ids(
         )
     )
     return set(result.scalars().all())
+
+
+def _reject_if_shredded(post: Post) -> None:
+    if post.is_shredded:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Post was removed by moderation",
+        )
 
 
 @router.get("/social/feed", response_model=list[PostSchema])
@@ -136,6 +154,8 @@ async def create_feed_post(
         comment_count=0,
         like_count=0,
         liked_by_me=False,
+        is_shredded=False,
+        shredded_at=None,
     )
 
 
@@ -202,7 +222,53 @@ async def create_post(
         comment_count=0,
         like_count=0,
         liked_by_me=False,
+        is_shredded=False,
+        shredded_at=None,
     )
+
+
+@router.post("/posts/{post_id}/shred", response_model=PostSchema)
+async def shred_post(
+    post_id: uuid.UUID,
+    body: ShredPostRequest | None = None,
+    admin: User = Depends(require_admin_user),
+    session: AsyncSession = Depends(get_db),
+) -> PostSchema:
+    """Admin: wipe post text, leave a public tombstone (hash retained)."""
+    result = await session.execute(
+        select(Post)
+        .where(Post.id == post_id)
+        .options(
+            selectinload(Post.author),
+            selectinload(Post.comments).selectinload(Comment.author),
+            selectinload(Post.likes),
+        )
+    )
+    post = result.scalar_one_or_none()
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.is_shredded:
+        return _post_schema(post)
+
+    reason = (body.reason if body else None) or ""
+    digest = hashlib.sha256(post.body.encode("utf-8")).hexdigest()
+    post.body_sha256 = digest
+    post.body = SHREDDED_POST_BODY
+    post.shredded_at = datetime.now(UTC)
+    post.shredded_by_user_id = admin.id
+
+    for comment in post.comments:
+        comment.body = SHREDDED_COMMENT_BODY
+
+    await session.flush()
+    logger.info(
+        "Post %s shredded by admin=%s reason=%r hash=%s",
+        post.id,
+        admin.username,
+        reason[:200],
+        digest[:12],
+    )
+    return _post_schema(post)
 
 
 @router.get("/posts/{post_id}/comments", response_model=list[CommentSchema])
@@ -214,6 +280,8 @@ async def list_comments(
     post = await session.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
+    if post.is_shredded:
+        return []
 
     result = await session.execute(
         select(Comment)
@@ -240,6 +308,7 @@ async def create_comment(
     post = await session.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
+    _reject_if_shredded(post)
 
     comment = Comment(
         post_id=post_id,
@@ -268,6 +337,7 @@ async def like_post(
     post = await session.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
+    _reject_if_shredded(post)
 
     existing = await session.execute(
         select(PostLike).where(PostLike.user_id == user.id, PostLike.post_id == post_id)
