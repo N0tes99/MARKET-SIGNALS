@@ -223,6 +223,35 @@ export async function fetchEvidence(symbol: string): Promise<EvidenceBundle> {
   return apiFetch<EvidenceBundle>(`/api/v1/assets/${symbol}/evidence`);
 }
 
+export type SetupType = "funding_extreme" | "liq_flush" | "basis_rich";
+export type SetupDirection = "long" | "short" | "neutral" | "relative";
+export type SetupTradeStateHint = "IGNORE" | "WATCH";
+export type SetupDataQuality = "good" | "degraded" | "missing";
+
+export interface OpportunityIdea {
+  id: string;
+  symbol: string;
+  instrument_type: "perp";
+  setup_type: SetupType;
+  direction_bias: SetupDirection;
+  confidence: number;
+  factors: string[];
+  conflicts: string[];
+  trade_state_hint: SetupTradeStateHint;
+  as_of: string;
+  data_quality: SetupDataQuality;
+}
+
+export interface AssetSetupsResponse {
+  symbol: string;
+  setups: OpportunityIdea[];
+  scanned_at: string;
+}
+
+export async function fetchAssetSetups(symbol: string): Promise<AssetSetupsResponse> {
+  return apiFetch<AssetSetupsResponse>(`/api/v1/assets/${symbol}/setups`);
+}
+
 export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }

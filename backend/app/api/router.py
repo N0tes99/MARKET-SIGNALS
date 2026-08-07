@@ -16,6 +16,7 @@ from app.api.routes import (
     learning,
     opportunities,
     quotes,
+    setups,
     social,
     tuning,
     websocket,
@@ -32,6 +33,7 @@ api_router.include_router(decision.router, prefix="/assets", tags=["decision"])
 api_router.include_router(analysis.router, prefix="/assets", tags=["analysis"])
 api_router.include_router(learning.router, prefix="/assets", tags=["learning"])
 api_router.include_router(evidence.router, prefix="/assets", tags=["evidence"])
+api_router.include_router(setups.router, prefix="/assets", tags=["setups"])
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])

@@ -102,6 +102,14 @@ def get_alert_service():
 
 
 @lru_cache
+def get_setup_scanner():
+    """Singleton setup scanner (opportunity ideas — separate from ranking)."""
+    from app.engines.opportunity_engine.scanner import SetupScanner
+
+    return SetupScanner(market_data=get_market_data_service())
+
+
+@lru_cache
 def get_weight_optimizer() -> WeightOptimizer:
     """Singleton weight optimizer sharing market data cache."""
     return WeightOptimizer(market_data=get_market_data_service())
