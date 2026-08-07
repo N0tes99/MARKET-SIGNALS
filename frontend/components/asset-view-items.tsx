@@ -115,11 +115,11 @@ export function AssetListRow({
             <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/70">price …</p>
           )}
         </div>
-        <div className="shrink-0 text-right">
-          <p className={cn("font-mono text-foreground/90", compact ? "text-xs" : "text-sm")}>
+        <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+          <p className={cn("font-mono leading-none text-foreground/90", compact ? "text-xs" : "text-sm")}>
             {asset.trade_grade}
           </p>
-          <p className="font-mono text-[10px] text-muted-foreground">
+          <p className="font-mono text-[10px] leading-none text-muted-foreground">
             {asset.confidence > 0 ? `${asset.confidence.toFixed(0)}%` : "—"}
           </p>
         </div>
