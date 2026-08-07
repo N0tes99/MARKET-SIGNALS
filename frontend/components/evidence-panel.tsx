@@ -7,6 +7,7 @@ import { AIExplanationCard } from "@/components/ai-explanation-card";
 import { BacktestPanel } from "@/components/backtest-panel";
 import { SimilarityPanel } from "@/components/similarity-panel";
 import { WeightTuningPanel } from "@/components/weight-tuning-panel";
+import { coinglassLiquidationsUrl } from "@/config/assets";
 import { cn } from "@/lib/utils";
 
 interface EvidencePanelProps {
@@ -63,6 +64,7 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
   }
 
   const itemsByCategory = Object.fromEntries(data.items.map((item) => [item.category, item]));
+  const liquidationsUrl = coinglassLiquidationsUrl(symbol);
 
   return (
     <div className="space-y-3">
@@ -86,12 +88,25 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Object.entries(SECTION_MAP).map(([section, categories]) => {
           const item = categories.map((c) => itemsByCategory[c]).find(Boolean);
+          const showLiquidations = section === "On-Chain" && liquidationsUrl;
           return (
             <div key={section} className="surface p-5">
-              <div className="flex items-baseline justify-between">
-                <h2 className="label-caps">{section}</h2>
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <h2 className="label-caps">{section}</h2>
+                  {showLiquidations && (
+                    <a
+                      href={liquidationsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[10px] tracking-wide text-muted-foreground/45 underline-offset-2 transition-colors hover:text-muted-foreground hover:underline"
+                    >
+                      liquidations
+                    </a>
+                  )}
+                </div>
                 {item && (
-                  <span className={cn("font-mono text-sm", scoreColor(item.score))}>
+                  <span className={cn("shrink-0 font-mono text-sm", scoreColor(item.score))}>
                     {item.score.toFixed(0)}
                   </span>
                 )}

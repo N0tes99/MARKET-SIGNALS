@@ -95,3 +95,24 @@ export function assetClassLabel(assetClass: AssetClass): string {
       return "stock";
   }
 }
+
+/** Strip pair suffixes (BTCUSDT, BTC-USD) so CoinGlass gets a base ticker. */
+export function toCoinglassSymbol(symbol: string): string {
+  const upper = symbol.trim().toUpperCase();
+  return upper
+    .replace(/[-_/]/g, "")
+    .replace(/(USDT|USDC|USD|BUSD|PERP)$/i, "");
+}
+
+export function isCryptoSymbol(symbol: string): boolean {
+  const base = toCoinglassSymbol(symbol);
+  return (CRYPTO_SYMBOLS as readonly string[]).includes(base);
+}
+
+/** Public CoinGlass liquidations page for a coin, e.g. /liquidations/BTC */
+export function coinglassLiquidationsUrl(symbol: string): string | null {
+  if (!isCryptoSymbol(symbol)) return null;
+  const coin = toCoinglassSymbol(symbol);
+  if (!coin) return null;
+  return `https://www.coinglass.com/liquidations/${encodeURIComponent(coin)}`;
+}
