@@ -41,11 +41,11 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
 
   if (isLoading) {
     return (
-      <div className="mt-10 space-y-3">
-        <div className="surface h-24 animate-pulse" />
+      <div className="space-y-3">
+        <div className="surface skeleton h-24" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="surface h-32 animate-pulse" />
+            <div key={i} className="surface skeleton h-32" />
           ))}
         </div>
       </div>
@@ -54,7 +54,7 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
 
   if (error || !data) {
     return (
-      <div className="surface mt-10 p-8 text-center">
+      <div className="surface p-8 text-center">
         <p className="text-sm text-muted-foreground">
           Unable to load evidence. Start the backend to see live data.
         </p>
@@ -65,15 +65,16 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
   const itemsByCategory = Object.fromEntries(data.items.map((item) => [item.category, item]));
 
   return (
-    <div className="mt-10 space-y-3">
+    <div className="space-y-3">
       <div className="surface p-6">
         <div className="flex items-end justify-between">
           <div>
-            <p className="label-caps">Confidence</p>
+            <p className="label-caps">Evidence</p>
             <p className="mt-2 font-mono text-4xl font-light tracking-tight">
               {data.total_confidence.toFixed(1)}
               <span className="ml-1 text-lg text-muted-foreground">%</span>
             </p>
+            <p className="mt-1 label-caps text-muted-foreground/60">total confidence</p>
           </div>
           <div className="text-right">
             <p className="label-caps">Timeframe</p>

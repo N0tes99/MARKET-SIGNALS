@@ -1,6 +1,7 @@
 "use client";
 
 import { useDecision } from "@/hooks/use-decision";
+import { cn } from "@/lib/utils";
 
 interface DecisionBannerProps {
   symbol: string;
@@ -23,11 +24,12 @@ export function DecisionBanner({ symbol }: DecisionBannerProps) {
   const { data, isLoading } = useDecision(symbol);
 
   if (isLoading || !data) {
-    return <div className="surface mt-8 h-20 animate-pulse" />;
+    return <div className="surface skeleton h-24" />;
   }
 
   return (
-    <div className="surface mt-8 p-5">
+    <section className="surface motion-fade-in p-5 sm:p-6">
+      <p className="label-caps mb-4">Decision</p>
       <div className="flex flex-wrap gap-x-10 gap-y-4">
         <Stat label="State" value={data.trade_state.toLowerCase()} className={stateColor(data.trade_state)} />
         <Stat label="Grade" value={data.trade_grade} />
@@ -39,7 +41,7 @@ export function DecisionBanner({ symbol }: DecisionBannerProps) {
       <p className="mt-4 border-t border-white/[0.06] pt-4 text-sm leading-relaxed text-muted-foreground">
         {data.summary}
       </p>
-    </div>
+    </section>
   );
 }
 
@@ -55,7 +57,7 @@ function Stat({
   return (
     <div>
       <p className="label-caps">{label}</p>
-      <p className={`mt-1 font-mono text-sm ${className ?? "text-foreground/90"}`}>{value}</p>
+      <p className={cn("mt-1 font-mono text-sm", className ?? "text-foreground/90")}>{value}</p>
     </div>
   );
 }

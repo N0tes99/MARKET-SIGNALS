@@ -48,7 +48,7 @@ export function AssetPriceHeader({ symbol }: { symbol: string }) {
           : "text-neutral";
 
   return (
-    <p className="mt-3 flex items-baseline gap-3 font-mono">
+    <p className="flex items-baseline gap-3 font-mono">
       <span className="text-xl text-foreground/90">${formatPrice(data.price)}</span>
       {change != null ? (
         <span className={cn("text-sm", changeClass)}>

@@ -212,18 +212,18 @@ export function AssetGrid() {
       )}
 
       {(isLoading || isFetching) && (
-        <div className="rounded-md border border-white/[0.06] bg-card/40 px-4 py-3">
-          <p className="text-sm text-foreground/90">
-            {isLoading ? "Loading market signals…" : "Refreshing rankings in the background…"}
-          </p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            {isLoading ? "Showing tickers now; grades fill in when ranking finishes." : null}
-            {quotesLoading
-              ? " Fetching live quotes…"
-              : quotes
-                ? ` Quotes ready for ${quotes.filter((q) => q.available).length} assets.`
+        <div className="status-line px-1 py-1">
+          <span className="idle-dot" />
+          <span>
+            {isLoading
+              ? "ranking…"
+              : "refreshing…"}
+            {!quotesLoading && quotes
+              ? ` · ${quotes.filter((q) => q.available).length} quotes`
+              : quotesLoading
+                ? " · quotes…"
                 : ""}
-          </p>
+          </span>
         </div>
       )}
 

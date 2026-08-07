@@ -50,6 +50,12 @@ function formatChange(changePct: number): string {
   return `${sign}${changePct.toFixed(2)}%`;
 }
 
+function gradeClass(grade: string): string {
+  if (grade === "A+" || grade === "A") return "text-foreground";
+  if (grade === "B") return "text-foreground/75";
+  return "text-muted-foreground";
+}
+
 export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps) {
   const change = quote?.change_pct;
   const compact = density === "s";
@@ -85,23 +91,23 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
           compact ? "pb-3" : "pb-4",
         )}
       >
-        <div>
-          <div className="flex items-center gap-2">
+        <div className={cn(rank != null && "pr-8")}>
+          <div className="flex items-baseline gap-2">
             <Link
               href={`/assets/${asset.symbol}`}
               className={cn(
-                "font-mono tracking-wide text-foreground hover:underline hover:underline-offset-4",
+                "font-mono tracking-wide text-foreground transition-colors hover:text-foreground/90",
                 compact ? "text-sm" : "text-lg",
               )}
             >
               {asset.symbol}
             </Link>
-            <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="label-caps !normal-case tracking-wide text-muted-foreground/70">
               {asset.asset_class}
             </span>
           </div>
           <Link href={`/assets/${asset.symbol}`} className="mt-1 block">
-            <p className="font-mono text-[11px] text-muted-foreground transition-colors group-hover:text-foreground/80">
+            <p className="font-mono text-[11px] text-muted-foreground transition-colors group-hover:text-foreground/75">
               {stateLabel(asset.trade_state)} · {asset.execution_signal.toLowerCase()}
             </p>
             {quote?.available && quote.price != null ? (
@@ -119,8 +125,9 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
         <Link
           href={`/assets/${asset.symbol}`}
           className={cn(
-            "font-mono text-foreground/80 hover:text-foreground",
+            "font-mono transition-colors hover:text-foreground",
             compact ? "text-xs" : "text-sm",
+            gradeClass(asset.trade_grade),
           )}
         >
           {asset.trade_grade}
@@ -139,11 +146,7 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
           compact={compact}
         />
         {!compact ? (
-          <>
-            <MetricRow label="Momentum" value={`${asset.buyer_strength.toFixed(0)}%`} />
-            <MetricRow label="Risk" value={`${asset.risk.toFixed(0)}%`} />
-            <MetricRow label="EV" value={asset.expected_value.toFixed(2)} />
-          </>
+          <MetricRow label="EV" value={asset.expected_value.toFixed(2)} />
         ) : null}
       </Link>
     </article>

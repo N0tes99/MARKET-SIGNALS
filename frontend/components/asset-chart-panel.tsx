@@ -28,7 +28,7 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
   const fill = up ? "rgba(143,168,138,0.2)" : "rgba(166,124,124,0.2)";
 
   return (
-    <section className="surface mt-6 p-4 sm:p-5">
+    <section className="surface p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="label-caps">Price</h2>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">

@@ -14,16 +14,13 @@ interface SiteHeaderProps {
   trailing?: ReactNode;
 }
 
-const builtByLinkClassName =
-  "font-mono text-[11px] tracking-widest text-muted-foreground/70 transition-colors hover:text-muted-foreground";
-
 function BuiltByNotes() {
   return (
     <a
       href="https://x.com/notesonchain"
       target="_blank"
       rel="noopener noreferrer"
-      className={builtByLinkClassName}
+      className="font-mono text-[10px] tracking-widest text-muted-foreground/50 transition-colors hover:text-muted-foreground"
     >
       Built by Notes
     </a>
@@ -33,7 +30,7 @@ function BuiltByNotes() {
 function MainNav() {
   const { user } = useAuth();
   return (
-    <nav className="flex flex-wrap items-center gap-3">
+    <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <Link
         href="/social"
         className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
@@ -62,10 +59,10 @@ export function SiteHeader({
   if (compact) {
     return (
       <header className="border-b border-white/[0.06] bg-card/25 backdrop-blur-xl">
-        <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-4">
+        <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3.5">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <Link href="/" className="group">
-              <p className="label-caps transition-colors group-hover:text-foreground">
+              <p className="label-caps transition-colors group-hover:text-foreground/90">
                 Signal Engine
               </p>
             </Link>
@@ -79,18 +76,20 @@ export function SiteHeader({
 
   return (
     <header className="border-b border-white/[0.06] bg-card/25 backdrop-blur-xl">
-      <div className="container mx-auto flex items-end justify-between gap-4 px-4 py-8">
+      <div className="container mx-auto flex items-end justify-between gap-4 px-4 py-7 sm:py-8">
         <div>
-          <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="label-caps">Signal Engine</p>
             <BuiltByNotes />
           </div>
           <h1 className="text-2xl font-light tracking-tight text-foreground">{title}</h1>
         </div>
-        <div className="flex flex-col items-end gap-2 pb-1">
+        <div className="flex flex-col items-end gap-2.5 pb-0.5">
           <MainNav />
           {trailing}
-          {subtitle}
+          {subtitle ? (
+            <div className="max-w-[16rem] text-right opacity-80">{subtitle}</div>
+          ) : null}
         </div>
       </div>
     </header>

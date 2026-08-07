@@ -48,7 +48,7 @@ export function DiscussionPanel({ symbol }: DiscussionPanelProps) {
   const posts = postsQuery.data ?? [];
 
   return (
-    <section className="surface mt-3 p-5">
+    <section className="surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="label-caps">Discussion</h2>

@@ -19,25 +19,30 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
   return (
     <main className="min-h-screen">
       <SiteHeader compact />
-      <div className="container mx-auto px-4 py-10">
+      <div className="container mx-auto px-4 pb-16 pt-8">
         <Link
           href="/"
-          className="label-caps text-muted-foreground transition-colors hover:text-foreground"
+          className="label-caps inline-flex text-muted-foreground/80 transition-colors hover:text-foreground"
         >
           ← back
         </Link>
 
-        <header className="mt-8 border-b border-white/[0.06] pb-6">
-          <p className="label-caps">Asset</p>
-          <h1 className="mt-2 font-mono text-3xl font-light tracking-wide">{normalized}</h1>
-          <AssetPriceHeader symbol={normalized} />
+        <header className="mt-6 border-b border-white/[0.06] pb-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h1 className="font-mono text-3xl font-light tracking-wide text-foreground">
+              {normalized}
+            </h1>
+            <AssetPriceHeader symbol={normalized} />
+          </div>
         </header>
 
-        <AssetChartPanel symbol={normalized} />
-        <DecisionBanner symbol={normalized} />
-        <OutcomeLogger symbol={normalized} />
-        <DiscussionPanel symbol={normalized} />
-        <EvidencePanel symbol={normalized} />
+        <div className="mt-6 space-y-6">
+          <AssetChartPanel symbol={normalized} />
+          <DecisionBanner symbol={normalized} />
+          <OutcomeLogger symbol={normalized} />
+          <DiscussionPanel symbol={normalized} />
+          <EvidencePanel symbol={normalized} />
+        </div>
       </div>
     </main>
   );

@@ -41,7 +41,7 @@
   }
 
   .surface-interactive {
-    @apply surface transition-[background-color,border-color,box-shadow] duration-300;
+    @apply surface transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out;
   }
 
   .surface-interactive:hover {
@@ -51,8 +51,40 @@
       0 8px 28px -12px hsl(40 6% 0% / 0.55);
   }
 
+  @media (hover: hover) {
+    .surface-interactive:hover {
+      transform: translateY(-1px);
+    }
+  }
+
   .label-caps {
     @apply font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground;
+  }
+
+  .seg-control {
+    @apply inline-flex overflow-hidden rounded-md border border-white/[0.08] bg-card/30;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .seg-control-btn {
+    @apply px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-[color,background-color] duration-200;
+  }
+
+  .seg-control-btn[data-active="true"] {
+    @apply bg-white/[0.1] text-foreground;
+  }
+
+  .seg-control-btn:hover {
+    @apply text-foreground;
+  }
+
+  .status-line {
+    @apply flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md bg-white/[0.04];
   }
 
   .rank-num {

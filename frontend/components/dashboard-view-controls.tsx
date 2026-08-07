@@ -29,39 +29,29 @@ export function DashboardViewControls({
 }: DashboardViewControlsProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        View
-      </p>
+      <p className="label-caps">View</p>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex border border-white/[0.1]">
+        <div className="seg-control" role="group" aria-label="Layout">
           {LAYOUTS.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => onLayout(item.id)}
-              className={cn(
-                "px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-[color,background-color] duration-200",
-                layout === item.id
-                  ? "bg-white/[0.1] text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              data-active={layout === item.id}
+              className="seg-control-btn"
             >
               {item.label}
             </button>
           ))}
         </div>
-        <div className="flex border border-white/[0.1]">
+        <div className="seg-control" role="group" aria-label="Density">
           {DENSITIES.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => onDensity(item.id)}
-              className={cn(
-                "min-w-[2rem] px-2 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors",
-                density === item.id
-                  ? "bg-white/[0.1] text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              data-active={density === item.id}
+              className={cn("seg-control-btn", "min-w-[2rem]")}
               title={item.id === "s" ? "Compact" : "Comfortable"}
             >
               {item.label}

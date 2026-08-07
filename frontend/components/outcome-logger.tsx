@@ -81,7 +81,7 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
   const openSignals = signals.filter((s) => !s.outcome);
 
   return (
-    <div className="surface mt-3 p-5">
+    <section className="surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="label-caps">Outcome log</h2>
@@ -194,6 +194,6 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
           {openSignals.length} open — resolve when you know the result
         </p>
       )}
-    </div>
+    </section>
   );
 }
