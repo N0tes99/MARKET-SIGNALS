@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useAuth } from "@/components/auth-provider";
 import {
   fetchOutcomeStats,
   fetchSignals,
@@ -29,16 +30,19 @@ function outcomeColor(outcome: string | null | undefined): string {
 }
 
 export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const signalsQuery = useQuery({
     queryKey: ["signals", symbol],
     queryFn: () => fetchSignals(symbol, 12),
+    enabled: Boolean(user),
   });
 
   const statsQuery = useQuery({
     queryKey: ["outcome-stats", symbol],
     queryFn: () => fetchOutcomeStats(symbol),
+    enabled: Boolean(user),
   });
 
   const logMutation = useMutation({
@@ -67,6 +71,11 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
     },
   });
 
+  // Private coaching log (entry / TP / Hit / Miss) — hidden from visitors.
+  if (authLoading || !user) {
+    return null;
+  }
+
   const signals = signalsQuery.data ?? [];
   const stats = statsQuery.data;
   const openSignals = signals.filter((s) => !s.outcome);
@@ -77,7 +86,8 @@ export function OutcomeLogger({ symbol }: OutcomeLoggerProps) {
         <div>
           <h2 className="label-caps">Outcome log</h2>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Log the current thesis, then mark hit / miss with realized return.
+            Private to you — log the thesis (entry / TP), then mark Hit / Miss with realized
+            return.
           </p>
         </div>
         <button
