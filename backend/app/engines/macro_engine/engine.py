@@ -54,7 +54,14 @@ class MacroEngine:
         try:
             with httpx.Client(timeout=5.0) as client:
                 response = client.get(url, params=params)
-                response.raise_for_status()
+                if response.status_code != 200:
+                    # Soft-fail per series — do not poison the rest of the snapshot.
+                    logger.warning(
+                        "FRED series %s returned HTTP %s",
+                        series_id,
+                        response.status_code,
+                    )
+                    return None
                 observations = response.json().get("observations", [])
                 if observations and observations[0]["value"] != ".":
                     return float(observations[0]["value"])
@@ -113,9 +120,13 @@ class MacroEngine:
         if scores:
             score = clamp_score(sum(scores) / len(scores))
             description = f"Macro: {', '.join(factors)}"
-        else:
+        elif not self._fred_api_key:
             score = 50.0
             description = "Macro: neutral context (add FRED_API_KEY to .env for live data)"
+        else:
+            # Key present but every series soft-failed — stay neutral, not crashing.
+            score = 50.0
+            description = "Macro: FRED unavailable (neutral context; data quality degraded)"
 
         return MacroSnapshot(
             dxy=dxy,
