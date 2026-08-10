@@ -6,6 +6,7 @@ import { DecisionBanner } from "@/components/decision-banner";
 import { DiscussionPanel } from "@/components/discussion-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
 import { OutcomeLogger } from "@/components/outcome-logger";
+import { EquitySetupsPanel } from "@/components/equity-setups-panel";
 import { SetupIdeasPanel } from "@/components/setup-ideas-panel";
 import { SiteHeader } from "@/components/site-header";
 
@@ -41,6 +42,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
           <AssetChartPanel symbol={normalized} />
           <DecisionBanner symbol={normalized} />
           <SetupIdeasPanel symbol={normalized} />
+          <EquitySetupsPanel symbol={normalized} />
           <OutcomeLogger symbol={normalized} />
           <DiscussionPanel symbol={normalized} />
           <EvidencePanel symbol={normalized} />

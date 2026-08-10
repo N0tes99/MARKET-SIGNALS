@@ -28,6 +28,7 @@ Evidence Engine → Opportunity Engine → Execution Engine → Risk Engine → 
 |--------|---------|
 | Trend Engine | Market direction (Bullish / Neutral / Bearish) |
 | Opportunity Engine | Asset ranking, opportunity score, trade grade |
+| Layer 3 Equity Options | Momentum/breakout setups, option pick, staged plans |
 | Execution Engine | Entry timing (WAIT / WATCH / EXECUTE) |
 | Risk Engine | Position sizing, stops, drawdown limits |
 | Buyer/Seller Engine | Order flow strength and absorption |

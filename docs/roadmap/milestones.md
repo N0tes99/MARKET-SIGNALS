@@ -58,3 +58,14 @@
 - [x] Stale data detection (`data_degraded` on assets/decision; Compose `celery-beat`)
 - [x] Production deploy scaffolding (Basic Auth + Render/Netlify docs) — wire accounts in [docs/deploy.md](../deploy.md)
 - [x] Alerting on high-confidence setups (Discord bot / webhook + email)
+
+## Milestone 9 — Layer 3 Equity Options Surface
+
+- [x] Architecture spec (`ARCHITECTURE.md` §5.4)
+- [x] Momentum continuation / breakout convexity scanners
+- [x] Option candidate scoring (Yahoo chain adapter)
+- [x] Staged execution plans (Entry 1/2/3, HARD/SOFT invalidation, DTE-aware harvest, runner rule)
+- [x] API: `/equity-setups`, `/assets/{symbol}/equity-setups`
+- [x] Dashboard + asset detail UI
+- [ ] Unusual options flow adapter (paid data — deferred)
+- [ ] Social/narrative confirmation adapter (deferred)

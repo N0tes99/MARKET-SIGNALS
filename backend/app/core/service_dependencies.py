@@ -110,6 +110,14 @@ def get_setup_scanner():
 
 
 @lru_cache
+def get_equity_options_scanner():
+    """Singleton Layer 3 equity-options scanner."""
+    from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsScanner
+
+    return EquityOptionsScanner(market_data=get_market_data_service())
+
+
+@lru_cache
 def get_weight_optimizer() -> WeightOptimizer:
     """Singleton weight optimizer sharing market data cache."""
     return WeightOptimizer(market_data=get_market_data_service())

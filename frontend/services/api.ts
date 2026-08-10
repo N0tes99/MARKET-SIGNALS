@@ -274,6 +274,112 @@ export async function fetchSetupsFeed(opts?: {
   return apiFetch<GlobalSetupsResponse>(`/api/v1/setups?${qs}`, 110_000);
 }
 
+export type EquitySetupType = "momentum_continuation" | "breakout_convexity";
+
+export interface StagedEntry {
+  step: number;
+  label: string;
+  size_pct: number;
+  condition: string;
+  price_trigger: number | null;
+}
+
+export interface ProfitZone {
+  option_gain_pct: number;
+  take_pct: number;
+  label: string;
+}
+
+export interface ExecutionPlan {
+  setup_name: string;
+  direction: SetupDirection;
+  max_risk_usd: number | null;
+  entries: StagedEntry[];
+  invalidation: string[];
+  profit_zones: ProfitZone[];
+  runner_pct: number;
+  runner_rule?: string;
+  notes: string;
+}
+
+export interface OptionCandidate {
+  underlying: string;
+  expiry: string;
+  strike: number;
+  right: "call" | "put";
+  bid: number | null;
+  ask: number | null;
+  mid: number | null;
+  volume: number | null;
+  open_interest: number | null;
+  iv: number | null;
+  otm_pct: number;
+  dte: number;
+  convexity_score: number;
+  liquidity_score: number;
+  theta_score: number;
+  iv_value_score: number;
+  overall_score: number;
+  rationale: string;
+}
+
+export interface EquityOptionsIdea {
+  id: string;
+  symbol: string;
+  instrument_type: "equity_option";
+  setup_type: EquitySetupType;
+  direction_bias: SetupDirection;
+  confidence: number;
+  opportunity_score: number;
+  factors: string[];
+  conflicts: string[];
+  trade_state_hint: SetupTradeStateHint;
+  momentum_score: number;
+  catalyst_score: number;
+  liquidity_score: number;
+  option_candidates: OptionCandidate[];
+  selected_option: OptionCandidate | null;
+  execution_plan: ExecutionPlan | null;
+  as_of: string;
+  data_quality: SetupDataQuality;
+}
+
+export interface AssetEquitySetupsResponse {
+  symbol: string;
+  setups: EquityOptionsIdea[];
+  scanned_at: string;
+}
+
+export interface GlobalEquitySetupsResponse {
+  setups: EquityOptionsIdea[];
+  scanned_at: string;
+  symbols_scanned: number;
+  watch_only: boolean;
+  min_confidence: number;
+}
+
+export async function fetchEquitySetupsFeed(opts?: {
+  watchOnly?: boolean;
+  minConfidence?: number;
+}): Promise<GlobalEquitySetupsResponse> {
+  const watchOnly = opts?.watchOnly ?? true;
+  const minConfidence = opts?.minConfidence ?? 55;
+  const qs = new URLSearchParams({
+    watch_only: String(watchOnly),
+    min_confidence: String(minConfidence),
+  });
+  return apiFetch<GlobalEquitySetupsResponse>(`/api/v1/equity-setups?${qs}`, 120_000);
+}
+
+export async function fetchAssetEquitySetups(
+  symbol: string,
+): Promise<AssetEquitySetupsResponse> {
+  return apiFetch<AssetEquitySetupsResponse>(
+    `/api/v1/assets/${symbol}/equity-setups`,
+    90_000,
+  );
+}
+
 export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }

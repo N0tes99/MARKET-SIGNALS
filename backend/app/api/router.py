@@ -9,6 +9,7 @@ from app.api.routes import (
     auth,
     backtests,
     decision,
+    equity_setups,
     evidence,
     evidence_snapshots,
     favorites,
@@ -35,6 +36,10 @@ api_router.include_router(learning.router, prefix="/assets", tags=["learning"])
 api_router.include_router(evidence.router, prefix="/assets", tags=["evidence"])
 api_router.include_router(setups.router, prefix="/assets", tags=["setups"])
 api_router.include_router(setups.feed_router, prefix="/setups", tags=["setups"])
+api_router.include_router(equity_setups.router, prefix="/assets", tags=["equity-setups"])
+api_router.include_router(
+    equity_setups.feed_router, prefix="/equity-setups", tags=["equity-setups"]
+)
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])

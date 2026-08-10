@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.4.0 |
-| Last updated | 2026-08-05 |
-| Status | M4–M6 complete — decision pipeline, AI/dashboard, learning & backtesting live |
+| Version | 0.5.0 |
+| Last updated | 2026-08-09 |
+| Status | M4–M6 complete; Layer 3 equity-options surface in progress |
 
 ---
 
@@ -113,6 +113,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Regime Engine | `backend/app/engines/regime_engine/` | **Implemented** |
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
+| Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -359,6 +360,65 @@ These engines consume evidence and produce actionable recommendations.
 - Position size never exceeds user-defined maximum
 
 **Status:** `IMPLEMENTED` — ATR stops/targets, position sizing, evidence contribution + pipeline veto
+
+---
+
+### 5.4 Layer 3 — Equity Options Opportunity Surface
+
+**Purpose:** Third decision surface (alongside asset ranking and crypto setup scanners). Finds where **equity momentum + catalyst timing + options convexity** align, then proposes a **staged execution plan** — not a YOLO all-in at the ask.
+
+```
+Surface 1 — Asset ranking          Evidence → Opportunity grade → WAIT/WATCH/EXECUTE
+Surface 2 — Crypto setups          funding_extreme / liq_flush / basis_rich (perps)
+Surface 3 — Equity options setups  momentum_continuation / breakout_convexity + option pick + staged plan
+```
+
+Layer 3 **does not** alter 13-category grades or crypto scanners. It is WATCH/IGNORE only in MVP (never EXECUTE).
+
+#### Responsibilities
+
+1. Scan liquid stocks/ETFs for momentum continuation / breakout convexity setups
+2. Score option candidates (OTM calls/puts) for convexity, liquidity, theta, IV value
+3. Emit a staged execution plan (Entry 1/2/3, invalidation, profit harvest, runner)
+4. Explain every score with factors + conflicts
+
+#### Key types
+
+| Type | Role |
+|------|------|
+| `EquityOptionsIdea` | Setup candidate with confidence + opportunity score |
+| `OptionCandidate` | Strike/expiry candidate with sub-scores |
+| `ExecutionPlan` | Staged entries, invalidation rules, profit zones |
+
+#### Setup types (MVP)
+
+| Setup | Bias | Meaning |
+|-------|------|---------|
+| `momentum_continuation` | long/short | Trend + relative volume + structure supportive |
+| `breakout_convexity` | long/short | Near breakout with favorable OTM option structure |
+
+#### Design rules
+
+- Social / narrative is **confirmation only** (not in MVP scoring)
+- Unusual options flow adapter is pluggable later (paid data) — do not hard-block MVP
+- Option mid/ask may be missing → degrade `data_quality`, still emit plan from structure
+- Max planned capital and contract counts are suggestions; Risk Engine remains capital authority for live sizing later
+- Prefer risk-adjusted option structure over “sexiest” lottery strike (e.g. HOOD $119 vs $115 Sep)
+
+#### Module location
+
+| System | Path | Status |
+|--------|------|--------|
+| Equity options surface | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
+
+#### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/equity-setups` | GET | Cross-asset Layer 3 feed |
+| `/api/v1/assets/{symbol}/equity-setups` | GET | Per-asset Layer 3 ideas + plan |
+
+**Status:** `IMPLEMENTED` (MVP) — momentum scanner, Yahoo option-chain selector, staged plans; unusual flow deferred
 
 ---
 
@@ -805,6 +865,7 @@ When adding a new system, follow this checklist:
 | M6 — Learning & Backtesting | Signal storage, backtesting, weight tuning | **Complete** |
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, paper trading | Not started / deferred |
+| M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
 
 ---
 
