@@ -286,6 +286,8 @@ export interface PaperLedger {
   closed_trades: number;
   wins: number;
   losses: number;
+  deployed_usd?: number;
+  size_usd?: number;
 }
 
 export interface PaperTrade {

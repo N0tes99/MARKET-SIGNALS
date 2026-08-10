@@ -17,6 +17,8 @@ class PaperLedgerSchema(BaseModel):
     closed_trades: int
     wins: int
     losses: int
+    deployed_usd: float = 0.0
+    size_usd: float = 0.0
 
 
 class PaperTradeSchema(BaseModel):

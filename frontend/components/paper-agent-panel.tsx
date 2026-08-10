@@ -31,6 +31,8 @@ function pct(n: number): string {
 
 function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedger; hint: string }) {
   const positive = ledger.total_pnl >= 0;
+  const deployed = ledger.deployed_usd ?? 0;
+  const sleeve = ledger.size_usd ?? 2500;
   return (
     <div className="surface p-5">
       <p className="label-caps">{title}</p>
@@ -46,10 +48,12 @@ function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedge
         {money(ledger.equity)}
       </p>
       <p className={cn("mt-1 font-mono text-sm", positive ? "text-bullish/80" : "text-bearish/80")}>
-        {money(ledger.total_pnl)} · {pct(ledger.return_pct)}
+        PnL {money(ledger.total_pnl)} · {pct(ledger.return_pct)}
       </p>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
         <span>open {ledger.open_positions}</span>
+        <span>deployed {money(deployed)}</span>
+        <span>sleeve {money(sleeve)}</span>
         <span>closed {ledger.closed_trades}</span>
         <span>
           W/L {ledger.wins}/{ledger.losses}
@@ -73,6 +77,9 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
           </Link>
           <span className="label-caps text-muted-foreground/55">{trade.setup_type}</span>
           <span className="font-mono text-[10px] text-muted-foreground/45">{trade.direction}</span>
+          <span className="font-mono text-[10px] text-muted-foreground/45">
+            {money(trade.size_usd)}
+          </span>
           <span className="font-mono text-[10px] text-muted-foreground/40">{trade.status}</span>
         </div>
         <span className="font-mono text-[10px] text-muted-foreground/50">
@@ -248,8 +255,9 @@ export function PaperAgentPanel() {
           </div>
 
           <p className="mt-3 font-mono text-[10px] text-muted-foreground/45">
-            Starting {money(data.starting_cash)} paper · size $2,500 / idea · TP +8% / SL −4% · max
-            hold 5d
+            Starting {money(data.starting_cash)} paper · each idea locks {money(data.optimistic.size_usd ?? 2500)}{" "}
+            notional (equity only moves with PnL) · max {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} open ·
+            TP +8% / SL −4% · max hold 5d
             {data.last_tick_at
               ? ` · last tick ${new Date(data.last_tick_at).toLocaleTimeString()}`
               : ""}
