@@ -13,6 +13,7 @@ class PaperTradeStore:
     def __init__(self) -> None:
         self._lock = Lock()
         self._trades: dict[str, PaperTrade] = {}
+        self._meta: dict[str, str] = {}
 
     def upsert(self, trade: PaperTrade) -> None:
         with self._lock:
@@ -37,3 +38,11 @@ class PaperTradeStore:
                 for t in self._trades.values()
                 if t.status in {"pending_honest", "open"}
             }
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self._lock:
+            self._meta[key] = value
+
+    def get_meta(self, key: str) -> str | None:
+        with self._lock:
+            return self._meta.get(key)
