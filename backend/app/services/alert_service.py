@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 
@@ -24,6 +24,22 @@ _GRADE_RANK: dict[str, int] = {
     "A+": 5,
 }
 
+# Re-alert after cooldown only if the case moved meaningfully
+_MIN_CONFIDENCE_DELTA = 5.0
+
+
+@dataclass
+class AlertSnapshot:
+    """Last alerted / last-seen inputs for a symbol (in-process)."""
+
+    confidence: float
+    trade_grade: str
+    trend: str
+    trade_state: str
+    execution_signal: str
+    expected_value: float
+    at: datetime
+
 
 @dataclass
 class AlertEvent:
@@ -37,6 +53,11 @@ class AlertEvent:
     expected_value: float
     trend: str
     asset_class: str
+    # Why this fire happened + compact human ref for Discord/email
+    trigger: str = "threshold_cross"
+    trigger_ref: str = ""
+    prev_confidence: float | None = None
+    prev_grade: str | None = None
 
 
 @dataclass
@@ -48,9 +69,10 @@ class AlertDispatchResult:
     matched: int
     sent: int
     skipped_cooldown: int
-    discord_ok: bool | None
-    email_ok: bool | None
-    events: list[AlertEvent]
+    skipped_unchanged: int = 0
+    discord_ok: bool | None = None
+    email_ok: bool | None = None
+    events: list[AlertEvent] = field(default_factory=list)
 
 
 def grade_meets_minimum(grade: str, minimum: str) -> bool:
@@ -60,13 +82,39 @@ def grade_meets_minimum(grade: str, minimum: str) -> bool:
 
 def format_alert_text(event: AlertEvent) -> str:
     """Plain-text body for email / logs."""
+    ref = event.trigger_ref or event.trigger
+    lines = [
+        f"Signal Engine alert: {event.symbol}",
+        f"Ref: {ref}",
+        f"Trigger: {event.trigger}",
+        f"Confidence: {event.confidence:.1f}%",
+        f"Grade: {event.trade_grade}",
+        f"State: {event.trade_state} · Signal: {event.execution_signal}",
+        f"Trend: {event.trend} · EV: {event.expected_value:.2f}",
+        f"Class: {event.asset_class}",
+    ]
+    if event.prev_confidence is not None or event.prev_grade is not None:
+        prev_c = f"{event.prev_confidence:.0f}%" if event.prev_confidence is not None else "—"
+        prev_g = event.prev_grade or "—"
+        lines.append(f"Prior: {prev_g} / {prev_c}")
+    return "\n".join(lines)
+
+
+def build_trigger_ref(
+    *,
+    trigger: str,
+    confidence: float,
+    trade_grade: str,
+    trend: str,
+    prev: AlertSnapshot | None,
+) -> str:
+    """Compact one-line ref for embeds (what changed / why we fired)."""
+    now = f"{trade_grade} {confidence:.0f}% · {trend}"
+    if prev is None or trigger == "threshold_cross":
+        return f"{trigger} · {now}"
     return (
-        f"Signal Engine alert: {event.symbol}\n"
-        f"Confidence: {event.confidence:.1f}%\n"
-        f"Grade: {event.trade_grade}\n"
-        f"State: {event.trade_state} · Signal: {event.execution_signal}\n"
-        f"Trend: {event.trend} · EV: {event.expected_value:.2f}\n"
-        f"Class: {event.asset_class}"
+        f"{trigger} · {prev.trade_grade} {prev.confidence:.0f}%→"
+        f"{trade_grade} {confidence:.0f}% · {trend}"
     )
 
 
@@ -76,6 +124,7 @@ class AlertService:
     def __init__(self) -> None:
         self._lock = Lock()
         self._last_sent: dict[str, datetime] = {}
+        self._last_alerted: dict[str, AlertSnapshot] = {}
 
     @property
     def enabled(self) -> bool:
@@ -98,7 +147,8 @@ class AlertService:
         )
         webhook_ready = bool(settings.alert_discord_webhook_url.strip())
         if bot_ready and webhook_ready:
-            discord_mode = "both"
+            # Bot preferred; webhook is fallback only (avoids duplicate channel posts)
+            discord_mode = "bot+webhook_fallback"
         elif bot_ready:
             discord_mode = "bot"
         elif webhook_ready:
@@ -123,6 +173,13 @@ class AlertService:
     def _discord_embed(event: AlertEvent) -> dict:
         """Build a Discord embed payload for an alert event."""
         color = 0x8FA88A if event.confidence >= 70 else 0x9A958D
+        ref = event.trigger_ref or event.trigger
+        fields = [
+            {"name": "Trend", "value": event.trend, "inline": True},
+            {"name": "EV", "value": f"{event.expected_value:.2f}", "inline": True},
+            {"name": "Class", "value": event.asset_class, "inline": True},
+            {"name": "Ref", "value": ref, "inline": False},
+        ]
         return {
             "title": f"{event.symbol} — grade {event.trade_grade}",
             "description": (
@@ -130,17 +187,13 @@ class AlertService:
                 f"{event.trade_state} / {event.execution_signal}"
             ),
             "color": color,
-            "fields": [
-                {"name": "Trend", "value": event.trend, "inline": True},
-                {"name": "EV", "value": f"{event.expected_value:.2f}", "inline": True},
-                {"name": "Class", "value": event.asset_class, "inline": True},
-            ],
-            "footer": {"text": "Signal Engine alert"},
+            "fields": fields,
+            "footer": {"text": f"Signal Engine · {event.trigger}"},
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
     def evaluate(self, assets: list[AssetSummary]) -> list[AlertEvent]:
-        """Filter assets that meet confidence + grade thresholds."""
+        """Filter assets that meet confidence + grade thresholds (no trigger yet)."""
         matches: list[AlertEvent] = []
         for asset in assets:
             if asset.confidence < settings.alert_min_confidence:
@@ -167,30 +220,83 @@ class AlertService:
             return False
         return datetime.now(UTC) - last < timedelta(minutes=settings.alert_cooldown_minutes)
 
-    def _mark_sent(self, symbol: str) -> None:
-        self._last_sent[symbol.upper()] = datetime.now(UTC)
+    def _classify_trigger(
+        self, event: AlertEvent, prev: AlertSnapshot | None
+    ) -> tuple[str, str] | None:
+        """Return (trigger, ref) if we should fire, else None (unchanged hot).
+
+        - No prior alert this process: threshold_cross
+        - After cooldown, only re-fire on material change (grade↑, conf↑, trend flip)
+        """
+        if prev is None:
+            trigger = "threshold_cross"
+            ref = build_trigger_ref(
+                trigger=trigger,
+                confidence=event.confidence,
+                trade_grade=event.trade_grade,
+                trend=event.trend,
+                prev=None,
+            )
+            return trigger, ref
+
+        grade_up = _GRADE_RANK.get(event.trade_grade.upper(), -1) > _GRADE_RANK.get(
+            prev.trade_grade.upper(), -1
+        )
+        conf_up = event.confidence >= prev.confidence + _MIN_CONFIDENCE_DELTA
+        trend_flip = event.trend.strip().lower() != prev.trend.strip().lower()
+
+        if grade_up:
+            trigger = "grade_up"
+        elif conf_up:
+            trigger = "confidence_up"
+        elif trend_flip:
+            trigger = "trend_flip"
+        else:
+            return None
+
+        ref = build_trigger_ref(
+            trigger=trigger,
+            confidence=event.confidence,
+            trade_grade=event.trade_grade,
+            trend=event.trend,
+            prev=prev,
+        )
+        return trigger, ref
+
+    def _mark_sent(self, event: AlertEvent) -> None:
+        key = event.symbol.upper()
+        now = datetime.now(UTC)
+        self._last_sent[key] = now
+        self._last_alerted[key] = AlertSnapshot(
+            confidence=event.confidence,
+            trade_grade=event.trade_grade,
+            trend=event.trend,
+            trade_state=event.trade_state,
+            execution_signal=event.execution_signal,
+            expected_value=event.expected_value,
+            at=now,
+        )
 
     def send_discord(self, event: AlertEvent) -> bool:
-        """Post an embed via Discord bot and/or webhook (both if configured)."""
+        """Post an embed via Discord bot, falling back to webhook if needed.
+
+        When both are configured we send **once** (bot preferred) so the same
+        channel is not spammed with duplicate messages.
+        """
         embed = self._discord_embed(event)
         token = settings.alert_discord_bot_token.strip()
         channel_id = settings.alert_discord_channel_id.strip()
         webhook = settings.alert_discord_webhook_url.strip()
 
-        attempts = 0
-        successes = 0
-
         if token and channel_id:
-            attempts += 1
             if self._send_discord_bot(event.symbol, token, channel_id, embed):
-                successes += 1
+                return True
+            logger.warning("Discord bot failed for %s; trying webhook fallback", event.symbol)
 
         if webhook:
-            attempts += 1
-            if self._send_discord_webhook(event.symbol, webhook, embed):
-                successes += 1
+            return self._send_discord_webhook(event.symbol, webhook, embed)
 
-        return attempts > 0 and successes > 0
+        return False
 
     def _send_discord_bot(
         self,
@@ -239,7 +345,7 @@ class AlertService:
         )
 
     def dispatch(self, assets: list[AssetSummary], *, force: bool = False) -> AlertDispatchResult:
-        """Evaluate assets and send alerts for new crosses."""
+        """Evaluate assets and send alerts for new crosses / material changes."""
         if not self.enabled and not force:
             return AlertDispatchResult(
                 enabled=False,
@@ -247,6 +353,7 @@ class AlertService:
                 matched=0,
                 sent=0,
                 skipped_cooldown=0,
+                skipped_unchanged=0,
                 discord_ok=None,
                 email_ok=None,
                 events=[],
@@ -255,15 +362,72 @@ class AlertService:
         matches = self.evaluate(assets)
         sent = 0
         skipped = 0
+        skipped_unchanged = 0
         fired: list[AlertEvent] = []
         discord_ok: bool | None = None
         email_ok: bool | None = None
 
         with self._lock:
             for event in matches:
-                if not force and self._cooldown_active(event.symbol):
+                key = event.symbol.upper()
+                if not force and self._cooldown_active(key):
                     skipped += 1
+                    logger.debug(
+                        "Alert skip cooldown %s conf=%.1f grade=%s",
+                        key,
+                        event.confidence,
+                        event.trade_grade,
+                    )
                     continue
+
+                prev = self._last_alerted.get(key)
+                classified = self._classify_trigger(event, prev)
+                if classified is None and not force:
+                    skipped_unchanged += 1
+                    logger.info(
+                        "Alert skip unchanged_hot %s conf=%.1f grade=%s trend=%s "
+                        "(still above threshold, no material change vs last alert)",
+                        key,
+                        event.confidence,
+                        event.trade_grade,
+                        event.trend,
+                    )
+                    # Keep cooldown from re-checking every dashboard poll
+                    self._last_sent[key] = datetime.now(UTC)
+                    continue
+
+                if classified is not None:
+                    trigger, ref = classified
+                else:
+                    trigger, ref = "forced", build_trigger_ref(
+                        trigger="forced",
+                        confidence=event.confidence,
+                        trade_grade=event.trade_grade,
+                        trend=event.trend,
+                        prev=prev,
+                    )
+
+                event.trigger = trigger
+                event.trigger_ref = ref
+                event.prev_confidence = prev.confidence if prev else None
+                event.prev_grade = prev.trade_grade if prev else None
+
+                logger.info(
+                    "Alert fire %s trigger=%s ref=%r conf=%.1f grade=%s state=%s "
+                    "signal=%s trend=%s ev=%.2f class=%s prev_conf=%s prev_grade=%s",
+                    key,
+                    event.trigger,
+                    event.trigger_ref,
+                    event.confidence,
+                    event.trade_grade,
+                    event.trade_state,
+                    event.execution_signal,
+                    event.trend,
+                    event.expected_value,
+                    event.asset_class,
+                    event.prev_confidence,
+                    event.prev_grade,
+                )
 
                 channel_hit = False
                 if self.discord_configured():
@@ -276,7 +440,7 @@ class AlertService:
                     channel_hit = channel_hit or e_ok
 
                 if channel_hit:
-                    self._mark_sent(event.symbol)
+                    self._mark_sent(event)
                     sent += 1
                     fired.append(event)
                 elif not (
@@ -294,6 +458,7 @@ class AlertService:
             matched=len(matches),
             sent=sent,
             skipped_cooldown=skipped,
+            skipped_unchanged=skipped_unchanged,
             discord_ok=discord_ok,
             email_ok=email_ok,
             events=fired,
@@ -310,6 +475,8 @@ class AlertService:
             expected_value=0.42,
             trend="Bullish",
             asset_class="etf",
+            trigger="test",
+            trigger_ref="test · B 72% · Bullish",
         )
         result: dict[str, bool | str] = {"symbol": "TEST"}
         if channel in {"both", "discord"}:

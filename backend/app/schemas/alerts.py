@@ -27,6 +27,10 @@ class AlertEventSchema(BaseModel):
     expected_value: float
     trend: str
     asset_class: str
+    trigger: str = "threshold_cross"
+    trigger_ref: str = ""
+    prev_confidence: float | None = None
+    prev_grade: str | None = None
 
 
 class AlertDispatchSchema(BaseModel):
@@ -37,6 +41,7 @@ class AlertDispatchSchema(BaseModel):
     matched: int
     sent: int
     skipped_cooldown: int
+    skipped_unchanged: int = 0
     discord_ok: bool | None = None
     email_ok: bool | None = None
     events: list[AlertEventSchema] = Field(default_factory=list)

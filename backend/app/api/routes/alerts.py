@@ -50,6 +50,7 @@ async def check_alerts(
         matched=result.matched,
         sent=result.sent,
         skipped_cooldown=result.skipped_cooldown,
+        skipped_unchanged=result.skipped_unchanged,
         discord_ok=result.discord_ok,
         email_ok=result.email_ok,
         events=[AlertEventSchema(**event.__dict__) for event in result.events],
