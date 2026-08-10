@@ -141,7 +141,7 @@ def test_agent_opens_from_watch_ideas(monkeypatch) -> None:
     summary = agent.summary()
     assert summary.optimistic.open_positions == 1
     assert summary.honest.open_positions == 1
-    assert summary.starting_cash == 100_000.0
+    assert summary.starting_cash == 15_000.0
 
 
 def test_memory_store_roundtrip_meta() -> None:

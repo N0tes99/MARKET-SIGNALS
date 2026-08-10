@@ -8,6 +8,7 @@ from app.services.alert_service import (
     AlertService,
     grade_meets_minimum,
 )
+from app.services.alert_state_store import MemoryAlertStateStore
 
 
 def _asset(**kwargs) -> AssetSummary:
@@ -42,6 +43,10 @@ def _event(**kwargs) -> AlertEvent:
     return AlertEvent(**base)
 
 
+def _service() -> AlertService:
+    return AlertService(state_store=MemoryAlertStateStore())
+
+
 def test_grade_meets_minimum() -> None:
     assert grade_meets_minimum("B", "B")
     assert grade_meets_minimum("A", "B")
@@ -51,7 +56,7 @@ def test_grade_meets_minimum() -> None:
 
 
 def test_evaluate_filters_threshold() -> None:
-    service = AlertService()
+    service = _service()
     matches = service.evaluate(
         [
             _asset(symbol="SPY", confidence=68, trade_grade="B"),
@@ -66,7 +71,7 @@ def test_evaluate_filters_threshold() -> None:
 
 
 def test_cooldown_skips_second_send(monkeypatch) -> None:
-    service = AlertService()
+    service = _service()
     monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
     monkeypatch.setattr("app.services.alert_service.settings.alert_discord_bot_token", "")
     monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
@@ -99,7 +104,7 @@ def test_cooldown_skips_second_send(monkeypatch) -> None:
 
 def test_unchanged_hot_skips_after_cooldown(monkeypatch) -> None:
     """Same grade/conf after cooldown should not spam Discord."""
-    service = AlertService()
+    service = _service()
     monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
     monkeypatch.setattr("app.services.alert_service.settings.alert_cooldown_minutes", 1)
     monkeypatch.setattr(
@@ -128,7 +133,7 @@ def test_unchanged_hot_skips_after_cooldown(monkeypatch) -> None:
 
 
 def test_material_confidence_up_refires(monkeypatch) -> None:
-    service = AlertService()
+    service = _service()
     monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
     monkeypatch.setattr("app.services.alert_service.settings.alert_cooldown_minutes", 1)
     monkeypatch.setattr(
@@ -158,7 +163,7 @@ def test_material_confidence_up_refires(monkeypatch) -> None:
 
 
 def test_send_discord_prefers_bot_over_webhook(monkeypatch) -> None:
-    service = AlertService()
+    service = _service()
     monkeypatch.setattr(
         "app.services.alert_service.settings.alert_discord_bot_token",
         "bot-token",
@@ -188,3 +193,32 @@ def test_send_discord_prefers_bot_over_webhook(monkeypatch) -> None:
     assert ok is True
     assert calls == ["bot"]
     assert service.status()["discord_mode"] == "bot+webhook_fallback"
+
+
+def test_alert_state_survives_service_restart(monkeypatch) -> None:
+    """Shared store: new AlertService reloads cooldown + snapshot (simulates restart)."""
+    store = MemoryAlertStateStore()
+    service = AlertService(state_store=store)
+    monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
+    monkeypatch.setattr("app.services.alert_service.settings.alert_cooldown_minutes", 120)
+    monkeypatch.setattr(
+        "app.services.alert_service.settings.alert_discord_webhook_url",
+        "https://discord.test/webhook",
+    )
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_bot_token", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_email_to", "")
+
+    sent: list[str] = []
+    monkeypatch.setattr(service, "send_discord", lambda e: sent.append(e.trigger) or True)
+    assert service.dispatch([_asset()]).sent == 1
+    assert service.status()["state_backend"] == "memory"
+
+    # New process / singleton rebuild with same durable store
+    restarted = AlertService(state_store=store)
+    monkeypatch.setattr(restarted, "send_discord", lambda e: sent.append(e.trigger) or True)
+    result = restarted.dispatch([_asset()])
+    assert result.skipped_cooldown == 1
+    assert result.sent == 0
+    assert sent == ["threshold_cross"]
+    assert restarted.status()["state_symbols"] == 1

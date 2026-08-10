@@ -11,6 +11,12 @@ import httpx
 
 from app.config import settings
 from app.schemas.assets import AssetSummary
+from app.services.alert_state_store import (
+    AlertSnapshot,
+    MemoryAlertStateStore,
+    PostgresAlertStateStore,
+    build_alert_state_store,
+)
 from app.services.mailer import send_mail, smtp_configured
 
 logger = logging.getLogger(__name__)
@@ -26,19 +32,6 @@ _GRADE_RANK: dict[str, int] = {
 
 # Re-alert after cooldown only if the case moved meaningfully
 _MIN_CONFIDENCE_DELTA = 5.0
-
-
-@dataclass
-class AlertSnapshot:
-    """Last alerted / last-seen inputs for a symbol (in-process)."""
-
-    confidence: float
-    trade_grade: str
-    trend: str
-    trade_state: str
-    execution_signal: str
-    expected_value: float
-    at: datetime
 
 
 @dataclass
@@ -121,10 +114,19 @@ def build_trigger_ref(
 class AlertService:
     """Evaluates asset summaries and dispatches Discord + email alerts."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        state_store: MemoryAlertStateStore | PostgresAlertStateStore | None = None,
+    ) -> None:
         self._lock = Lock()
-        self._last_sent: dict[str, datetime] = {}
-        self._last_alerted: dict[str, AlertSnapshot] = {}
+        self._state_store = state_store or build_alert_state_store()
+        self._last_sent, self._last_alerted = self._state_store.load()
+        self._backend = getattr(self._state_store, "backend", "memory")
+        logger.info(
+            "AlertService ready backend=%s symbols_loaded=%d",
+            self._backend,
+            len(self._last_sent),
+        )
 
     @property
     def enabled(self) -> bool:
@@ -167,6 +169,8 @@ class AlertService:
                 "discord": self.discord_configured(),
                 "email": bool(settings.alert_email_to.strip() and smtp_configured()),
             },
+            "state_backend": self._backend,
+            "state_symbols": len(self._last_sent),
         }
 
     @staticmethod
@@ -266,8 +270,7 @@ class AlertService:
     def _mark_sent(self, event: AlertEvent) -> None:
         key = event.symbol.upper()
         now = datetime.now(UTC)
-        self._last_sent[key] = now
-        self._last_alerted[key] = AlertSnapshot(
+        snap = AlertSnapshot(
             confidence=event.confidence,
             trade_grade=event.trade_grade,
             trend=event.trend,
@@ -276,6 +279,21 @@ class AlertService:
             expected_value=event.expected_value,
             at=now,
         )
+        self._last_sent[key] = now
+        self._last_alerted[key] = snap
+        try:
+            self._state_store.save_sent(key, now, snap)
+        except Exception:
+            logger.exception("Failed to persist alert state for %s", key)
+
+    def _touch_cooldown(self, symbol: str) -> None:
+        key = symbol.upper()
+        now = datetime.now(UTC)
+        self._last_sent[key] = now
+        try:
+            self._state_store.touch_cooldown(key, now)
+        except Exception:
+            logger.exception("Failed to persist alert cooldown for %s", key)
 
     def send_discord(self, event: AlertEvent) -> bool:
         """Post an embed via Discord bot, falling back to webhook if needed.
@@ -393,7 +411,7 @@ class AlertService:
                         event.trend,
                     )
                     # Keep cooldown from re-checking every dashboard poll
-                    self._last_sent[key] = datetime.now(UTC)
+                    self._touch_cooldown(key)
                     continue
 
                 if classified is not None:

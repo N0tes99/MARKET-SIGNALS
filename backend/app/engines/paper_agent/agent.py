@@ -29,7 +29,7 @@ from app.market_data.service import MarketDataService
 logger = logging.getLogger(__name__)
 
 AGENT_NAME = "Signal Engine Paper Agent"
-STARTING_CASH = 100_000.0
+STARTING_CASH = 15_000.0
 MIN_CONFIDENCE = 55.0
 
 

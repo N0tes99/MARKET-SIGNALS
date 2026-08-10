@@ -29,6 +29,8 @@ class SignalStore(Protocol):
 class InMemorySignalStore:
     """Thread-safe ring buffer of signal records per symbol."""
 
+    backend = "memory"
+
     def __init__(self, max_per_symbol: int = DEFAULT_MAX_PER_SYMBOL) -> None:
         self._max = max_per_symbol
         self._records: dict[str, deque[SignalRecord]] = {}

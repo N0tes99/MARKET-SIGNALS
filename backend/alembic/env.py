@@ -13,6 +13,7 @@ from app.database.base import Base
 
 # Import all models here so Alembic can detect them for autogenerate
 from app.models import (  # noqa: F401
+    AlertStateModel,
     Comment,
     EvidenceSnapshot,
     Favorite,

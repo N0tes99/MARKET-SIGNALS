@@ -50,6 +50,8 @@ def _row_to_record(row: SignalRecordModel) -> SignalRecord:
 class PostgresSignalStore:
     """Persist signal records in PostgreSQL."""
 
+    backend = "postgres"
+
     def __init__(self, database_url: str) -> None:
         sync_url = to_sync_database_url(database_url)
         self._engine: Engine = create_engine(

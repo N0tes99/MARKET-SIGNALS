@@ -50,7 +50,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
 | `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://signals27.netlify.app` (falls back to first `CORS_ORIGINS`) |
 | `DATABASE_URL` | from Render Postgres |
-| `SIGNAL_STORE` | `postgres` (or `auto`) |
+| `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
 | `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log (default `Admin`) |
@@ -80,10 +80,10 @@ reuse the same `CELERY_BROKER_URL` / beat schedule from `app.core.celery_app`.
 
 ```bash
 curl https://YOUR-RENDER-URL/api/v1/health
-# → 200 healthy
+# → 200 healthy; check stores.learning / stores.paper / stores.alerts == "postgres"
 
 curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/alerts/status
-# → 200
+# → 200; state_backend should be "postgres"
 ```
 
 ---
