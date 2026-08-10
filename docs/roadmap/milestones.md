@@ -64,7 +64,7 @@
 - [x] Architecture spec (`ARCHITECTURE.md` §5.4)
 - [x] Momentum continuation / breakout convexity scanners
 - [x] Option candidate scoring (Yahoo chain adapter)
-- [x] Staged execution plans (Entry 1/2/3, invalidation, profit zones)
+- [x] Staged execution plans (Entry 1/2/3, HARD/SOFT invalidation, DTE-aware harvest, runner rule)
 - [x] API: `/equity-setups`, `/assets/{symbol}/equity-setups`
 - [x] Dashboard + asset detail UI
 - [ ] Unusual options flow adapter (paid data — deferred)
