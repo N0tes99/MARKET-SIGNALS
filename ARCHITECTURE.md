@@ -864,7 +864,7 @@ When adding a new system, follow this checklist:
 | M5 — AI & Dashboard | AI Analyst, live dashboard (WS client deferred) | **Complete** (partial: no FE WS client) |
 | M6 — Learning & Backtesting | Signal storage, backtesting, weight tuning | **Complete** |
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
-| M8 — Broker Adapters | Read-only portfolio, paper trading | Not started / deferred |
+| M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger) | **Partial** (paper living bot shipped; live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
 
 ---
