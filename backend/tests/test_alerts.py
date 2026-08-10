@@ -1,7 +1,13 @@
 """Alert threshold and dispatch tests."""
 
+from datetime import UTC, datetime, timedelta
+
 from app.schemas.assets import AssetSummary
-from app.services.alert_service import AlertEvent, AlertService, grade_meets_minimum
+from app.services.alert_service import (
+    AlertEvent,
+    AlertService,
+    grade_meets_minimum,
+)
 
 
 def _asset(**kwargs) -> AssetSummary:
@@ -74,7 +80,7 @@ def test_cooldown_skips_second_send(monkeypatch) -> None:
     assert first.matched == 1
 
     # Mark as sent manually then ensure cooldown skips
-    service._mark_sent("SPY")
+    service._mark_sent(_event())
     monkeypatch.setattr(
         "app.services.alert_service.settings.alert_discord_webhook_url",
         "https://discord.test/webhook",
@@ -91,7 +97,67 @@ def test_cooldown_skips_second_send(monkeypatch) -> None:
     assert sent_calls == []
 
 
-def test_send_discord_uses_bot_and_webhook(monkeypatch) -> None:
+def test_unchanged_hot_skips_after_cooldown(monkeypatch) -> None:
+    """Same grade/conf after cooldown should not spam Discord."""
+    service = AlertService()
+    monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
+    monkeypatch.setattr("app.services.alert_service.settings.alert_cooldown_minutes", 1)
+    monkeypatch.setattr(
+        "app.services.alert_service.settings.alert_discord_webhook_url",
+        "https://discord.test/webhook",
+    )
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_bot_token", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_email_to", "")
+
+    sent: list[str] = []
+    monkeypatch.setattr(service, "send_discord", lambda e: sent.append(e.trigger) or True)
+
+    assets = [_asset(confidence=70, trade_grade="B", trend="Bullish")]
+    first = service.dispatch(assets)
+    assert first.sent == 1
+    assert sent == ["threshold_cross"]
+    assert "Ref" in service._discord_embed(first.events[0])["fields"][-1]["name"]
+
+    # Expire cooldown but keep snapshot identical
+    service._last_sent["SPY"] = datetime.now(UTC) - timedelta(minutes=5)
+    second = service.dispatch(assets)
+    assert second.sent == 0
+    assert second.skipped_unchanged == 1
+    assert sent == ["threshold_cross"]
+
+
+def test_material_confidence_up_refires(monkeypatch) -> None:
+    service = AlertService()
+    monkeypatch.setattr("app.services.alert_service.settings.alert_enabled", True)
+    monkeypatch.setattr("app.services.alert_service.settings.alert_cooldown_minutes", 1)
+    monkeypatch.setattr(
+        "app.services.alert_service.settings.alert_discord_webhook_url",
+        "https://discord.test/webhook",
+    )
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_bot_token", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_email_to", "")
+
+    triggers: list[str] = []
+    refs: list[str] = []
+
+    def fake_discord(event: AlertEvent) -> bool:
+        triggers.append(event.trigger)
+        refs.append(event.trigger_ref)
+        return True
+
+    monkeypatch.setattr(service, "send_discord", fake_discord)
+
+    service.dispatch([_asset(confidence=68, trade_grade="B")])
+    service._last_sent["SPY"] = datetime.now(UTC) - timedelta(minutes=5)
+    service.dispatch([_asset(confidence=75, trade_grade="B")])
+
+    assert triggers == ["threshold_cross", "confidence_up"]
+    assert "68%" in refs[1] and "75%" in refs[1]
+
+
+def test_send_discord_prefers_bot_over_webhook(monkeypatch) -> None:
     service = AlertService()
     monkeypatch.setattr(
         "app.services.alert_service.settings.alert_discord_bot_token",
@@ -120,5 +186,5 @@ def test_send_discord_uses_bot_and_webhook(monkeypatch) -> None:
 
     ok = service.send_discord(_event())
     assert ok is True
-    assert calls == ["bot", "webhook"]
-    assert service.status()["discord_mode"] == "both"
+    assert calls == ["bot"]
+    assert service.status()["discord_mode"] == "bot+webhook_fallback"
