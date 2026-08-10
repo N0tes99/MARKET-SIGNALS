@@ -169,3 +169,97 @@ async def test_get_asset_setups_endpoint(client: AsyncClient, monkeypatch) -> No
 async def test_get_asset_setups_unknown_symbol(client: AsyncClient) -> None:
     response = await client.get("/api/v1/assets/ZZZ/setups")
     assert response.status_code == 404
+
+
+def test_scan_feed_filters_watch_and_confidence(monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from app.engines.opportunity_engine.types import OpportunityIdea
+    from app.utils.ttl_cache import TTLCache
+
+    as_of = datetime.now(UTC)
+    fake = [
+        OpportunityIdea(
+            id="a",
+            symbol="BTC",
+            instrument_type="perp",
+            setup_type="funding_extreme",
+            direction_bias="short",
+            confidence=70.0,
+            factors=["f"],
+            conflicts=[],
+            trade_state_hint="WATCH",
+            as_of=as_of,
+            data_quality="good",
+        ),
+        OpportunityIdea(
+            id="b",
+            symbol="ETH",
+            instrument_type="perp",
+            setup_type="liq_flush",
+            direction_bias="long",
+            confidence=40.0,
+            factors=["f"],
+            conflicts=[],
+            trade_state_hint="IGNORE",
+            as_of=as_of,
+            data_quality="good",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "app.engines.opportunity_engine.scanner._FEED_CACHE",
+        TTLCache(ttl_seconds=1.0),
+    )
+
+    scanner = SetupScanner(MarketDataService(provider=MockMarketDataProvider()))
+    monkeypatch.setattr(scanner, "_scan_many_uncached", lambda symbols: list(fake))
+
+    watch = scanner.scan_feed(["BTC", "ETH"], watch_only=True, min_confidence=55)
+    assert len(watch) == 1
+    assert watch[0].symbol == "BTC"
+
+    all_ideas = scanner.scan_feed(["BTC", "ETH"], watch_only=False, min_confidence=0)
+    assert len(all_ideas) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_setups_feed_endpoint(client: AsyncClient, monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from app.core.service_dependencies import get_setup_scanner
+    from app.engines.opportunity_engine.types import OpportunityIdea
+    from app.main import app
+
+    as_of = datetime.now(UTC)
+    idea = OpportunityIdea(
+        id="feed-1",
+        symbol="SOL",
+        instrument_type="perp",
+        setup_type="basis_rich",
+        direction_bias="short",
+        confidence=62.0,
+        factors=["basis elevated"],
+        conflicts=[],
+        trade_state_hint="WATCH",
+        as_of=as_of,
+        data_quality="good",
+    )
+
+    class _Stub:
+        def scan_feed(self, symbols=None, *, watch_only=False, min_confidence=0.0):
+            return [idea]
+
+    app.dependency_overrides[get_setup_scanner] = lambda: _Stub()
+    try:
+        response = await client.get("/api/v1/setups?watch_only=true&min_confidence=55")
+    finally:
+        app.dependency_overrides.pop(get_setup_scanner, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["watch_only"] is True
+    assert data["min_confidence"] == 55.0
+    assert data["symbols_scanned"] >= 1
+    assert len(data["setups"]) == 1
+    assert data["setups"][0]["symbol"] == "SOL"

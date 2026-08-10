@@ -36,3 +36,13 @@ class AssetSetupsResponse(BaseModel):
     symbol: str
     setups: list[OpportunityIdeaSchema] = Field(default_factory=list)
     scanned_at: datetime
+
+
+class GlobalSetupsResponse(BaseModel):
+    """Cross-asset setup feed for the dashboard."""
+
+    setups: list[OpportunityIdeaSchema] = Field(default_factory=list)
+    scanned_at: datetime
+    symbols_scanned: int = 0
+    watch_only: bool = False
+    min_confidence: float = 0.0
