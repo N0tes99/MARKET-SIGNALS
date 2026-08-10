@@ -5,8 +5,8 @@ export function VoidBackground() {
       <div className="void-depth absolute inset-0" />
       <div className="void-vignette absolute inset-0" />
       <div className="void-grain absolute inset-0" />
-      <div className="void-horizon absolute inset-x-0 top-[62%] h-px" />
-      <div className="void-horizon-glow absolute inset-x-0 top-[62%] h-24 -translate-y-1/2" />
+      <div className="void-horizon absolute inset-x-[8%] top-[62%] h-px opacity-80" />
+      <div className="void-horizon-glow absolute inset-x-[4%] top-[62%] h-20 -translate-y-1/2" />
     </div>
   );
 }
