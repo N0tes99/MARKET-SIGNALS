@@ -252,6 +252,28 @@ export async function fetchAssetSetups(symbol: string): Promise<AssetSetupsRespo
   return apiFetch<AssetSetupsResponse>(`/api/v1/assets/${symbol}/setups`);
 }
 
+export interface GlobalSetupsResponse {
+  setups: OpportunityIdea[];
+  scanned_at: string;
+  symbols_scanned: number;
+  watch_only: boolean;
+  min_confidence: number;
+}
+
+export async function fetchSetupsFeed(opts?: {
+  watchOnly?: boolean;
+  minConfidence?: number;
+}): Promise<GlobalSetupsResponse> {
+  const watchOnly = opts?.watchOnly ?? true;
+  const minConfidence = opts?.minConfidence ?? 55;
+  const qs = new URLSearchParams({
+    watch_only: String(watchOnly),
+    min_confidence: String(minConfidence),
+  });
+  // Cold parallel crypto scan can be slow — align with assets budget.
+  return apiFetch<GlobalSetupsResponse>(`/api/v1/setups?${qs}`, 110_000);
+}
+
 export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }

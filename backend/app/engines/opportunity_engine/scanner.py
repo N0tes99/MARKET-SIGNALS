@@ -7,6 +7,8 @@ Does not fold into the 13-category asset grade or OpportunityEngine ranking.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -26,7 +28,7 @@ from app.market_data.providers.coinglass import (
     fetch_aggregated_liquidations,
 )
 from app.market_data.service import MarketDataService
-from app.market_data.symbols import AssetClass, get_asset_class
+from app.market_data.symbols import CRYPTO_SYMBOLS, AssetClass, get_asset_class
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -50,6 +52,8 @@ _BASIS_RICH_PCT = 0.15  # |mark-spot|/spot * 100
 _BASIS_SOFT_PCT = 0.08
 
 _SCAN_CACHE: TTLCache[list[OpportunityIdea]] = TTLCache(ttl_seconds=90.0)
+_FEED_CACHE: TTLCache[list[OpportunityIdea]] = TTLCache(ttl_seconds=90.0)
+_FEED_MAX_WORKERS = 6
 
 
 def _hint(confidence: float) -> TradeStateHint:
@@ -305,6 +309,58 @@ class SetupScanner:
         except Exception:
             logger.exception("Setup scan failed for %s", normalized)
             return []
+
+    def scan_feed(
+        self,
+        symbols: Sequence[str] | None = None,
+        *,
+        watch_only: bool = False,
+        min_confidence: float = 0.0,
+    ) -> list[OpportunityIdea]:
+        """Scan crypto symbols in parallel for the dashboard feed.
+
+        Soft-fails per symbol. Results are sorted WATCH-first, then confidence.
+        Aggregated under a short TTL so the dashboard stays snappy.
+        """
+        universe = tuple(s.upper() for s in (symbols if symbols is not None else CRYPTO_SYMBOLS))
+        cache_key = f"feed:{','.join(universe)}"
+
+        def _build() -> list[OpportunityIdea]:
+            return self._scan_many_uncached(universe)
+
+        try:
+            ideas = _FEED_CACHE.get_or_set(cache_key, _build)
+        except Exception:
+            logger.exception("Setup feed scan failed")
+            ideas = []
+
+        filtered = [
+            idea
+            for idea in ideas
+            if idea.confidence >= min_confidence
+            and (not watch_only or idea.trade_state_hint == "WATCH")
+        ]
+        filtered.sort(
+            key=lambda i: (i.trade_state_hint == "WATCH", i.confidence),
+            reverse=True,
+        )
+        return filtered
+
+    def _scan_many_uncached(self, symbols: Sequence[str]) -> list[OpportunityIdea]:
+        ideas: list[OpportunityIdea] = []
+        if not symbols:
+            return ideas
+
+        workers = min(_FEED_MAX_WORKERS, max(1, len(symbols)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(self.scan, symbol): symbol for symbol in symbols}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    ideas.extend(future.result())
+                except Exception:
+                    logger.exception("Setup feed worker failed for %s", symbol)
+        return ideas
 
     def _scan_uncached(self, symbol: str) -> list[OpportunityIdea]:
         try:
