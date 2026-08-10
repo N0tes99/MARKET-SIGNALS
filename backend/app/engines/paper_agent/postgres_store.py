@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from threading import Lock
 from uuid import UUID
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
@@ -169,3 +169,12 @@ class PostgresPaperTradeStore:
         with self._lock, self._session_factory() as session:
             row = session.get(PaperAgentStateModel, key)
             return row.value if row else None
+
+    def clear_all(self) -> int:
+        """Wipe all paper trades + agent meta. Returns trades deleted."""
+        with self._lock, self._session_factory() as session:
+            count = len(session.scalars(select(PaperTradeModel.id)).all())
+            session.execute(delete(PaperTradeModel))
+            session.execute(delete(PaperAgentStateModel))
+            session.commit()
+            return count

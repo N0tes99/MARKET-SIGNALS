@@ -74,6 +74,37 @@ def test_next_bar_open_after() -> None:
     assert bar_ts > signal
 
 
+def test_paper_store_clear_all() -> None:
+    store = PaperTradeStore()
+    from uuid import uuid4
+
+    from app.engines.paper_agent.types import PaperTrade
+
+    now = datetime.now(UTC)
+    store.upsert(
+        PaperTrade(
+            id=str(uuid4()),
+            symbol="BTC",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="long",
+            fingerprint="abc",
+            signal_at=now,
+            confidence=60.0,
+            opportunity_score=60.0,
+            size_usd=2500.0,
+            status="open",
+            optimistic_entry=100.0,
+            optimistic_entry_at=now,
+        )
+    )
+    store.set_meta("last_tick_at", now.isoformat())
+    assert len(store.list_all()) == 1
+    assert store.clear_all() == 1
+    assert store.list_all() == []
+    assert store.get_meta("last_tick_at") is None
+
+
 def test_agent_opens_from_watch_ideas(monkeypatch) -> None:
     store = PaperTradeStore()
     signal_at = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
@@ -142,6 +173,17 @@ def test_agent_opens_from_watch_ideas(monkeypatch) -> None:
     assert summary.optimistic.open_positions == 1
     assert summary.honest.open_positions == 1
     assert summary.starting_cash == 15_000.0
+
+    cleared = agent.reset()
+    assert cleared == 1
+    reset_summary = agent.summary()
+    assert reset_summary.optimistic.equity == 15_000.0
+    assert reset_summary.honest.equity == 15_000.0
+    assert reset_summary.optimistic.closed_trades == 0
+    assert reset_summary.honest.closed_trades == 0
+    assert reset_summary.open_trades == []
+    assert reset_summary.recent_closed == []
+    assert reset_summary.last_tick_at is None
 
 
 def test_memory_store_roundtrip_meta() -> None:

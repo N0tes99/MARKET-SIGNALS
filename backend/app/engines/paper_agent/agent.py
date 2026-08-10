@@ -80,6 +80,13 @@ class PaperAgent:
     def store(self) -> PaperTradeStore:
         return self._store
 
+    def reset(self) -> int:
+        """Clear all paper trades so both ledgers restart at starting cash."""
+        cleared = self._store.clear_all()
+        self._last_tick_at = None
+        logger.info("Paper agent reset cleared=%d starting_cash=%.0f", cleared, self._starting_cash)
+        return cleared
+
     def tick(self) -> list[str]:
         """Advance the agent once: open new ideas, resolve honest fills, manage exits."""
         notes: list[str] = []

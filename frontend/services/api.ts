@@ -335,6 +335,17 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export async function resetPaperAgent(): Promise<PaperSummary> {
+  const response = await fetch(apiUrl("/api/v1/paper/reset"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<PaperSummary>;
+}
+
 export type EquitySetupType = "momentum_continuation" | "breakout_convexity";
 
 export interface StagedEntry {

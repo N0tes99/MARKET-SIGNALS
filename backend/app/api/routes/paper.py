@@ -9,9 +9,11 @@ from threading import Lock
 
 from fastapi import APIRouter, Depends
 
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.agent import PaperAgent
 from app.engines.paper_agent.types import PaperTrade
+from app.models.user import User
 from app.schemas.paper import PaperLedgerSchema, PaperSummarySchema, PaperTradeSchema
 
 logger = logging.getLogger(__name__)
@@ -109,3 +111,14 @@ async def paper_tick(
     """Force one paper-agent tick (public; still soft-fails internally)."""
     notes = await asyncio.to_thread(agent.tick)
     return await asyncio.to_thread(_summary_schema, agent, notes)
+
+
+@router.post("/reset", response_model=PaperSummarySchema)
+async def paper_reset(
+    agent: PaperAgent = Depends(get_paper_agent),
+    _admin: User = Depends(require_admin_user),
+) -> PaperSummarySchema:
+    """Admin: wipe all paper trades so both ledgers restart at starting cash."""
+    cleared = await asyncio.to_thread(agent.reset)
+    logger.info("Paper agent reset by admin trades_cleared=%d", cleared)
+    return await asyncio.to_thread(_summary_schema, agent, [f"reset_cleared:{cleared}"])

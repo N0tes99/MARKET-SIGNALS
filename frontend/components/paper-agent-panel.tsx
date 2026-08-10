@@ -1,10 +1,19 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
+import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
-import { fetchPaperSummary, type PaperLedger, type PaperTrade } from "@/services/api";
+import {
+  fetchPaperSummary,
+  resetPaperAgent,
+  type PaperLedger,
+  type PaperTrade,
+} from "@/services/api";
+
+const TRADE_COLLAPSE_AFTER = 5;
 
 function money(n: number): string {
   const sign = n > 0 ? "+" : n < 0 ? "" : "";
@@ -102,8 +111,45 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
   );
 }
 
+function TradeLists({
+  openTrades,
+  closedTrades,
+}: {
+  openTrades: PaperTrade[];
+  closedTrades: PaperTrade[];
+}) {
+  return (
+    <div className="mt-5 grid gap-6 lg:grid-cols-2">
+      <div>
+        <p className="label-caps text-muted-foreground/55">Open</p>
+        <ul className="mt-2">
+          {openTrades.length === 0 ? (
+            <li className="font-mono text-[11px] text-muted-foreground/45">No open paper</li>
+          ) : (
+            openTrades.map((t) => <TradeRow key={t.id} trade={t} />)
+          )}
+        </ul>
+      </div>
+      <div>
+        <p className="label-caps text-muted-foreground/55">Recent closed</p>
+        <ul className="mt-2">
+          {closedTrades.length === 0 ? (
+            <li className="font-mono text-[11px] text-muted-foreground/45">No closed paper yet</li>
+          ) : (
+            closedTrades.map((t) => <TradeRow key={t.id} trade={t} />)
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 /** Public living paper agent — dual ledger PnL everyone can audit. */
 export function PaperAgentPanel() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [tradesOpen, setTradesOpen] = useState(false);
+
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["paper-summary"],
     queryFn: () => fetchPaperSummary(true),
@@ -112,6 +158,19 @@ export function PaperAgentPanel() {
     refetchOnWindowFocus: false,
     retry: 1,
   });
+
+  const resetMutation = useMutation({
+    mutationFn: resetPaperAgent,
+    onSuccess: (summary) => {
+      queryClient.setQueryData(["paper-summary"], summary);
+      setTradesOpen(false);
+    },
+  });
+
+  const tradeCount = data
+    ? data.open_trades.length + data.recent_closed.length
+    : 0;
+  const collapseTrades = tradeCount > TRADE_COLLAPSE_AFTER;
 
   return (
     <section className="mb-8 border-b border-white/[0.05] pb-8">
@@ -122,11 +181,31 @@ export function PaperAgentPanel() {
             living bot · paper only · dual fills · public track record
           </p>
         </div>
-        {isFetching && !isLoading ? (
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
-            ticking
-          </p>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {user?.is_admin ? (
+            <button
+              type="button"
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+              disabled={resetMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Reset paper agent to $15,000 on both ledgers and clear all trades?",
+                  )
+                ) {
+                  resetMutation.mutate();
+                }
+              }}
+            >
+              {resetMutation.isPending ? "resetting…" : "reset $15k"}
+            </button>
+          ) : null}
+          {isFetching && !isLoading ? (
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
+              ticking
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {isLoading ? (
@@ -147,6 +226,10 @@ export function PaperAgentPanel() {
             Retry
           </button>
         </div>
+      ) : null}
+
+      {resetMutation.isError ? (
+        <p className="mt-2 font-mono text-[10px] text-bearish/80">Reset failed — admin session required</p>
       ) : null}
 
       {data ? (
@@ -172,32 +255,33 @@ export function PaperAgentPanel() {
               : ""}
           </p>
 
-          {(data.open_trades.length > 0 || data.recent_closed.length > 0) && (
-            <div className="mt-5 grid gap-6 lg:grid-cols-2">
-              <div>
-                <p className="label-caps text-muted-foreground/55">Open</p>
-                <ul className="mt-2">
-                  {data.open_trades.length === 0 ? (
-                    <li className="font-mono text-[11px] text-muted-foreground/45">No open paper</li>
-                  ) : (
-                    data.open_trades.slice(0, 8).map((t) => <TradeRow key={t.id} trade={t} />)
-                  )}
-                </ul>
+          {tradeCount > 0 ? (
+            collapseTrades ? (
+              <div className="mt-5">
+                <button
+                  type="button"
+                  className="flex w-full items-baseline justify-between gap-3 border border-white/[0.06] bg-card/20 px-3 py-2.5 text-left backdrop-blur-sm transition-colors hover:border-white/[0.1] hover:bg-card/30"
+                  aria-expanded={tradesOpen}
+                  onClick={() => setTradesOpen((v) => !v)}
+                >
+                  <span className="label-caps text-muted-foreground/85">
+                    Trades · {tradeCount}
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+                    {tradesOpen ? "collapse" : "expand"}
+                  </span>
+                </button>
+                {tradesOpen ? (
+                  <TradeLists
+                    openTrades={data.open_trades}
+                    closedTrades={data.recent_closed}
+                  />
+                ) : null}
               </div>
-              <div>
-                <p className="label-caps text-muted-foreground/55">Recent closed</p>
-                <ul className="mt-2">
-                  {data.recent_closed.length === 0 ? (
-                    <li className="font-mono text-[11px] text-muted-foreground/45">
-                      No closed paper yet
-                    </li>
-                  ) : (
-                    data.recent_closed.slice(0, 8).map((t) => <TradeRow key={t.id} trade={t} />)
-                  )}
-                </ul>
-              </div>
-            </div>
-          )}
+            ) : (
+              <TradeLists openTrades={data.open_trades} closedTrades={data.recent_closed} />
+            )
+          ) : null}
         </>
       ) : null}
     </section>
