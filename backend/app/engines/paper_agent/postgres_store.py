@@ -91,6 +91,8 @@ def _trade_values(trade: PaperTrade) -> dict:
 class PostgresPaperTradeStore:
     """Persist paper trades so public PnL survives restarts."""
 
+    backend = "postgres"
+
     def __init__(self, database_url: str) -> None:
         sync_url = to_sync_database_url(database_url)
         self._engine: Engine = create_engine(

@@ -17,6 +17,10 @@ async def test_health_check(client: AsyncClient) -> None:
     assert data["app_name"] == "Signal Engine"
     assert data["version"] == "0.1.0"
     assert "environment" in data
+    assert "stores" in data
+    assert data["stores"]["learning"] in {"memory", "postgres"}
+    assert data["stores"]["paper"] in {"memory", "postgres"}
+    assert data["stores"]["alerts"] in {"memory", "postgres"}
 
 
 @pytest.mark.asyncio

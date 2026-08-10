@@ -10,6 +10,8 @@ from app.engines.paper_agent.types import PaperTrade
 class PaperTradeStore:
     """Thread-safe in-memory store for the public paper agent."""
 
+    backend = "memory"
+
     def __init__(self) -> None:
         self._lock = Lock()
         self._trades: dict[str, PaperTrade] = {}
