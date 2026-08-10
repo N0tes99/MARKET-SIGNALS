@@ -92,6 +92,11 @@ class PaperAgent:
         notes: list[str] = []
         now = datetime.now(UTC)
         active = self._store.fingerprints_active()
+        max_open = max(1, int(self._starting_cash // self._size_usd))
+        hit_cap = False
+
+        def _slots_left() -> int:
+            return max(0, max_open - len(self._store.open_or_pending()))
 
         # --- Crypto Layer 2 ---
         try:
@@ -102,6 +107,9 @@ class PaperAgent:
             notes.append("crypto_feed_error")
 
         for idea in crypto_ideas:
+            if _slots_left() <= 0:
+                hit_cap = True
+                break
             direction = _dir(idea.direction_bias)
             if direction is None:
                 continue
@@ -120,7 +128,7 @@ class PaperAgent:
                 now=now,
             )
             if trade:
-                notes.append(f"open:{trade.symbol}:{trade.setup_type}")
+                notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
                 active.add(fp)
 
         # --- Equity Layer 3 ---
@@ -135,6 +143,9 @@ class PaperAgent:
             notes.append("equity_feed_error")
 
         for idea in equity_ideas:
+            if _slots_left() <= 0:
+                hit_cap = True
+                break
             direction = _dir(idea.direction_bias)
             if direction is None:
                 continue
@@ -153,8 +164,11 @@ class PaperAgent:
                 now=now,
             )
             if trade:
-                notes.append(f"open:{trade.symbol}:{trade.setup_type}")
+                notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
                 active.add(fp)
+
+        if hit_cap:
+            notes.append(f"skip:max_open:{max_open}")
 
         # --- Manage open / pending ---
         for trade in list(self._store.open_or_pending()):
@@ -185,6 +199,11 @@ class PaperAgent:
             return None
 
         opt_entry = _bps_slip(px, direction, entry=True)
+        size = float(self._size_usd)
+        if size <= 0:
+            logger.warning("Paper skip %s — invalid size_usd=%s", symbol, size)
+            return None
+
         trade = PaperTrade(
             id=str(uuid4()),
             symbol=symbol.upper(),
@@ -195,15 +214,15 @@ class PaperAgent:
             signal_at=now,
             confidence=confidence,
             opportunity_score=opportunity_score,
-            size_usd=self._size_usd,
+            size_usd=size,
             status="pending_honest",
             optimistic_entry=opt_entry,
             optimistic_entry_at=now,
             mark_price=px,
             factors=factors,
             notes=(
-                f"Optimistic fill @ {opt_entry:.6g} (signal last {px:.6g} + slip). "
-                "Honest fill awaits next 15m bar open."
+                f"Notional ${size:,.0f}. Optimistic fill @ {opt_entry:.6g} "
+                f"(signal last {px:.6g} + slip). Honest fill awaits next 15m bar open."
             ),
         )
 
@@ -337,6 +356,7 @@ class PaperAgent:
         closed_n = 0
         wins = 0
         losses = 0
+        deployed = 0.0
 
         for t in trades:
             if mode == "optimistic":
@@ -359,6 +379,7 @@ class PaperAgent:
                     losses += 1
             elif t.status in {"pending_honest", "open"} and t.mark_price is not None:
                 open_n += 1
+                deployed += t.size_usd
                 u_pnl, _ = unrealized_pnl(
                     direction=t.direction,
                     entry=entry,
@@ -382,4 +403,6 @@ class PaperAgent:
             closed_trades=closed_n,
             wins=wins,
             losses=losses,
+            deployed_usd=deployed,
+            size_usd=self._size_usd,
         )
