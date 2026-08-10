@@ -48,3 +48,11 @@ class PaperTradeStore:
     def get_meta(self, key: str) -> str | None:
         with self._lock:
             return self._meta.get(key)
+
+    def clear_all(self) -> int:
+        """Wipe all trades + meta. Returns number of trades removed."""
+        with self._lock:
+            n = len(self._trades)
+            self._trades.clear()
+            self._meta.clear()
+            return n
