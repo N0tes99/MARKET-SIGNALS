@@ -120,7 +120,6 @@ def test_agent_opens_from_watch_ideas(monkeypatch) -> None:
         size_usd=2500.0,
     )
 
-    # Freeze "now" inside open by patching datetime in agent module
     class _DT:
         @staticmethod
         def now(tz=None):
@@ -134,11 +133,18 @@ def test_agent_opens_from_watch_ideas(monkeypatch) -> None:
     assert len(trades) == 1
     t = trades[0]
     assert t.optimistic_entry > 0
-    assert t.honest_entry is not None  # next bar present
+    assert t.honest_entry is not None
     assert t.honest_bar_ts is not None
     assert t.fingerprint
+    assert store.get_meta("last_tick_at") == signal_at.isoformat()
 
     summary = agent.summary()
     assert summary.optimistic.open_positions == 1
     assert summary.honest.open_positions == 1
     assert summary.starting_cash == 100_000.0
+
+
+def test_memory_store_roundtrip_meta() -> None:
+    store = PaperTradeStore()
+    store.set_meta("last_tick_at", "2026-08-09T15:00:00+00:00")
+    assert store.get_meta("last_tick_at") == "2026-08-09T15:00:00+00:00"

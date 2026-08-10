@@ -66,6 +66,15 @@ class PaperAgent:
         self._starting_cash = starting_cash
         self._size_usd = size_usd
         self._last_tick_at: datetime | None = None
+        raw = None
+        get_meta = getattr(self._store, "get_meta", None)
+        if callable(get_meta):
+            raw = get_meta("last_tick_at")
+        if raw:
+            try:
+                self._last_tick_at = datetime.fromisoformat(raw)
+            except ValueError:
+                self._last_tick_at = None
 
     @property
     def store(self) -> PaperTradeStore:
@@ -145,6 +154,9 @@ class PaperAgent:
             self._advance_trade(trade, now=now, notes=notes)
 
         self._last_tick_at = now
+        set_meta = getattr(self._store, "set_meta", None)
+        if callable(set_meta):
+            set_meta("last_tick_at", now.isoformat())
         return notes
 
     def _open_from_signal(

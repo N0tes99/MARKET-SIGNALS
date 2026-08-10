@@ -17,6 +17,8 @@ from app.models import (  # noqa: F401
     EvidenceSnapshot,
     Favorite,
     Follow,
+    PaperAgentStateModel,
+    PaperTradeModel,
     Post,
     PostLike,
     SignalRecordModel,

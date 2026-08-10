@@ -119,14 +119,15 @@ def get_equity_options_scanner():
 
 @lru_cache
 def get_paper_agent():
-    """Singleton public paper-trading agent (in-process dual ledger)."""
-    from app.engines.paper_agent import PaperAgent, PaperTradeStore
+    """Singleton public paper-trading agent (Postgres-backed when available)."""
+    from app.engines.paper_agent import PaperAgent
+    from app.engines.paper_agent.factory import build_paper_store
 
     return PaperAgent(
         market_data=get_market_data_service(),
         crypto_scanner=get_setup_scanner(),
         equity_scanner=get_equity_options_scanner(),
-        store=PaperTradeStore(),
+        store=build_paper_store(),
     )
 
 
