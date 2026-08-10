@@ -274,6 +274,67 @@ export async function fetchSetupsFeed(opts?: {
   return apiFetch<GlobalSetupsResponse>(`/api/v1/setups?${qs}`, 110_000);
 }
 
+export interface PaperLedger {
+  label: string;
+  starting_cash: number;
+  equity: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  total_pnl: number;
+  return_pct: number;
+  open_positions: number;
+  closed_trades: number;
+  wins: number;
+  losses: number;
+}
+
+export interface PaperTrade {
+  id: string;
+  symbol: string;
+  source: string;
+  setup_type: string;
+  direction: string;
+  fingerprint: string;
+  signal_at: string;
+  confidence: number;
+  opportunity_score: number;
+  size_usd: number;
+  status: string;
+  optimistic_entry: number;
+  optimistic_entry_at: string;
+  optimistic_exit: number | null;
+  optimistic_pnl_usd: number | null;
+  optimistic_return_pct: number | null;
+  honest_entry: number | null;
+  honest_entry_at: string | null;
+  honest_bar_ts: string | null;
+  honest_exit: number | null;
+  honest_pnl_usd: number | null;
+  honest_return_pct: number | null;
+  mark_price: number | null;
+  closed_at: string | null;
+  close_reason: string | null;
+  factors: string[];
+  notes: string;
+}
+
+export interface PaperSummary {
+  agent_name: string;
+  starting_cash: number;
+  as_of: string;
+  last_tick_at: string | null;
+  optimistic: PaperLedger;
+  honest: PaperLedger;
+  open_trades: PaperTrade[];
+  recent_closed: PaperTrade[];
+  tick_notes: string[];
+}
+
+export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
+  const qs = new URLSearchParams({ tick: String(tick) });
+  return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
+}
+
 export type EquitySetupType = "momentum_continuation" | "breakout_convexity";
 
 export interface StagedEntry {

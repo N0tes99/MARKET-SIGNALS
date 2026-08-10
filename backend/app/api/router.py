@@ -16,6 +16,7 @@ from app.api.routes import (
     health,
     learning,
     opportunities,
+    paper,
     quotes,
     setups,
     social,
@@ -42,6 +43,7 @@ api_router.include_router(
 )
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
+api_router.include_router(paper.router, prefix="/paper", tags=["paper"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])
 api_router.include_router(tuning.router, prefix="/tuning", tags=["tuning"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])

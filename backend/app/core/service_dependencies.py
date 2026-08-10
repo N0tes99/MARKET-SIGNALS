@@ -118,6 +118,19 @@ def get_equity_options_scanner():
 
 
 @lru_cache
+def get_paper_agent():
+    """Singleton public paper-trading agent (in-process dual ledger)."""
+    from app.engines.paper_agent import PaperAgent, PaperTradeStore
+
+    return PaperAgent(
+        market_data=get_market_data_service(),
+        crypto_scanner=get_setup_scanner(),
+        equity_scanner=get_equity_options_scanner(),
+        store=PaperTradeStore(),
+    )
+
+
+@lru_cache
 def get_weight_optimizer() -> WeightOptimizer:
     """Singleton weight optimizer sharing market data cache."""
     return WeightOptimizer(market_data=get_market_data_service())
