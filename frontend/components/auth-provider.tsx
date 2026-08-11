@@ -106,12 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return next;
     }
 
-    const { address, wallet } = await connectSuiAddress();
+    const { address } = await connectSuiAddress();
     const challenge = await walletChallenge({
       chain: "sui",
       address,
     });
-    const signature = await signSuiMessage(wallet, challenge.message);
+    const signature = await signSuiMessage(challenge.address, challenge.message);
     const next = await walletVerify({
       chain: "sui",
       address: challenge.address,

@@ -1,11 +1,15 @@
 "use client";
 
-/** Minimal injected Ethereum provider shape (MetaMask / Rabby / etc.). */
+/**
+ * Phantom-only wallet connectors for Ethereum, Solana, and Sui.
+ * Docs: https://docs.phantom.com/
+ */
+
 export interface EthereumProvider {
+  isPhantom?: boolean;
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 }
 
-/** Phantom / Solana injected provider. */
 export interface SolanaProvider {
   isPhantom?: boolean;
   publicKey?: { toString: () => string } | null;
@@ -16,15 +20,35 @@ export interface SolanaProvider {
   ) => Promise<{ signature: Uint8Array } | Uint8Array>;
 }
 
+export interface SuiProvider {
+  isPhantom?: boolean;
+  requestAccount: () => Promise<{ address?: string; publicKey?: { toString: () => string } }>;
+  signMessage: (message: Uint8Array, address: string) => Promise<string | { signature: string }>;
+}
+
 declare global {
   interface Window {
-    ethereum?: EthereumProvider;
-    solana?: SolanaProvider;
-    phantom?: { solana?: SolanaProvider };
+    phantom?: {
+      ethereum?: EthereumProvider;
+      solana?: SolanaProvider;
+      sui?: SuiProvider;
+    };
   }
 }
 
 export type WalletChain = "ethereum" | "solana" | "sui";
+
+const PHANTOM_INSTALL_URL = "https://phantom.com/";
+
+function requirePhantom(): NonNullable<Window["phantom"]> {
+  if (typeof window === "undefined" || !window.phantom) {
+    if (typeof window !== "undefined") {
+      window.open(PHANTOM_INSTALL_URL, "_blank", "noopener,noreferrer");
+    }
+    throw new Error("Phantom wallet not found. Install Phantom, then try again.");
+  }
+  return window.phantom;
+}
 
 export function utf8ToHex(message: string): string {
   const bytes = new TextEncoder().encode(message);
@@ -59,30 +83,44 @@ function bytesToBase58(bytes: Uint8Array): string {
   return out;
 }
 
-export function getEthereumProvider(): EthereumProvider | null {
-  if (typeof window === "undefined") return null;
-  return window.ethereum ?? null;
+export function getPhantomEthereum(): EthereumProvider {
+  const eth = requirePhantom().ethereum;
+  if (!eth?.isPhantom) {
+    window.open(PHANTOM_INSTALL_URL, "_blank", "noopener,noreferrer");
+    throw new Error("Phantom Ethereum provider not available. Update or reinstall Phantom.");
+  }
+  return eth;
 }
 
-export function getSolanaProvider(): SolanaProvider | null {
-  if (typeof window === "undefined") return null;
-  return window.phantom?.solana ?? window.solana ?? null;
+export function getPhantomSolana(): SolanaProvider {
+  const sol = requirePhantom().solana;
+  if (!sol?.isPhantom) {
+    window.open(PHANTOM_INSTALL_URL, "_blank", "noopener,noreferrer");
+    throw new Error("Phantom Solana provider not available. Update or reinstall Phantom.");
+  }
+  return sol;
+}
+
+export function getPhantomSui(): SuiProvider {
+  const sui = requirePhantom().sui;
+  if (!sui?.isPhantom) {
+    window.open(PHANTOM_INSTALL_URL, "_blank", "noopener,noreferrer");
+    throw new Error("Phantom Sui provider not available. Update Phantom to a version that supports Sui.");
+  }
+  return sui;
 }
 
 export async function connectEthereumAddress(): Promise<{
   address: string;
   chainId: number;
 }> {
-  const eth = getEthereumProvider();
-  if (!eth) {
-    throw new Error("No Ethereum wallet found. Install MetaMask or another browser wallet.");
-  }
+  const eth = getPhantomEthereum();
   const accounts = (await eth.request({
     method: "eth_requestAccounts",
   })) as string[];
   const address = accounts?.[0];
   if (!address) {
-    throw new Error("Wallet returned no account");
+    throw new Error("Phantom returned no Ethereum account");
   }
   const chainHex = (await eth.request({ method: "eth_chainId" })) as string;
   const chainId = Number.parseInt(chainHex, 16);
@@ -90,38 +128,29 @@ export async function connectEthereumAddress(): Promise<{
 }
 
 export async function personalSignEthereum(address: string, message: string): Promise<string> {
-  const eth = getEthereumProvider();
-  if (!eth) {
-    throw new Error("No Ethereum wallet found");
-  }
+  const eth = getPhantomEthereum();
   const signature = (await eth.request({
     method: "personal_sign",
     params: [utf8ToHex(message), address],
   })) as string;
   if (!signature) {
-    throw new Error("Wallet did not return a signature");
+    throw new Error("Phantom did not return an Ethereum signature");
   }
   return signature;
 }
 
 export async function connectSolanaAddress(): Promise<{ address: string }> {
-  const sol = getSolanaProvider();
-  if (!sol) {
-    throw new Error("No Solana wallet found. Install Phantom.");
-  }
+  const sol = getPhantomSolana();
   const connected = await sol.connect();
   const address = connected.publicKey?.toString() ?? sol.publicKey?.toString();
   if (!address) {
-    throw new Error("Phantom returned no account");
+    throw new Error("Phantom returned no Solana account");
   }
   return { address };
 }
 
 export async function signSolanaMessage(message: string): Promise<string> {
-  const sol = getSolanaProvider();
-  if (!sol) {
-    throw new Error("No Solana wallet found");
-  }
+  const sol = getPhantomSolana();
   const encoded = new TextEncoder().encode(message);
   const result = await sol.signMessage(encoded, "utf8");
   const signature =
@@ -131,73 +160,30 @@ export async function signSolanaMessage(message: string): Promise<string> {
         ? result.signature
         : null;
   if (!signature) {
-    throw new Error("Phantom did not return a signature");
+    throw new Error("Phantom did not return a Solana signature");
   }
   return bytesToBase58(signature);
 }
 
-type SuiWalletFeature = {
-  connect?: () => Promise<{ accounts?: Array<{ address: string }> }>;
-  signPersonalMessage?: (input: {
-    message: Uint8Array;
-    account?: { address: string };
-  }) => Promise<{ signature: string; bytes?: string }>;
-};
-
-type StandardWallet = {
-  name: string;
-  accounts?: Array<{ address: string }>;
-  features: Record<string, SuiWalletFeature | unknown>;
-};
-
-function asWalletFeature(value: unknown): SuiWalletFeature | null {
-  if (!value || typeof value !== "object") return null;
-  return value as SuiWalletFeature;
+export async function connectSuiAddress(): Promise<{ address: string }> {
+  const sui = getPhantomSui();
+  const account = await sui.requestAccount();
+  const address =
+    account.address ??
+    (typeof account.publicKey?.toString === "function" ? account.publicKey.toString() : undefined);
+  if (!address) {
+    throw new Error("Phantom returned no Sui account");
+  }
+  return { address };
 }
 
-export async function connectSuiAddress(): Promise<{
-  address: string;
-  wallet: StandardWallet;
-}> {
-  const { getWallets } = await import("@mysten/wallet-standard");
-  const wallets = getWallets().get() as unknown as StandardWallet[];
-  const wallet =
-    wallets.find((w) => Boolean(asWalletFeature(w.features["sui:signPersonalMessage"]))) ??
-    null;
-  if (!wallet) {
-    throw new Error("No Sui wallet found. Install Slush or the Sui Wallet extension.");
-  }
-
-  const connectFeature =
-    asWalletFeature(wallet.features["standard:connect"]) ??
-    asWalletFeature(wallet.features["sui:connect"]);
-  if (connectFeature?.connect) {
-    await connectFeature.connect();
-  }
-
-  const address = wallet.accounts?.[0]?.address;
-  if (!address) {
-    throw new Error("Sui wallet returned no account");
-  }
-  return { address, wallet };
-}
-
-export async function signSuiMessage(wallet: StandardWallet, message: string): Promise<string> {
-  const signFeature = asWalletFeature(wallet.features["sui:signPersonalMessage"]);
-  if (!signFeature?.signPersonalMessage) {
-    throw new Error("Sui wallet cannot sign personal messages");
-  }
-  const address = wallet.accounts?.[0]?.address;
-  if (!address) {
-    throw new Error("Sui wallet has no connected account");
-  }
+export async function signSuiMessage(address: string, message: string): Promise<string> {
+  const sui = getPhantomSui();
   const encoded = new TextEncoder().encode(message);
-  const result = await signFeature.signPersonalMessage({
-    message: encoded,
-    account: { address },
-  });
-  if (!result?.signature) {
-    throw new Error("Sui wallet did not return a signature");
+  const result = await sui.signMessage(encoded, address);
+  const signature = typeof result === "string" ? result : result?.signature;
+  if (!signature) {
+    throw new Error("Phantom did not return a Sui signature");
   }
-  return result.signature;
+  return signature;
 }

@@ -201,8 +201,16 @@ def _sui_address_from_ed25519_pubkey(pubkey: bytes) -> str:
 
 
 def _verify_sui_signature(*, address: str, message: str, signature: str) -> None:
+    """Accept Sui serialized sig ``flag||sig||pk`` (base64), as returned by Phantom."""
     try:
         raw = base64.b64decode(signature)
+        # Some wallets wrap as JSON — rare but cheap to try.
+        if raw[:1] == b"{":
+            import json
+
+            parsed = json.loads(raw.decode("utf-8"))
+            if isinstance(parsed, dict) and "signature" in parsed:
+                raw = base64.b64decode(parsed["signature"])
         if len(raw) < 1 + 64 + 32:
             raise ValueError("signature too short")
         flag = raw[0]

@@ -10,9 +10,9 @@ import { SiteHeader } from "@/components/site-header";
 import type { WalletChain } from "@/lib/ethereum-wallet";
 
 const WALLET_OPTIONS: { chain: WalletChain; label: string; hint: string }[] = [
-  { chain: "ethereum", label: "Ethereum", hint: "MetaMask / Rabby" },
+  { chain: "ethereum", label: "Ethereum", hint: "Phantom" },
   { chain: "solana", label: "Solana", hint: "Phantom" },
-  { chain: "sui", label: "Sui", hint: "Slush / Sui Wallet" },
+  { chain: "sui", label: "Sui", hint: "Phantom" },
 ];
 
 export default function LoginPage() {
@@ -64,8 +64,8 @@ export default function LoginPage() {
         <p className="label-caps">Account</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Email and password, or connect a wallet. Wallets only sign a login message —
-          never a transaction.
+          Email and password, or continue with Phantom (Ethereum, Solana, or Sui).
+          Wallets only sign a login message — never a transaction.
         </p>
 
         <form onSubmit={onSubmit} className="surface mt-8 space-y-4 p-5">
