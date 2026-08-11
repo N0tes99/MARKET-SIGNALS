@@ -8,7 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.tracked import is_tracked
 from app.core.service_dependencies import get_equity_options_scanner
-from app.engines.opportunity_engine.equity_options.scanner import EQUITY_UNIVERSE, EquityOptionsScanner
+from app.engines.opportunity_engine.equity_options.scanner import (
+    EQUITY_UNIVERSE,
+    EquityOptionsScanner,
+)
 from app.engines.opportunity_engine.equity_options.types import EquityOptionsIdea
 from app.schemas.equity_setups import (
     AssetEquitySetupsResponse,

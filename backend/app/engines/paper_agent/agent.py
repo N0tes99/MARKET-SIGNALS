@@ -11,11 +11,11 @@ from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsS
 from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent.broker import (
     DEFAULT_SIZE_USD,
+    _bps_slip,
     last_price,
     next_bar_open_after,
     should_close,
     unrealized_pnl,
-    _bps_slip,
 )
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (

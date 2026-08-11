@@ -79,10 +79,7 @@ def unrealized_pnl(
     """Return (pnl_usd, return_pct)."""
     if entry <= 0 or size_usd <= 0:
         return 0.0, 0.0
-    if direction == "long":
-        ret = (mark - entry) / entry * 100.0
-    else:
-        ret = (entry - mark) / entry * 100.0
+    ret = (mark - entry) / entry * 100.0 if direction == "long" else (entry - mark) / entry * 100.0
     pnl = size_usd * (ret / 100.0)
     return pnl, ret
 
