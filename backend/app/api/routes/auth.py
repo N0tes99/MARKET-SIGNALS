@@ -23,9 +23,11 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
     ResendVerificationRequest,
+    ResetPasswordRequest,
     UserSchema,
     VerifyEmailRequest,
 )
@@ -227,3 +229,82 @@ async def resend_verification(
     raw = _issue_verify_token(user)
     await session.flush()
     _send_verification_email(user, raw)
+
+
+def _issue_reset_token(user: User) -> str:
+    raw = secrets.token_urlsafe(32)
+    user.password_reset_token_hash = _hash_token(raw)
+    user.password_reset_sent_at = datetime.now(UTC)
+    return raw
+
+
+def _send_reset_email(user: User, raw_token: str) -> bool:
+    link = f"{settings.resolved_public_app_url()}/reset-password?token={raw_token}"
+    body = (
+        f"Hi {user.username},\n\n"
+        f"Reset your Signal Engine password by opening this link:\n\n"
+        f"{link}\n\n"
+        f"If you did not request a reset, you can ignore this email.\n"
+    )
+    return send_mail(user.email, "Reset your Signal Engine password", body)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Email a reset link when the address exists. Always 204 to avoid enumeration."""
+    email = body.email.lower().strip()
+    result = await session.execute(select(User).where(func.lower(User.email) == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        return
+
+    now = datetime.now(UTC)
+    if user.password_reset_sent_at is not None:
+        elapsed = (now - user.password_reset_sent_at).total_seconds()
+        if elapsed < settings.email_verify_cooldown_seconds:
+            raise HTTPException(
+                status_code=429,
+                detail="Please wait before requesting another reset email",
+            )
+
+    raw = _issue_reset_token(user)
+    await session.flush()
+    if not _send_reset_email(user, raw):
+        # Still commit token so local/dev without SMTP can use DB inspection;
+        # production should have SMTP. Don't leak failure to client.
+        logger.warning("Password reset email not sent for %s (SMTP missing or failed)", email)
+
+
+@router.post("/reset-password", response_model=UserSchema)
+async def reset_password(
+    body: ResetPasswordRequest,
+    response: Response,
+    session: AsyncSession = Depends(get_db),
+) -> UserSchema:
+    """Consume reset token, set new password, and sign the user in."""
+    token_hash = _hash_token(body.token.strip())
+    result = await session.execute(
+        select(User).where(User.password_reset_token_hash == token_hash)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if user.password_reset_sent_at is not None:
+        age_h = (datetime.now(UTC) - user.password_reset_sent_at).total_seconds() / 3600.0
+        if age_h > 24:
+            user.password_reset_token_hash = None
+            await session.flush()
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user.password_hash = hash_password(body.password)
+    user.password_reset_token_hash = None
+    user.password_reset_sent_at = None
+    await session.flush()
+
+    token = create_access_token(user.id)
+    _set_session_cookie(response, token)
+    return _user_schema(user)

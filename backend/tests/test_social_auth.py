@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime
 
@@ -212,3 +214,71 @@ async def test_follow_and_favorites(social_client) -> None:
 
     bad = await client.put("/api/v1/me/favorites", json={"symbol": "NOPE"})
     assert bad.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_forgot_and_reset_password(social_client) -> None:
+    client, factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"reset_{suffix}@example.com"
+    username = f"reset_{suffix}"
+
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": username, "password": "oldpass123"},
+    )
+    assert register.status_code == 201
+
+    unknown = await client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": f"missing_{suffix}@example.com"},
+    )
+    assert unknown.status_code == 204
+
+    forgot = await client.post("/api/v1/auth/forgot-password", json={"email": email})
+    assert forgot.status_code == 204
+
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        assert user.password_reset_token_hash is not None
+
+    # Replace with a known raw token so we can exercise reset-password
+    raw = secrets.token_urlsafe(32)
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.password_reset_token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        user.password_reset_sent_at = datetime.now(UTC)
+        await session.commit()
+
+    bad_token = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "not-a-real-token-value", "password": "newpass123"},
+    )
+    assert bad_token.status_code == 400
+
+    reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": raw, "password": "newpass123"},
+    )
+    assert reset.status_code == 200
+    assert SESSION_COOKIE_NAME in reset.cookies
+
+    await client.post("/api/v1/auth/logout")
+    old_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "oldpass123"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "newpass123"},
+    )
+    assert new_login.status_code == 200
+
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        assert user.password_reset_token_hash is None

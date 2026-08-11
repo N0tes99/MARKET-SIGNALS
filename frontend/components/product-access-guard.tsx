@@ -6,7 +6,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { fetchGateStatus } from "@/services/api";
 
-const BYPASS = new Set(["/login", "/register", "/verify-email", "/unlock", "/pending", "/admin/access"]);
+const BYPASS = new Set([
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/unlock",
+  "/pending",
+  "/admin/access",
+]);
 
 /**
  * After login, route users through waitlist → authenticator → dashboard.

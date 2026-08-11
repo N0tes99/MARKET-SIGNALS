@@ -848,6 +848,31 @@ export async function resendVerification(email?: string): Promise<void> {
   }
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  const response = await fetch(apiUrl("/api/v1/auth/forgot-password"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+}
+
+export async function resetPassword(token: string, password: string): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/reset-password"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
 export async function fetchAssetPosts(symbol: string): Promise<DiscussionPost[]> {
   return apiFetch<DiscussionPost[]>(`/api/v1/assets/${symbol}/posts`);
 }
