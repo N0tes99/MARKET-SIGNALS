@@ -1,13 +1,17 @@
-"""Ethereum wallet message-sign login (SIWE-style)."""
+"""Multi-chain wallet message-sign login (Ethereum, Solana, Sui)."""
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
+import base58
+import nacl.signing
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from eth_utils import is_address, to_checksum_address
@@ -28,13 +32,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/wallet")
 
 CHAIN_ETHEREUM = "ethereum"
+CHAIN_SOLANA = "solana"
+CHAIN_SUI = "sui"
+SUPPORTED_CHAINS = {CHAIN_ETHEREUM, CHAIN_SOLANA, CHAIN_SUI}
 CHALLENGE_TTL_MINUTES = 10
+
 _ETH_ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+_SUI_ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{1,64}$")
 
 
 class WalletChallengeRequest(BaseModel):
     chain: str = Field(default=CHAIN_ETHEREUM, max_length=32)
-    address: str = Field(min_length=42, max_length=128)
+    address: str = Field(min_length=32, max_length=128)
     chain_id: int = Field(default=1, ge=1)
 
 
@@ -48,9 +57,44 @@ class WalletChallengeResponse(BaseModel):
 
 class WalletVerifyRequest(BaseModel):
     chain: str = Field(default=CHAIN_ETHEREUM, max_length=32)
-    address: str = Field(min_length=42, max_length=128)
-    signature: str = Field(min_length=8, max_length=256)
+    address: str = Field(min_length=32, max_length=128)
+    signature: str = Field(min_length=8, max_length=512)
     nonce: str = Field(min_length=8, max_length=64)
+
+
+def _app_domain() -> str:
+    base = settings.resolved_public_app_url().rstrip("/")
+    host = urlparse(base).hostname
+    return host or "localhost"
+
+
+def _build_login_message(*, chain: str, address: str, nonce: str, chain_id: int, expires_at: datetime) -> str:
+    domain = _app_domain()
+    uri = settings.resolved_public_app_url().rstrip("/")
+    issued = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expiration = expires_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    label = {"ethereum": "Ethereum", "solana": "Solana", "sui": "Sui"}[chain]
+    lines = [
+        f"{domain} wants you to sign in with your {label} account:",
+        address,
+        "",
+        "Sign in to Signal Engine. This request will not trigger a blockchain "
+        "transaction or cost any gas/fees.",
+        "",
+        f"URI: {uri}",
+        "Version: 1",
+        f"Chain: {chain}",
+    ]
+    if chain == CHAIN_ETHEREUM:
+        lines.append(f"Chain ID: {chain_id}")
+    lines.extend(
+        [
+            f"Nonce: {nonce}",
+            f"Issued At: {issued}",
+            f"Expiration Time: {expiration}",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _normalize_eth_address(address: str) -> str:
@@ -60,31 +104,43 @@ def _normalize_eth_address(address: str) -> str:
     return to_checksum_address(raw)
 
 
-def _app_domain() -> str:
-    base = settings.resolved_public_app_url().rstrip("/")
-    host = urlparse(base).hostname
-    return host or "localhost"
+def _normalize_solana_address(address: str) -> str:
+    raw = address.strip()
+    try:
+        decoded = base58.b58decode(raw)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid Solana address") from exc
+    if len(decoded) != 32:
+        raise HTTPException(status_code=400, detail="Invalid Solana address length")
+    return raw
 
 
-def _build_siwe_message(*, address: str, nonce: str, chain_id: int, expires_at: datetime) -> str:
-    domain = _app_domain()
-    uri = settings.resolved_public_app_url().rstrip("/")
-    issued = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    expiration = expires_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return (
-        f"{domain} wants you to sign in with your Ethereum account:\n"
-        f"{address}\n"
-        f"\n"
-        f"Sign in to Signal Engine. This request will not trigger a blockchain "
-        f"transaction or cost any gas.\n"
-        f"\n"
-        f"URI: {uri}\n"
-        f"Version: 1\n"
-        f"Chain ID: {chain_id}\n"
-        f"Nonce: {nonce}\n"
-        f"Issued At: {issued}\n"
-        f"Expiration Time: {expiration}"
-    )
+def _normalize_sui_address(address: str) -> str:
+    raw = address.strip().lower()
+    if not raw.startswith("0x"):
+        raw = f"0x{raw}"
+    if not _SUI_ADDR_RE.match(raw):
+        raise HTTPException(status_code=400, detail="Invalid Sui address")
+    hex_part = raw[2:]
+    if len(hex_part) > 64:
+        raise HTTPException(status_code=400, detail="Invalid Sui address length")
+    return "0x" + hex_part.zfill(64)
+
+
+def _normalize_address(chain: str, address: str) -> str:
+    if chain == CHAIN_ETHEREUM:
+        return _normalize_eth_address(address)
+    if chain == CHAIN_SOLANA:
+        return _normalize_solana_address(address)
+    if chain == CHAIN_SUI:
+        return _normalize_sui_address(address)
+    raise HTTPException(status_code=400, detail="Unsupported chain")
+
+
+def _storage_address(chain: str, address: str) -> str:
+    if chain == CHAIN_SOLANA:
+        return address  # base58 is case-sensitive
+    return address.lower()
 
 
 def _recover_eth_signer(message: str, signature: str) -> str:
@@ -94,6 +150,91 @@ def _recover_eth_signer(message: str, signature: str) -> str:
     except Exception as exc:
         logger.info("Ethereum signature recover failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid wallet signature") from exc
+
+
+def _verify_solana_signature(*, address: str, message: str, signature: str) -> None:
+    try:
+        pubkey = base58.b58decode(address)
+        if signature.startswith("0x"):
+            sig_bytes = bytes.fromhex(signature[2:])
+        else:
+            try:
+                sig_bytes = base58.b58decode(signature)
+            except Exception:
+                sig_bytes = base64.b64decode(signature)
+        if len(sig_bytes) == 64:
+            pass
+        elif len(sig_bytes) > 64:
+            # Some wallets return pubkey||sig or similar — take last 64
+            sig_bytes = sig_bytes[-64:]
+        else:
+            raise ValueError("bad signature length")
+        nacl.signing.VerifyKey(pubkey).verify(message.encode("utf-8"), sig_bytes)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.info("Solana signature verify failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid Solana signature") from exc
+
+
+def _uleb128(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = n & 0x7F
+        n >>= 7
+        out.append(byte | 0x80 if n else byte)
+        if not n:
+            break
+    return bytes(out)
+
+
+def _sui_personal_message_digest(message: bytes) -> bytes:
+    """Blake2b-256 of IntentMessage(PersonalMessage) BCS bytes."""
+    bcs_msg = _uleb128(len(message)) + message
+    intent_message = bytes([3, 0, 0]) + bcs_msg
+    return hashlib.blake2b(intent_message, digest_size=32).digest()
+
+
+def _sui_address_from_ed25519_pubkey(pubkey: bytes) -> str:
+    digest = hashlib.blake2b(bytes([0x00]) + pubkey, digest_size=32).digest()
+    return "0x" + digest.hex()
+
+
+def _verify_sui_signature(*, address: str, message: str, signature: str) -> None:
+    try:
+        raw = base64.b64decode(signature)
+        if len(raw) < 1 + 64 + 32:
+            raise ValueError("signature too short")
+        flag = raw[0]
+        if flag != 0x00:
+            raise ValueError(f"unsupported Sui scheme flag {flag}")
+        sig = raw[1:65]
+        pubkey = raw[65:97]
+        derived = _sui_address_from_ed25519_pubkey(pubkey)
+        if derived != _normalize_sui_address(address):
+            raise ValueError("address does not match public key")
+        digest = _sui_personal_message_digest(message.encode("utf-8"))
+        nacl.signing.VerifyKey(pubkey).verify(digest, sig)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.info("Sui signature verify failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid Sui signature") from exc
+
+
+def _verify_signature(*, chain: str, address: str, message: str, signature: str) -> None:
+    if chain == CHAIN_ETHEREUM:
+        recovered = _recover_eth_signer(message, signature.strip())
+        if recovered.lower() != address.lower():
+            raise HTTPException(status_code=401, detail="Signature does not match address")
+        return
+    if chain == CHAIN_SOLANA:
+        _verify_solana_signature(address=address, message=message, signature=signature.strip())
+        return
+    if chain == CHAIN_SUI:
+        _verify_sui_signature(address=address, message=message, signature=signature.strip())
+        return
+    raise HTTPException(status_code=400, detail="Unsupported chain")
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -119,19 +260,28 @@ def _user_schema(user: User) -> UserSchema:
     )
 
 
-def _synthetic_eth_identity(address: str) -> tuple[str, str]:
-    """Stable email + username for wallet-only accounts (no mailbox)."""
-    compact = address.lower().removeprefix("0x")
-    email = f"eth.{compact}@wallets.signalengine.app"
-    username = f"eth_{compact[:8]}"
-    return email, username
+def _synthetic_identity(chain: str, address: str) -> tuple[str, str]:
+    if chain == CHAIN_ETHEREUM:
+        compact = address.lower().removeprefix("0x")
+        return f"eth.{compact}@wallets.signalengine.app", f"eth_{compact[:8]}"
+    if chain == CHAIN_SOLANA:
+        compact = re.sub(r"[^a-zA-Z0-9]", "", address)[:16].lower()
+        return f"sol.{compact}@wallets.signalengine.app", f"sol_{compact[:8]}"
+    compact = address.lower().removeprefix("0x")[:16]
+    return f"sui.{compact}@wallets.signalengine.app", f"sui_{compact[:8]}"
 
 
-async def _get_or_create_eth_user(session: AsyncSession, address: str) -> User:
+async def _get_or_create_wallet_user(
+    session: AsyncSession,
+    *,
+    chain: str,
+    address: str,
+) -> User:
+    stored = _storage_address(chain, address)
     result = await session.execute(
         select(WalletAccount).where(
-            WalletAccount.chain == CHAIN_ETHEREUM,
-            WalletAccount.address == address.lower(),
+            WalletAccount.chain == chain,
+            WalletAccount.address == stored,
         )
     )
     link = result.scalar_one_or_none()
@@ -141,8 +291,8 @@ async def _get_or_create_eth_user(session: AsyncSession, address: str) -> User:
             raise HTTPException(status_code=500, detail="Wallet user missing")
         return user
 
-    email, username = _synthetic_eth_identity(address)
-    # Avoid username collisions (unlikely but cheap to handle)
+    email, username = _synthetic_identity(chain, address)
+    prefix = {"ethereum": "eth", "solana": "sol", "sui": "sui"}[chain]
     base_username = username
     for i in range(8):
         clash = await session.execute(select(User).where(User.username == username))
@@ -150,7 +300,7 @@ async def _get_or_create_eth_user(session: AsyncSession, address: str) -> User:
             break
         username = f"{base_username}{i + 1}"
     else:
-        username = f"eth_{secrets.token_hex(4)}"
+        username = f"{prefix}_{secrets.token_hex(4)}"
 
     user = User(
         email=email,
@@ -163,8 +313,8 @@ async def _get_or_create_eth_user(session: AsyncSession, address: str) -> User:
     session.add(
         WalletAccount(
             user_id=user.id,
-            chain=CHAIN_ETHEREUM,
-            address=address.lower(),
+            chain=chain,
+            address=stored,
         )
     )
     await session.flush()
@@ -176,17 +326,18 @@ async def wallet_challenge(
     body: WalletChallengeRequest,
     session: AsyncSession = Depends(get_db),
 ) -> WalletChallengeResponse:
-    """Issue a one-time SIWE-style message for the given address."""
+    """Issue a one-time login message for ETH / Solana / Sui."""
     chain = body.chain.strip().lower()
-    if chain != CHAIN_ETHEREUM:
+    if chain not in SUPPORTED_CHAINS:
         raise HTTPException(
             status_code=400,
-            detail="Only ethereum is supported in this release (Solana/Sui coming next)",
+            detail="Unsupported chain. Use ethereum, solana, or sui.",
         )
-    address = _normalize_eth_address(body.address)
+    address = _normalize_address(chain, body.address)
     nonce = secrets.token_hex(16)
     expires_at = datetime.now(UTC) + timedelta(minutes=CHALLENGE_TTL_MINUTES)
-    message = _build_siwe_message(
+    message = _build_login_message(
+        chain=chain,
         address=address,
         nonce=nonce,
         chain_id=body.chain_id,
@@ -194,8 +345,8 @@ async def wallet_challenge(
     )
     session.add(
         WalletAuthChallenge(
-            chain=CHAIN_ETHEREUM,
-            address=address.lower(),
+            chain=chain,
+            address=_storage_address(chain, address),
             nonce=nonce,
             message=message,
             expires_at=expires_at,
@@ -203,7 +354,7 @@ async def wallet_challenge(
     )
     await session.flush()
     return WalletChallengeResponse(
-        chain=CHAIN_ETHEREUM,
+        chain=chain,
         address=address,
         nonce=nonce,
         message=message,
@@ -219,15 +370,16 @@ async def wallet_verify(
 ) -> UserSchema:
     """Verify signed challenge, create/link user, and set session cookie."""
     chain = body.chain.strip().lower()
-    if chain != CHAIN_ETHEREUM:
-        raise HTTPException(status_code=400, detail="Only ethereum is supported in this release")
+    if chain not in SUPPORTED_CHAINS:
+        raise HTTPException(status_code=400, detail="Unsupported chain")
 
-    address = _normalize_eth_address(body.address)
+    address = _normalize_address(chain, body.address)
+    stored = _storage_address(chain, address)
     result = await session.execute(
         select(WalletAuthChallenge).where(
             WalletAuthChallenge.nonce == body.nonce.strip(),
-            WalletAuthChallenge.chain == CHAIN_ETHEREUM,
-            WalletAuthChallenge.address == address.lower(),
+            WalletAuthChallenge.chain == chain,
+            WalletAuthChallenge.address == stored,
         )
     )
     challenge = result.scalar_one_or_none()
@@ -236,16 +388,23 @@ async def wallet_verify(
     if challenge.consumed_at is not None:
         raise HTTPException(status_code=400, detail="Challenge already used")
     now = datetime.now(UTC)
-    exp = challenge.expires_at if challenge.expires_at.tzinfo else challenge.expires_at.replace(tzinfo=UTC)
+    exp = (
+        challenge.expires_at
+        if challenge.expires_at.tzinfo
+        else challenge.expires_at.replace(tzinfo=UTC)
+    )
     if now > exp:
         raise HTTPException(status_code=400, detail="Challenge expired")
 
-    recovered = _recover_eth_signer(challenge.message, body.signature.strip())
-    if recovered.lower() != address.lower():
-        raise HTTPException(status_code=401, detail="Signature does not match address")
+    _verify_signature(
+        chain=chain,
+        address=address,
+        message=challenge.message,
+        signature=body.signature,
+    )
 
     challenge.consumed_at = now
-    user = await _get_or_create_eth_user(session, address)
+    user = await _get_or_create_wallet_user(session, chain=chain, address=address)
     await session.flush()
 
     token = create_access_token(user.id)

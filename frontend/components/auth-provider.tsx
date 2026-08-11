@@ -23,7 +23,12 @@ import {
 } from "@/services/api";
 import {
   connectEthereumAddress,
+  connectSolanaAddress,
+  connectSuiAddress,
   personalSignEthereum,
+  signSolanaMessage,
+  signSuiMessage,
+  type WalletChain,
 } from "@/lib/ethereum-wallet";
 
 interface AuthContextValue {
@@ -31,7 +36,7 @@ interface AuthContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<AuthUser>;
-  loginWithEthereum: () => Promise<AuthUser>;
+  loginWithWallet: (chain: WalletChain) => Promise<AuthUser>;
   register: (email: string, username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<AuthUser>;
@@ -65,16 +70,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return next;
   }, []);
 
-  const loginWithEthereum = useCallback(async () => {
-    const { address, chainId } = await connectEthereumAddress();
+  const loginWithWallet = useCallback(async (chain: WalletChain) => {
+    if (chain === "ethereum") {
+      const { address, chainId } = await connectEthereumAddress();
+      const challenge = await walletChallenge({
+        chain: "ethereum",
+        address,
+        chain_id: chainId,
+      });
+      const signature = await personalSignEthereum(challenge.address, challenge.message);
+      const next = await walletVerify({
+        chain: "ethereum",
+        address: challenge.address,
+        signature,
+        nonce: challenge.nonce,
+      });
+      setUser(next);
+      return next;
+    }
+
+    if (chain === "solana") {
+      const { address } = await connectSolanaAddress();
+      const challenge = await walletChallenge({
+        chain: "solana",
+        address,
+      });
+      const signature = await signSolanaMessage(challenge.message);
+      const next = await walletVerify({
+        chain: "solana",
+        address: challenge.address,
+        signature,
+        nonce: challenge.nonce,
+      });
+      setUser(next);
+      return next;
+    }
+
+    const { address, wallet } = await connectSuiAddress();
     const challenge = await walletChallenge({
-      chain: "ethereum",
+      chain: "sui",
       address,
-      chain_id: chainId,
     });
-    const signature = await personalSignEthereum(challenge.address, challenge.message);
+    const signature = await signSuiMessage(wallet, challenge.message);
     const next = await walletVerify({
-      chain: "ethereum",
+      chain: "sui",
       address: challenge.address,
       signature,
       nonce: challenge.nonce,
@@ -86,7 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (email: string, username: string, password: string) => {
       const next = await registerAccount(email, username, password);
-      // Session only when auto-verified (local/dev without SMTP)
       if (next.email_verified) {
         setUser(next);
       }
@@ -116,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       login,
-      loginWithEthereum,
+      loginWithWallet,
       register,
       logout,
       verifyEmail,
@@ -127,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       login,
-      loginWithEthereum,
+      loginWithWallet,
       register,
       logout,
       verifyEmail,

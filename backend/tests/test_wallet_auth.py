@@ -1,10 +1,12 @@
-"""Ethereum wallet challenge / verify unit tests."""
+"""Multi-chain wallet challenge / verify tests."""
 
 from __future__ import annotations
 
-import uuid
+import base64
 from datetime import UTC, datetime
 
+import base58
+import nacl.signing
 import pytest
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -12,13 +14,20 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.api.routes.wallet_auth import (
+    _build_login_message,
+    _normalize_eth_address,
+    _sui_address_from_ed25519_pubkey,
+    _sui_personal_message_digest,
+    _verify_solana_signature,
+    _verify_sui_signature,
+)
 from app.config import settings
 from app.core.dependencies import get_db
 from app.core.security import SESSION_COOKIE_NAME
 from app.database.base import Base
 from app.main import app
 from app.models import User, WalletAccount  # noqa: F401
-from app.api.routes.wallet_auth import _build_siwe_message, _normalize_eth_address
 
 
 def test_normalize_eth_address_checksum() -> None:
@@ -28,16 +37,38 @@ def test_normalize_eth_address_checksum() -> None:
     assert len(checksum) == 42
 
 
-def test_siwe_message_contains_nonce_and_no_tx_copy() -> None:
-    msg = _build_siwe_message(
-        address="0x" + "b" * 40,
+def test_login_message_mentions_no_tx() -> None:
+    msg = _build_login_message(
+        chain="solana",
+        address="So11anaAddr",
         nonce="abc123",
         chain_id=1,
         expires_at=datetime(2026, 8, 12, 12, 0, tzinfo=UTC),
     )
     assert "Nonce: abc123" in msg
-    assert "will not trigger a blockchain transaction" in msg
-    assert "Version: 1" in msg
+    assert "will not trigger a blockchain" in msg
+    assert "Chain: solana" in msg
+
+
+def test_solana_signature_roundtrip() -> None:
+    sk = nacl.signing.SigningKey.generate()
+    address = base58.b58encode(bytes(sk.verify_key)).decode()
+    message = "sign-in Solana"
+    signed = sk.sign(message.encode("utf-8"))
+    signature = base58.b58encode(signed.signature).decode()
+    _verify_solana_signature(address=address, message=message, signature=signature)
+
+
+def test_sui_signature_roundtrip() -> None:
+    sk = nacl.signing.SigningKey.generate()
+    pubkey = bytes(sk.verify_key)
+    address = _sui_address_from_ed25519_pubkey(pubkey)
+    message = "sign-in Sui"
+    digest = _sui_personal_message_digest(message.encode("utf-8"))
+    signed = sk.sign(digest)
+    payload = bytes([0x00]) + signed.signature + pubkey
+    signature = base64.b64encode(payload).decode()
+    _verify_sui_signature(address=address, message=message, signature=signature)
 
 
 async def _postgres_available() -> bool:
@@ -125,17 +156,82 @@ async def test_wallet_challenge_and_verify_roundtrip(wallet_client) -> None:
         assert db_user is not None
         assert db_user.email_verified_at is not None
 
-    # Replay nonce rejected
     replay = await client.post(
         "/api/v1/auth/wallet/verify",
         json={
             "chain": "ethereum",
             "address": address,
-            "signature": signed.signature.hex(),
+            "signature": signature,
             "nonce": body["nonce"],
         },
     )
     assert replay.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_solana_challenge_and_verify_roundtrip(wallet_client) -> None:
+    client, factory = wallet_client
+    sk = nacl.signing.SigningKey.generate()
+    address = base58.b58encode(bytes(sk.verify_key)).decode()
+
+    challenge = await client.post(
+        "/api/v1/auth/wallet/challenge",
+        json={"chain": "solana", "address": address},
+    )
+    assert challenge.status_code == 200
+    body = challenge.json()
+    signed = sk.sign(body["message"].encode("utf-8"))
+    signature = base58.b58encode(signed.signature).decode()
+    verify = await client.post(
+        "/api/v1/auth/wallet/verify",
+        json={
+            "chain": "solana",
+            "address": address,
+            "signature": signature,
+            "nonce": body["nonce"],
+        },
+    )
+    assert verify.status_code == 200
+    assert verify.json()["username"].startswith("sol_")
+
+    async with factory() as session:
+        rows = await session.execute(
+            select(WalletAccount).where(WalletAccount.chain == "solana")
+        )
+        assert rows.scalar_one().address == address
+
+
+@pytest.mark.asyncio
+async def test_sui_challenge_and_verify_roundtrip(wallet_client) -> None:
+    client, factory = wallet_client
+    sk = nacl.signing.SigningKey.generate()
+    pubkey = bytes(sk.verify_key)
+    address = _sui_address_from_ed25519_pubkey(pubkey)
+
+    challenge = await client.post(
+        "/api/v1/auth/wallet/challenge",
+        json={"chain": "sui", "address": address},
+    )
+    assert challenge.status_code == 200
+    body = challenge.json()
+    digest = _sui_personal_message_digest(body["message"].encode("utf-8"))
+    signed = sk.sign(digest)
+    signature = base64.b64encode(bytes([0x00]) + signed.signature + pubkey).decode()
+    verify = await client.post(
+        "/api/v1/auth/wallet/verify",
+        json={
+            "chain": "sui",
+            "address": address,
+            "signature": signature,
+            "nonce": body["nonce"],
+        },
+    )
+    assert verify.status_code == 200
+    assert verify.json()["username"].startswith("sui_")
+
+    async with factory() as session:
+        rows = await session.execute(select(WalletAccount).where(WalletAccount.chain == "sui"))
+        assert rows.scalar_one().address == address.lower()
 
 
 @pytest.mark.asyncio
@@ -163,10 +259,10 @@ async def test_wallet_verify_rejects_wrong_signer(wallet_client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_wallet_rejects_solana_chain(wallet_client) -> None:
+async def test_wallet_rejects_unknown_chain(wallet_client) -> None:
     client, _ = wallet_client
     res = await client.post(
         "/api/v1/auth/wallet/challenge",
-        json={"chain": "solana", "address": "0x" + "c" * 40, "chain_id": 1},
+        json={"chain": "bitcoin", "address": "0x" + "c" * 40, "chain_id": 1},
     )
     assert res.status_code == 400
