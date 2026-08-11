@@ -1,8 +1,12 @@
 """Pytest configuration and shared fixtures."""
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import (
     get_decision_pipeline,
     get_evidence_service,
@@ -15,6 +19,7 @@ from app.core.service_dependencies import (
 from app.engines.learning_engine import LearningEngine
 from app.engines.learning_engine.store import InMemorySignalStore
 from app.main import app
+from app.models.user import User
 from app.services.decision_pipeline import DecisionPipelineService
 from app.services.evidence_service import EvidenceService
 
@@ -38,6 +43,17 @@ def decision_pipeline(learning_engine: LearningEngine) -> DecisionPipelineServic
     return DecisionPipelineService(market_data=md, learning_engine=learning_engine)
 
 
+def _test_admin_user() -> User:
+    """Synthetic admin for outcome-log / paper-reset endpoints in API tests."""
+    return User(
+        id=uuid4(),
+        email="admin@test.local",
+        username="Admin",
+        password_hash="test",
+        email_verified_at=datetime.now(UTC),
+    )
+
+
 @pytest.fixture
 async def client(
     evidence_service: EvidenceService,
@@ -49,6 +65,7 @@ async def client(
     app.dependency_overrides[get_decision_pipeline] = lambda: decision_pipeline
     app.dependency_overrides[get_learning_engine] = lambda: learning_engine
     app.dependency_overrides[get_weight_optimizer] = get_test_weight_optimizer
+    app.dependency_overrides[require_admin_user] = _test_admin_user
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
