@@ -136,6 +136,11 @@
     @apply bg-amber-200/80;
   }
 
+  .idle-dot-warming {
+    @apply bg-foreground/35;
+    animation: idle-breathe 2.4s ease-in-out infinite;
+  }
+
   .motion-fade-in {
     animation: motion-fade-in 380ms ease-out both;
   }

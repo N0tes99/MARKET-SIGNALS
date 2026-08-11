@@ -154,8 +154,10 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 | Ping | Cadence | Purpose |
 |------|---------|---------|
-| `GET /api/v1/health` | ~every 12 min | Keep the API awake / reduce free-tier cold starts |
-| `GET /api/v1/assets` | ~every 30 min | Run scoring so Discord alerts can fire without site visitors |
+| `GET /api/v1/health` | ~every 10 min | Keep the API awake / reduce free-tier cold starts |
+| `GET /api/v1/assets?sync=true` | ~every 7 min | Full `rank_all` so memory + disk dashboard cache stay warm |
+
+Browser dashboard calls `GET /api/v1/assets` **without** `sync` and receives a snapshot immediately (`ranking_status`: `fresh` / `stale` / `warming`). Cold misses refresh in the background so Netlify’s proxy does not wait on a full rank.
 
 Defaults use the Netlify proxy when variables are unset. Prefer **direct Render URLs with full paths**:
 
@@ -175,7 +177,7 @@ Do **not** set the variables to the bare hostname (`https://….onrender.com`) �
 
 If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 
-The assets job wakes health first, waits a few seconds, then hits `/assets` (120s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
+The assets job wakes health first, waits a few seconds, then hits `/assets?sync=true` (180s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
 
 ---
 

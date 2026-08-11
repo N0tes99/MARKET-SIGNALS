@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,7 +18,7 @@ from app.core.service_dependencies import (
 from app.engines.learning_engine import LearningEngine
 from app.market_data.freshness import freshness_tracker
 from app.market_data.symbols import get_asset_class
-from app.schemas.assets import AssetSummary
+from app.schemas.assets import AssetSummary, AssetsDashboard, RankingStatus
 from app.services.alert_service import AlertService
 from app.services.decision_pipeline import DecisionPipelineService
 from app.utils.disk_cache import read_json, write_json
@@ -104,43 +105,79 @@ def _read_disk_summaries() -> list[AssetSummary] | None:
         return None
 
 
-def _get_dashboard_assets(
+def _ranking_status(*, fresh: bool, refreshing: bool, assets: list[AssetSummary]) -> RankingStatus:
+    if refreshing or not assets:
+        return "warming"
+    if fresh:
+        return "fresh"
+    return "stale"
+
+
+def _get_dashboard(
     pipeline: DecisionPipelineService,
     learning: LearningEngine,
-) -> list[AssetSummary]:
-    """Memory SWR first; seed from disk on cold miss so Netlify never waits on rank_all."""
+    *,
+    sync: bool = False,
+) -> AssetsDashboard:
+    """Memory SWR + disk seed; cold miss never blocks unless ``sync=True``."""
+
     def factory() -> list[AssetSummary]:
         return _load_asset_summaries(pipeline, learning)
 
-    if _ASSETS_LIST_CACHE.get("dashboard", allow_stale=True) is not None:
-        return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+    if sync:
+        assets = factory()
+        _ASSETS_LIST_CACHE.set("dashboard", assets)
+        return AssetsDashboard(
+            assets=assets,
+            ranking_status="fresh",
+            cache_age_seconds=0.0,
+            as_of=datetime.now(UTC),
+        )
 
-    disk = _read_disk_summaries()
-    if disk:
-        _ASSETS_LIST_CACHE.seed_stale("dashboard", disk)
-        return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+    cached, _, _, _ = _ASSETS_LIST_CACHE.meta("dashboard")
+    if cached is None:
+        disk = _read_disk_summaries()
+        # Seed stale so SWR returns immediately and refreshes in background.
+        # Empty list = true cold start (placeholders on the client until warm).
+        _ASSETS_LIST_CACHE.seed_stale("dashboard", disk if disk else [])
 
-    return _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+    assets = _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
+    _, fresh, refreshing, age = _ASSETS_LIST_CACHE.meta("dashboard")
+    status = _ranking_status(fresh=fresh, refreshing=refreshing, assets=assets)
+    return AssetsDashboard(
+        assets=assets,
+        ranking_status=status,
+        cache_age_seconds=age,
+        as_of=datetime.now(UTC),
+    )
 
 
-@router.get("", response_model=list[AssetSummary])
+@router.get("", response_model=AssetsDashboard)
 async def list_assets(
+    sync: bool = False,
     pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
     learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
-) -> list[AssetSummary]:
-    """Return summary metrics for all tracked dashboard assets (SWR ~120s + disk)."""
-    assets = await asyncio.to_thread(_get_dashboard_assets, pipeline, learning)
+) -> AssetsDashboard:
+    """Return tracked asset summaries with progressive ranking metadata.
+
+    Default: serve memory/disk snapshots immediately; cold miss kicks
+    ``rank_all`` in a background thread (avoids Netlify proxy 504s).
+
+    ``sync=true``: block until a full rank completes (keep-warm / tests).
+    """
+    dashboard = await asyncio.to_thread(_get_dashboard, pipeline, learning, sync=sync)
 
     # Don't block the response on Discord/email dispatch
     async def _dispatch() -> None:
         try:
-            await asyncio.to_thread(alerts.dispatch, assets)
+            await asyncio.to_thread(alerts.dispatch, dashboard.assets)
         except Exception:
             logger.exception("Alert dispatch failed")
 
-    asyncio.create_task(_dispatch())
-    return assets
+    if dashboard.assets:
+        asyncio.create_task(_dispatch())
+    return dashboard
 
 
 @router.get("/{symbol}", response_model=AssetSummary)

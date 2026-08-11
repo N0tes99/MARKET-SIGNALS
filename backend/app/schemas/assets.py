@@ -1,5 +1,8 @@
 """Asset-related response schemas."""
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -36,4 +39,26 @@ class AssetSummary(BaseModel):
     data_stale_reason: str | None = Field(
         default=None,
         description="stale_data | provider_errors when degraded",
+    )
+
+
+RankingStatus = Literal["fresh", "stale", "warming"]
+
+
+class AssetsDashboard(BaseModel):
+    """Dashboard payload with progressive ranking metadata."""
+
+    assets: list[AssetSummary] = Field(default_factory=list)
+    ranking_status: RankingStatus = Field(
+        default="fresh",
+        description="fresh=cache hit; stale=serving prior ranks while refresh runs; "
+        "warming=no ranks yet or background rank_all in flight",
+    )
+    cache_age_seconds: float | None = Field(
+        default=None,
+        description="Seconds since the served ranking snapshot was written",
+    )
+    as_of: datetime | None = Field(
+        default=None,
+        description="Wall time when this response was assembled",
     )

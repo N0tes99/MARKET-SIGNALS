@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchAssets } from "@/services/api";
+import { fetchAssets, type AssetsDashboard } from "@/services/api";
 
 function isGatewayTimeout(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -15,21 +15,33 @@ function isGatewayTimeout(error: unknown): boolean {
   );
 }
 
+function isTabVisible(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.visibilityState === "visible";
+}
+
 export function useAssets() {
   return useQuery({
     queryKey: ["assets"],
     queryFn: fetchAssets,
-    staleTime: 120_000,
+    staleTime: 60_000,
     gcTime: 15 * 60_000,
     refetchOnWindowFocus: false,
-    // Gateway failures are expected until keep-warm fills the disk/memory cache.
-    // Poll every 20s so rankings appear without a manual refresh.
     retry: (failureCount, error) => {
       if (isGatewayTimeout(error)) return failureCount < 2;
       return failureCount < 1;
     },
     retryDelay: (attempt) => Math.min(5_000 * (attempt + 1), 20_000),
-    refetchInterval: (query) => (query.state.error ? 20_000 : false),
+    // Poll while ranking is warming/stale, or after errors — only when tab is visible.
+    refetchInterval: (query) => {
+      if (!isTabVisible()) return false;
+      if (query.state.error) return 15_000;
+      const data = query.state.data as AssetsDashboard | undefined;
+      if (!data) return false;
+      if (data.ranking_status === "warming") return 8_000;
+      if (data.ranking_status === "stale") return 20_000;
+      return 90_000;
+    },
     placeholderData: (previous) => previous,
   });
 }
