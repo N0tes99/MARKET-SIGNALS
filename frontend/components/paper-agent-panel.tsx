@@ -81,6 +81,11 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
             {money(trade.size_usd)}
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/40">{trade.status}</span>
+          {trade.close_reason ? (
+            <span className="font-mono text-[10px] text-muted-foreground/40">
+              {trade.close_reason}
+            </span>
+          ) : null}
         </div>
         <span className="font-mono text-[10px] text-muted-foreground/50">
           {new Date(trade.signal_at).toLocaleString(undefined, {
@@ -138,7 +143,7 @@ function TradeLists({
         </ul>
       </div>
       <div>
-        <p className="label-caps text-muted-foreground/55">Recent closed</p>
+        <p className="label-caps text-muted-foreground/55">Closed / closing</p>
         <ul className="mt-2">
           {closedTrades.length === 0 ? (
             <li className="font-mono text-[11px] text-muted-foreground/45">No closed paper yet</li>
@@ -185,7 +190,7 @@ export function PaperAgentPanel() {
         <div>
           <h2 className="label-caps">Paper agent</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            living bot · paper only · dual fills · public track record
+            living bot · up to 3 opens/day · dual fills · public track record
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

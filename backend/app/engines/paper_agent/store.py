@@ -31,14 +31,18 @@ class PaperTradeStore:
 
     def open_or_pending(self) -> list[PaperTrade]:
         with self._lock:
-            return [t for t in self._trades.values() if t.status in {"pending_honest", "open"}]
+            return [
+                t
+                for t in self._trades.values()
+                if t.status in {"pending_honest", "open", "closing"}
+            ]
 
     def fingerprints_active(self) -> set[str]:
         with self._lock:
             return {
                 t.fingerprint
                 for t in self._trades.values()
-                if t.status in {"pending_honest", "open"}
+                if t.status in {"pending_honest", "open", "closing"}
             }
 
     def set_meta(self, key: str, value: str) -> None:

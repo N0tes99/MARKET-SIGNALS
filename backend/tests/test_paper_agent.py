@@ -24,14 +24,14 @@ def test_should_close_tp_sl() -> None:
     assert should_close(
         direction="long",
         entry=100.0,
-        mark=109.0,
+        mark=106.5,
         opened_at=now,
         now=now,
     ) is not None
     assert should_close(
         direction="long",
         entry=100.0,
-        mark=95.5,
+        mark=96.5,
         opened_at=now,
         now=now,
     ) is not None
@@ -190,3 +190,254 @@ def test_memory_store_roundtrip_meta() -> None:
     store = PaperTradeStore()
     store.set_meta("last_tick_at", "2026-08-09T15:00:00+00:00")
     assert store.get_meta("last_tick_at") == "2026-08-09T15:00:00+00:00"
+
+
+def test_opt_close_appears_in_history(monkeypatch, caplog) -> None:
+    """Optimistic exit must show in recent_closed (status closing) while honest still open."""
+    import logging
+
+    store = PaperTradeStore()
+    from uuid import uuid4
+
+    from app.engines.paper_agent.types import PaperTrade
+
+    opened = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    trade = PaperTrade(
+        id=str(uuid4()),
+        symbol="ETH",
+        source="crypto_setup",
+        setup_type="funding_extreme",
+        direction="long",
+        fingerprint="eth-fp",
+        signal_at=opened,
+        confidence=70.0,
+        opportunity_score=70.0,
+        size_usd=2500.0,
+        status="open",
+        optimistic_entry=100.0,
+        optimistic_entry_at=opened,
+        honest_entry=100.0,
+        honest_entry_at=opened,
+        mark_price=100.0,
+    )
+    store.upsert(trade)
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    # Price hits take-profit (~8%+) so should_close fires for opt; honest same entry also exits.
+    # Use a mark that closes opt but we want honest still open — should_close is shared so both
+    # would fire on same mark. Force honest to stay by temporarily making opened_at recent for
+    # honest via a huge entry distance that only opt sees... Actually both use same should_close.
+    # So both legs close on TP together → status closed, still in recent_closed.
+    # Better test: mark hits TP, both exit, assert recent_closed + logging.
+    # Separate test for closing-only: mock should_close to return reason only once for opt.
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=109.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+    )
+    # Skip discovery path noise — last_discover set so discover skipped
+    agent._last_discover_at = opened
+
+    calls = {"n": 0}
+
+    def _fake_should_close(*, direction, entry, mark, opened_at, now):
+        # First call is optimistic; second would be honest — only close opt first tick.
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "take_profit"
+        return None
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.should_close", _fake_should_close)
+
+    with caplog.at_level(logging.INFO, logger="app.engines.paper_agent.agent"):
+        notes = agent.tick()
+
+    assert any(n.startswith("opt_close:ETH") for n in notes)
+    assert any(n.startswith("paper_closing:ETH") for n in notes)
+    summary = agent.summary()
+    assert summary.optimistic.closed_trades == 1
+    assert summary.honest.closed_trades == 0
+    assert summary.honest.open_positions == 1
+    assert summary.open_trades == []
+    assert len(summary.recent_closed) == 1
+    assert summary.recent_closed[0].status == "closing"
+    assert summary.recent_closed[0].close_reason == "take_profit"
+    assert "paper_opt_close" in caplog.text
+    assert "paper_closing" in caplog.text
+
+    # Second tick: honest hits TP → fully closed, still in history
+    def _fake_should_close_honest(*, direction, entry, mark, opened_at, now):
+        return "take_profit"
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.should_close", _fake_should_close_honest)
+    with caplog.at_level(logging.INFO, logger="app.engines.paper_agent.agent"):
+        notes2 = agent.tick()
+    assert any(n.startswith("honest_close:ETH") for n in notes2)
+    assert any(n.startswith("paper_close:ETH") for n in notes2)
+    summary2 = agent.summary()
+    assert summary2.recent_closed[0].status == "closed"
+    assert summary2.optimistic.closed_trades == 1
+    assert summary2.honest.closed_trades == 1
+    assert "paper_close" in caplog.text
+
+
+def test_discover_skipped_between_interval(monkeypatch) -> None:
+    store = PaperTradeStore()
+    t0 = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    scans = {"crypto": 0}
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            scans["crypto"] += 1
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=1.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+    )
+
+    class _DT:
+        now_val = t0
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.now_val
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    notes1 = agent.tick()
+    assert "discover:skipped" not in notes1
+    assert scans["crypto"] == 1
+
+    _DT.now_val = t0 + timedelta(seconds=30)
+    notes2 = agent.tick()
+    assert "discover:skipped" in notes2
+    assert scans["crypto"] == 1
+
+
+def test_daily_open_cap_picks_best(monkeypatch) -> None:
+    """Up to 3 opens/day — ranks by score and stops at the daily budget."""
+    store = PaperTradeStore()
+    signal_at = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+
+    ideas = [
+        SimpleNamespace(
+            symbol="AAA",
+            setup_type="funding_extreme",
+            direction_bias="long",
+            confidence=51.0,
+            factors=["low"],
+        ),
+        SimpleNamespace(
+            symbol="BBB",
+            setup_type="funding_extreme",
+            direction_bias="short",
+            confidence=80.0,
+            factors=["best"],
+        ),
+        SimpleNamespace(
+            symbol="CCC",
+            setup_type="funding_extreme",
+            direction_bias="long",
+            confidence=70.0,
+            factors=["mid"],
+        ),
+        SimpleNamespace(
+            symbol="DDD",
+            setup_type="funding_extreme",
+            direction_bias="short",
+            confidence=65.0,
+            factors=["also"],
+        ),
+        SimpleNamespace(
+            symbol="EEE",
+            setup_type="funding_extreme",
+            direction_bias="long",
+            confidence=60.0,
+            factors=["cut"],
+        ),
+    ]
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return ideas
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=100.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame(
+                [
+                    {
+                        "timestamp": signal_at + timedelta(minutes=15),
+                        "open": 100.0,
+                        "high": 101.0,
+                        "low": 99.0,
+                        "close": 100.5,
+                        "volume": 10.0,
+                    }
+                ]
+            )
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+    )
+
+    class _DT:
+        @staticmethod
+        def now(tz=None):
+            return signal_at
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    notes = agent.tick()
+    opens = [n for n in notes if n.startswith("open:")]
+    assert len(opens) == 3
+    assert any("BBB" in n for n in opens)
+    assert any("CCC" in n for n in opens)
+    assert any("DDD" in n for n in opens)
+    assert not any("EEE" in n for n in opens)
+    assert "skip:daily_cap:3" in notes
+
+    # Same UTC day — no more opens even if discover forced
+    agent._last_discover_at = None
+    notes2 = agent.tick()
+    assert not any(n.startswith("open:") for n in notes2)
+    assert "skip:daily_cap:3" in notes2
