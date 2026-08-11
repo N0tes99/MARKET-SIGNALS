@@ -43,6 +43,19 @@ class ResendVerificationRequest(BaseModel):
     email: EmailStr | None = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Request a password-reset email."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Set a new password using the email reset token."""
+
+    token: str = Field(min_length=16, max_length=256)
+    password: str = Field(min_length=8, max_length=128)
+
+
 class UserSchema(BaseModel):
     """Public user profile."""
 

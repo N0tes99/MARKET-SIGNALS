@@ -6,6 +6,8 @@ const AUTH_PAGES = new Set([
   "/login",
   "/register",
   "/verify-email",
+  "/forgot-password",
+  "/reset-password",
   "/unlock",
   "/pending",
 ]);
