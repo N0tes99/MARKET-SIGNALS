@@ -581,7 +581,17 @@ class PaperAgent:
                 if entry is None:
                     continue
 
-            if exit_px is not None and pnl_closed is not None:
+            # Prefer stored closed PnL. If exit exists without PnL (legacy/partial row),
+            # derive from entry→exit — never mark-to-market a finished leg (that can flip
+            # sign if price recovered after a stop and make a losing book look green).
+            if exit_px is not None:
+                if pnl_closed is None:
+                    pnl_closed, _ = unrealized_pnl(
+                        direction=t.direction,
+                        entry=entry,
+                        mark=exit_px,
+                        size_usd=t.size_usd,
+                    )
                 closed_n += 1
                 realized += pnl_closed
                 if pnl_closed > 0:

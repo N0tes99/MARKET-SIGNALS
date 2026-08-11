@@ -583,3 +583,138 @@ def test_paper_feeds_learning_memory_and_maturity(monkeypatch) -> None:
     summary = agent.summary()
     assert summary.maturity is not None
     assert summary.maturity.score_pct >= 99.0
+
+
+def test_ledger_single_closed_loss_is_negative() -> None:
+    """One finished loser must drive red totals — closed P&L equals total when flat."""
+    store = PaperTradeStore()
+    from uuid import uuid4
+
+    from app.engines.paper_agent.types import PaperTrade
+
+    opened = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    store.upsert(
+        PaperTrade(
+            id=str(uuid4()),
+            symbol="BTC",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="long",
+            fingerprint="btc-loss",
+            signal_at=opened,
+            confidence=70.0,
+            opportunity_score=70.0,
+            size_usd=2500.0,
+            status="closed",
+            optimistic_entry=100.0,
+            optimistic_entry_at=opened,
+            optimistic_exit=97.0,
+            optimistic_pnl_usd=-75.0,
+            optimistic_return_pct=-3.0,
+            honest_entry=100.0,
+            honest_entry_at=opened,
+            honest_exit=97.0,
+            honest_pnl_usd=-75.0,
+            honest_return_pct=-3.0,
+            closed_at=opened + timedelta(hours=2),
+            close_reason="stop_loss_-3%",
+            mark_price=110.0,  # recovered after exit — must not affect closed ledger
+        )
+    )
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=110.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+        starting_cash=15_000.0,
+    )
+    summary = agent.summary()
+    assert summary.optimistic.closed_trades == 1
+    assert summary.optimistic.wins == 0
+    assert summary.optimistic.losses == 1
+    assert summary.optimistic.realized_pnl == -75.0
+    assert summary.optimistic.unrealized_pnl == 0.0
+    assert summary.optimistic.total_pnl == -75.0
+    assert summary.optimistic.equity == 14_925.0
+    assert summary.honest.total_pnl == -75.0
+    assert summary.honest.losses == 1
+
+
+def test_ledger_exit_without_pnl_uses_exit_not_live_mark() -> None:
+    """Partial rows with exit but missing pnl must not MTM at a recovered mark."""
+    store = PaperTradeStore()
+    from uuid import uuid4
+
+    from app.engines.paper_agent.types import PaperTrade
+
+    opened = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    store.upsert(
+        PaperTrade(
+            id=str(uuid4()),
+            symbol="ETH",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="long",
+            fingerprint="eth-partial",
+            signal_at=opened,
+            confidence=70.0,
+            opportunity_score=70.0,
+            size_usd=2500.0,
+            status="closed",
+            optimistic_entry=100.0,
+            optimistic_entry_at=opened,
+            optimistic_exit=97.0,
+            optimistic_pnl_usd=None,
+            optimistic_return_pct=None,
+            honest_entry=None,
+            closed_at=opened + timedelta(hours=1),
+            close_reason="stop_loss_-3%",
+            mark_price=108.0,
+        )
+    )
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=108.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+        starting_cash=15_000.0,
+    )
+    opt = agent.summary().optimistic
+    assert opt.closed_trades == 1
+    assert opt.losses == 1
+    assert opt.total_pnl < 0
+    assert abs(opt.realized_pnl - (-75.0)) < 0.01

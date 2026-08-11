@@ -30,6 +30,12 @@ function pct(n: number): string {
   return `${sign}${n.toFixed(2)}%`;
 }
 
+function pnlTone(n: number): string {
+  if (n > 0) return "text-bullish";
+  if (n < 0) return "text-bearish";
+  return "text-muted-foreground/70";
+}
+
 function MaturityBar({ maturity }: { maturity: PaperMaturity }) {
   return (
     <div className="mt-4 border border-white/[0.06] bg-card/15 px-3 py-3">
@@ -64,7 +70,6 @@ function MaturityBar({ maturity }: { maturity: PaperMaturity }) {
 }
 
 function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedger; hint: string }) {
-  const positive = ledger.total_pnl >= 0;
   const deployed = ledger.deployed_usd ?? 0;
   const sleeve = ledger.size_usd ?? 2500;
   return (
@@ -73,16 +78,24 @@ function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedge
       <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
         {hint}
       </p>
-      <p
-        className={cn(
-          "mt-4 font-mono text-2xl tracking-tight",
-          positive ? "text-bullish" : "text-bearish",
-        )}
-      >
+      <p className={cn("mt-4 font-mono text-2xl tracking-tight", pnlTone(ledger.total_pnl))}>
         {money(ledger.equity)}
       </p>
-      <p className={cn("mt-1 font-mono text-sm", positive ? "text-bullish/80" : "text-bearish/80")}>
-        PnL {money(ledger.total_pnl)} · {pct(ledger.return_pct)}
+      <p className={cn("mt-1 font-mono text-sm", pnlTone(ledger.total_pnl))}>
+        Total {money(ledger.total_pnl)} · {pct(ledger.return_pct)}
+      </p>
+      <p className="mt-1 font-mono text-[11px] text-muted-foreground/65">
+        <span className={pnlTone(ledger.realized_pnl)}>
+          Closed {money(ledger.realized_pnl)}
+        </span>
+        <span className="text-muted-foreground/40"> · </span>
+        <span className={pnlTone(ledger.unrealized_pnl)}>
+          Open {money(ledger.unrealized_pnl)}
+        </span>
+        <span className="text-muted-foreground/40">
+          {" "}
+          (total = closed + open)
+        </span>
       </p>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
         <span>open {ledger.open_positions}</span>
@@ -92,7 +105,6 @@ function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedge
         <span>
           W/L {ledger.wins}/{ledger.losses}
         </span>
-        <span>real {money(ledger.realized_pnl)}</span>
       </div>
     </div>
   );
@@ -132,9 +144,14 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
       </div>
       <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/70">
         opt {trade.optimistic_entry.toFixed(4)}
-        {trade.optimistic_pnl_usd != null
-          ? ` → ${money(trade.optimistic_pnl_usd)} (${trade.optimistic_return_pct?.toFixed(1)}%)`
-          : ""}
+        {trade.optimistic_pnl_usd != null ? (
+          <>
+            {" → "}
+            <span className={pnlTone(trade.optimistic_pnl_usd)}>
+              {money(trade.optimistic_pnl_usd)} ({trade.optimistic_return_pct?.toFixed(1)}%)
+            </span>
+          </>
+        ) : null}
         {" · "}
         honest{" "}
         {trade.honest_entry != null
@@ -149,9 +166,14 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
                 : ""
             }`
           : "pending next bar"}
-        {trade.honest_pnl_usd != null
-          ? ` → ${money(trade.honest_pnl_usd)} (${trade.honest_return_pct?.toFixed(1)}%)`
-          : ""}
+        {trade.honest_pnl_usd != null ? (
+          <>
+            {" → "}
+            <span className={pnlTone(trade.honest_pnl_usd)}>
+              {money(trade.honest_pnl_usd)} ({trade.honest_return_pct?.toFixed(1)}%)
+            </span>
+          </>
+        ) : null}
       </p>
     </li>
   );
