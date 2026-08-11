@@ -52,6 +52,7 @@ def _row_to_trade(row: PaperTradeModel) -> PaperTrade:
         close_reason=row.close_reason,
         factors=list(row.factors or []),
         notes=row.notes or "",
+        signal_record_id=str(row.signal_record_id) if row.signal_record_id else None,
     )
 
 
@@ -84,6 +85,7 @@ def _trade_values(trade: PaperTrade) -> dict:
         "close_reason": trade.close_reason,
         "factors": list(trade.factors),
         "notes": trade.notes,
+        "signal_record_id": _to_uuid(trade.signal_record_id) if trade.signal_record_id else None,
         "updated_at": datetime.now(UTC),
     }
 

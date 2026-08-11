@@ -25,6 +25,10 @@ class SignalStore(Protocol):
 
     def count(self, symbol: str | None = None) -> int: ...
 
+    def find_by_paper_trade_id(self, paper_trade_id: UUID) -> SignalRecord | None: ...
+
+    def list_by_source(self, source: str, limit: int = 500) -> list[SignalRecord]: ...
+
 
 class InMemorySignalStore:
     """Thread-safe ring buffer of signal records per symbol."""
@@ -82,3 +86,24 @@ class InMemorySignalStore:
             if symbol:
                 return len(self._records.get(symbol.upper(), []))
             return sum(len(b) for b in self._records.values())
+
+    def find_by_paper_trade_id(self, paper_trade_id: UUID) -> SignalRecord | None:
+        """Find the learning row linked to a paper trade."""
+        with self._lock:
+            for bucket in self._records.values():
+                for record in bucket:
+                    if record.paper_trade_id == paper_trade_id:
+                        return record
+        return None
+
+    def list_by_source(self, source: str, limit: int = 500) -> list[SignalRecord]:
+        """Return recent records for a provenance source."""
+        with self._lock:
+            matched = [
+                r
+                for bucket in self._records.values()
+                for r in bucket
+                if r.source == source
+            ]
+            matched.sort(key=lambda r: r.timestamp, reverse=True)
+            return matched[:limit]
