@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <!-- Void tile  matches site dark chrome -->
+  <rect width="40" height="40" rx="8" fill="#070706"/>
+  <!-- Signal Engine mark (title broadcast wedges + mast) -->
+  <path
+    d="M20 3.5 L38 20.5 L33.6 24.2 L20 11.2 L6.4 24.2 L2 20.5 L20 3.5 Z"
+    stroke="#E6E2D8"
+    stroke-width="1.5"
+    stroke-linejoin="miter"
+    opacity="0.55"
+  />
+  <path
+    d="M20 9 L32 20 L28.4 23.2 L20 14.6 L11.6 23.2 L8 20 L20 9 Z"
+    fill="#E6E2D8"
+    fill-opacity="0.55"
+  />
+  <path d="M20 14 L25.4 22.5 H21.5 L20 19.8 L18.5 22.5 H14.6 L20 14 Z" fill="#E6E2D8"/>
+  <rect x="18.6" y="21.5" width="2.8" height="11.5" fill="#E6E2D8"/>
+  <path d="M12 36 H28 L20 31.6 L12 36 Z" fill="#E6E2D8"/>
+</svg>
