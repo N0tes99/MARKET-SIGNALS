@@ -44,6 +44,9 @@ def _row_to_record(row: SignalRecordModel) -> SignalRecord:
         realized_return_pct=row.realized_return_pct,
         notes=row.notes,
         resolved_at=row.resolved_at,
+        source=getattr(row, "source", None) or "dashboard",
+        paper_trade_id=getattr(row, "paper_trade_id", None),
+        ledger=getattr(row, "ledger", None),
     )
 
 
@@ -95,6 +98,9 @@ class PostgresSignalStore:
                     realized_return_pct=record.realized_return_pct,
                     notes=record.notes,
                     resolved_at=record.resolved_at,
+                    source=record.source or "dashboard",
+                    paper_trade_id=record.paper_trade_id,
+                    ledger=record.ledger,
                 )
             )
             session.commit()
@@ -140,9 +146,34 @@ class PostgresSignalStore:
             row.entry_price = record.entry_price
             row.stop_loss = record.stop_loss
             row.take_profit = record.take_profit
+            row.source = record.source or row.source or "dashboard"
+            row.paper_trade_id = record.paper_trade_id
+            row.ledger = record.ledger
             session.commit()
             session.refresh(row)
             return _row_to_record(row)
+
+    def find_by_paper_trade_id(self, paper_trade_id: UUID) -> SignalRecord | None:
+        """Find the learning row linked to a paper trade."""
+        with self._session_factory() as session:
+            row = session.scalars(
+                select(SignalRecordModel)
+                .where(SignalRecordModel.paper_trade_id == paper_trade_id)
+                .order_by(desc(SignalRecordModel.timestamp))
+                .limit(1)
+            ).first()
+            return _row_to_record(row) if row else None
+
+    def list_by_source(self, source: str, limit: int = 500) -> list[SignalRecord]:
+        """Return recent records for a provenance source."""
+        with self._session_factory() as session:
+            rows = session.scalars(
+                select(SignalRecordModel)
+                .where(SignalRecordModel.source == source)
+                .order_by(desc(SignalRecordModel.timestamp))
+                .limit(limit)
+            ).all()
+            return [_row_to_record(row) for row in rows]
 
     def count(self, symbol: str | None = None) -> int:
         """Count stored records."""

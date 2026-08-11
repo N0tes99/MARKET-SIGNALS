@@ -441,3 +441,145 @@ def test_daily_open_cap_picks_best(monkeypatch) -> None:
     notes2 = agent.tick()
     assert not any(n.startswith("open:") for n in notes2)
     assert "skip:daily_cap:3" in notes2
+
+
+def test_paper_feeds_learning_memory_and_maturity(monkeypatch) -> None:
+    from uuid import uuid4
+
+    from app.engines.learning_engine import LearningEngine
+    from app.engines.learning_engine.store import InMemorySignalStore
+    from app.engines.paper_agent.types import PaperTrade
+
+    learning = LearningEngine(store=InMemorySignalStore())
+    store = PaperTradeStore()
+    signal_at = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="SOL",
+                    setup_type="funding_extreme",
+                    direction_bias="long",
+                    confidence=72.0,
+                    factors=["crowd"],
+                )
+            ]
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=100.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame(
+                [
+                    {
+                        "timestamp": signal_at + timedelta(minutes=15),
+                        "open": 100.0,
+                        "high": 101.0,
+                        "low": 99.0,
+                        "close": 100.5,
+                        "volume": 10.0,
+                    }
+                ]
+            )
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        learning=learning,
+        size_usd=2500.0,
+    )
+
+    class _DT:
+        @staticmethod
+        def now(tz=None):
+            return signal_at
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    agent.tick()
+    opened = store.list_all()[0]
+    assert opened.signal_record_id
+    mem = learning.list_paper_memory()
+    assert len(mem) == 1
+    assert mem[0].source == "paper_honest"
+    assert mem[0].outcome is None
+
+    # Force closed with honest PnL → memory outcome
+    opened.status = "closed"
+    opened.closed_at = signal_at + timedelta(hours=2)
+    opened.honest_exit = 106.0
+    opened.honest_return_pct = 6.0
+    opened.honest_pnl_usd = 150.0
+    opened.close_reason = "take_profit_+6%"
+    store.upsert(opened)
+    agent._remember_close(opened)
+    mem2 = learning.list_paper_memory()
+    assert mem2[0].outcome == "win"
+    assert mem2[0].realized_return_pct == 6.0
+
+    # Seed enough synthetic honest closes for maturity progress
+    for i in range(29):
+        store.upsert(
+            PaperTrade(
+                id=str(uuid4()),
+                symbol=f"X{i}",
+                source="crypto_setup",
+                setup_type="funding_extreme",
+                direction="long",
+                fingerprint=f"fp{i}",
+                signal_at=signal_at,
+                confidence=60.0,
+                opportunity_score=60.0,
+                size_usd=2500.0,
+                status="closed",
+                optimistic_entry=100.0,
+                optimistic_entry_at=signal_at,
+                optimistic_exit=106.0,
+                optimistic_pnl_usd=150.0,
+                optimistic_return_pct=6.0,
+                honest_entry=100.0,
+                honest_entry_at=signal_at,
+                honest_exit=106.0,
+                honest_pnl_usd=150.0,
+                honest_return_pct=6.0,
+                closed_at=signal_at + timedelta(hours=i + 1),
+                close_reason="take_profit_+6%",
+            )
+        )
+        # Memory outcomes lagged — only one real memory row unless we mirror
+        learning.record_paper_open(
+            paper_trade_id=str(uuid4()),
+            symbol=f"X{i}",
+            setup_type="funding_extreme",
+            direction="long",
+            confidence=60.0,
+            opportunity_score=60.0,
+            entry_price=100.0,
+        )
+
+    # Resolve extra memory rows to approach target
+    for rec in learning.list_paper_memory(limit=500):
+        if rec.outcome is None and rec.paper_trade_id is not None:
+            learning.resolve_paper_close(
+                paper_trade_id=rec.paper_trade_id,
+                outcome="win",
+                realized_return_pct=6.0,
+                close_reason="seed",
+            )
+
+    mat = agent.maturity()
+    assert mat.honest_closed >= 30
+    assert mat.memory_outcomes >= 20
+    assert mat.expectancy_ok
+    assert mat.drawdown_ok
+    assert mat.ready_for_private_live
+    summary = agent.summary()
+    assert summary.maturity is not None
+    assert summary.maturity.score_pct >= 99.0

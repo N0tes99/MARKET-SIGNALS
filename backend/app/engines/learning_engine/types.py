@@ -36,6 +36,10 @@ class SignalRecord:
     realized_return_pct: float | None = None
     notes: str | None = None
     resolved_at: datetime | None = None
+    # Origin of the row — paper_honest is the training path for private live.
+    source: str = "dashboard"
+    paper_trade_id: UUID | None = None
+    ledger: str | None = None
 
 
 @dataclass

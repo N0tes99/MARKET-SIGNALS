@@ -318,6 +318,22 @@ export interface PaperTrade {
   close_reason: string | null;
   factors: string[];
   notes: string;
+  signal_record_id?: string | null;
+}
+
+export interface PaperMaturity {
+  honest_closed: number;
+  memory_outcomes: number;
+  win_rate: number;
+  avg_return_pct: number;
+  expectancy_ok: boolean;
+  max_drawdown_pct: number;
+  drawdown_ok: boolean;
+  target_honest_closed: number;
+  target_memory_outcomes: number;
+  score_pct: number;
+  ready_for_private_live: boolean;
+  blockers: string[];
 }
 
 export interface PaperSummary {
@@ -330,6 +346,7 @@ export interface PaperSummary {
   open_trades: PaperTrade[];
   recent_closed: PaperTrade[];
   tick_notes: string[];
+  maturity?: PaperMaturity | null;
 }
 
 export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {

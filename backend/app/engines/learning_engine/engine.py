@@ -55,6 +55,83 @@ class LearningEngine:
         self._store.add(record)
         return record
 
+    def record_paper_open(
+        self,
+        *,
+        paper_trade_id: UUID | str,
+        symbol: str,
+        setup_type: str,
+        direction: str,
+        confidence: float,
+        opportunity_score: float,
+        entry_price: float,
+        factors: list[str] | None = None,
+    ) -> SignalRecord:
+        """Log a paper open into learning memory (unresolved until honest close)."""
+        pid = paper_trade_id if isinstance(paper_trade_id, UUID) else UUID(str(paper_trade_id))
+        find = getattr(self._store, "find_by_paper_trade_id", None)
+        if callable(find):
+            existing = find(pid)
+            if existing is not None:
+                return existing
+
+        record = SignalRecord(
+            id=uuid4(),
+            symbol=symbol.upper(),
+            timestamp=datetime.now(UTC),
+            confidence=confidence,
+            trade_grade="B",
+            trade_state="EXECUTE",
+            execution_signal="PAPER",
+            opportunity_score=opportunity_score,
+            category_scores={},
+            entry_price=entry_price,
+            notes=(
+                f"paper_open setup={setup_type} dir={direction} "
+                f"factors={','.join((factors or [])[:4])}"
+            ),
+            source="paper_honest",
+            paper_trade_id=pid,
+            ledger="honest",
+        )
+        self._store.add(record)
+        return record
+
+    def resolve_paper_close(
+        self,
+        *,
+        paper_trade_id: UUID | str,
+        outcome: SignalOutcome | str,
+        realized_return_pct: float | None,
+        close_reason: str | None = None,
+    ) -> SignalRecord | None:
+        """Attach honest-ledger outcome to the paper memory row."""
+        pid = paper_trade_id if isinstance(paper_trade_id, UUID) else UUID(str(paper_trade_id))
+        find = getattr(self._store, "find_by_paper_trade_id", None)
+        record = find(pid) if callable(find) else None
+        if record is None:
+            return None
+        if record.outcome is not None:
+            return record
+        note = close_reason or ""
+        if record.notes and note:
+            note = f"{record.notes} | close={note}"
+        elif record.notes:
+            note = record.notes
+        return self.record_outcome(
+            record.id,
+            outcome,
+            realized_return_pct=realized_return_pct,
+            notes=note or None,
+        )
+
+    def list_paper_memory(self, limit: int = 500) -> list[SignalRecord]:
+        """Return paper_honest learning rows used for maturity / EV training."""
+        list_src = getattr(self._store, "list_by_source", None)
+        if callable(list_src):
+            return list_src("paper_honest", limit=limit)
+        return [r for r in self._store.list_all(limit=limit) if r.source == "paper_honest"]
+
     def record_outcome(
         self,
         record_id: UUID,
