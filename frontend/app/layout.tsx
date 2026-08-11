@@ -34,6 +34,9 @@ const rank = Syne({
 export const metadata: Metadata = {
   title: "Signal Engine",
   description: "Evidence-based market intelligence",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({
