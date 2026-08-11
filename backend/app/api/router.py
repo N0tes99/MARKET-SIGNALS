@@ -23,10 +23,12 @@ from app.api.routes import (
     tuning,
     websocket,
 )
+from app.core.site_gate import router as site_gate_router
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(site_gate_router, prefix="/auth", tags=["auth"])
 api_router.include_router(social.router, tags=["social"])
 api_router.include_router(favorites.router, prefix="/me/favorites", tags=["favorites"])
 api_router.include_router(assets.router, prefix="/assets", tags=["assets"])

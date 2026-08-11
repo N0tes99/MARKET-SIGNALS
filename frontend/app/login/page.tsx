@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace("/unlock");
     }
   }, [loading, user, router]);
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      router.push("/");
+      router.push("/unlock");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {

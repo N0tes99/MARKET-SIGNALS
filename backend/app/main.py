@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.config import settings
 from app.core.basic_auth import BasicAuthMiddleware
+from app.core.site_gate import AccessGateMiddleware
 
 
 @asynccontextmanager
@@ -37,8 +38,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # Auth after CORS so preflight succeeds without credentials dance issues
+    # Auth after CORS so preflight succeeds without credentials dance issues.
+    # Last added runs first: SiteGate (human TOTP) then BasicAuth (machine).
     app.add_middleware(BasicAuthMiddleware)
+    app.add_middleware(AccessGateMiddleware)
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 
