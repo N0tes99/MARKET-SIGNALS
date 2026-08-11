@@ -15,6 +15,9 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 
 - `GET /api/v1/health` is public (Render healthchecks).
 - All other API routes require Basic Auth when `AUTH_PASSWORD` is set (proxy injects it).
+- **Site Authenticator gate:** when `SITE_TOTP_SECRET` is set, browsers must unlock
+  via `/unlock` with a 6-digit TOTP code; unlock sets httpOnly cookie `se_gate`
+  (default 12h). API also requires that cookie (Basic Auth alone is not enough).
 - Social accounts use a second layer: email/password JWT in httpOnly cookie `se_session`
   (Secure + SameSite=Lax). The `/api/backend/*` proxy forwards `Cookie` / `Set-Cookie`.
 - `/docs` is disabled when `APP_ENV=production`.
@@ -53,7 +56,10 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
-| `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log (default `Admin`) |
+| `SITE_TOTP_SECRET` | base32 shared authenticator secret (empty = gate off). Users must **login**, be **granted** access in `/admin/access`, then enter this app’s TOTP. Generate: `python -c "import pyotp; s=pyotp.random_base32(); print(s); print(pyotp.TOTP(s).provisioning_uri('site', issuer_name='Signal Engine'))"` |
+| `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
+| `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
+| `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access` (default `Admin`) |
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 | `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run without it |
@@ -99,6 +105,7 @@ Repo root includes [`netlify.toml`](../netlify.toml) with `base = "frontend"` an
 | Variable | Value |
 |----------|-------|
 | `NEXT_PUBLIC_USE_API_PROXY` | `true` |
+| `NEXT_PUBLIC_REQUIRE_LOGIN` | `true` (login → grant → authenticator before dashboard) |
 | `API_BACKEND_URL` | `https://YOUR-RENDER-API-URL` (no trailing slash) |
 | `API_USERNAME` | same as `AUTH_USERNAME` |
 | `API_PASSWORD` | same as `AUTH_PASSWORD` |

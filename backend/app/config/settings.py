@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     auth_username: str = "signal"
     auth_password: str = ""
 
+    # Shared site TOTP (Authenticator) — empty secret disables the gate
+    # Generate with: python -c "import pyotp; print(pyotp.random_base32())"
+    site_totp_secret: str = ""
+    site_totp_issuer: str = "Signal Engine"
+    site_gate_expire_hours: int = 12
+
     # Comma-separated social usernames that may see Outcome log (TP / Hit / Miss)
     admin_usernames: str = "Admin"
 

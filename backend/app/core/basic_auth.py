@@ -20,10 +20,16 @@ def auth_enabled() -> bool:
 
 def is_public_path(path: str) -> bool:
     """Paths that never require Basic Auth."""
-    if path == "/api/v1/health" or path.rstrip("/") == "/api/v1/health":
+    normalized = path.rstrip("/") or "/"
+    if normalized in {
+        "/api/v1/health",
+        "/api/v1/auth/gate/status",
+        "/api/v1/auth/gate/verify",
+        "/api/v1/auth/gate/logout",
+    }:
         return True
     # Docs only in development when auth is otherwise on
-    return settings.app_env == "development" and path in {
+    return settings.app_env == "development" and normalized in {
         "/docs",
         "/redoc",
         "/openapi.json",

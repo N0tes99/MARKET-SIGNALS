@@ -38,6 +38,14 @@ function MainNav() {
       >
         Social
       </Link>
+      {user?.is_admin ? (
+        <Link
+          href="/admin/access"
+          className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Access
+        </Link>
+      ) : null}
       {user ? (
         <Link
           href="/favorites"

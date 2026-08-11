@@ -681,6 +681,97 @@ export interface FavoriteSymbol {
   created_at: string;
 }
 
+export interface GateStatus {
+  enabled: boolean;
+  expire_hours: number;
+  authenticated: boolean;
+  is_admin: boolean;
+  granted: boolean;
+  grant_expires_at: string | null;
+  mfa_ok: boolean;
+  next_step: "open" | "login" | "pending" | "mfa" | "dashboard";
+}
+
+export interface AccessGrant {
+  id: string;
+  user_id: string;
+  username: string;
+  email: string;
+  expires_at: string;
+  notes: string;
+  revoked_at: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+export async function fetchGateStatus(): Promise<GateStatus> {
+  const response = await fetch(apiUrl("/api/v1/auth/gate/status"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<GateStatus>;
+}
+
+export async function verifySiteGate(code: string): Promise<{
+  ok: boolean;
+  next_step: string;
+  grant_expires_at: string | null;
+}> {
+  const response = await fetch(apiUrl("/api/v1/auth/gate/verify"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json();
+}
+
+export async function fetchAccessGrants(): Promise<AccessGrant[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/grants"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AccessGrant[]>;
+}
+
+export async function createAccessGrant(body: {
+  username: string;
+  expires_at: string;
+  notes?: string;
+}): Promise<AccessGrant> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/grants"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AccessGrant>;
+}
+
+export async function revokeAccessGrant(grantId: string): Promise<AccessGrant> {
+  const response = await fetch(apiUrl(`/api/v1/auth/access/grants/${grantId}/revoke`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AccessGrant>;
+}
+
 export async function fetchMe(): Promise<AuthUser | null> {
   const response = await fetch(apiUrl("/api/v1/auth/me"), {
     credentials: FETCH_CREDENTIALS,
