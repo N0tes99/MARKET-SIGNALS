@@ -136,7 +136,7 @@ class PostgresPaperTradeStore:
         with self._lock, self._session_factory() as session:
             rows = session.scalars(
                 select(PaperTradeModel).where(
-                    PaperTradeModel.status.in_(("pending_honest", "open"))
+                    PaperTradeModel.status.in_(("pending_honest", "open", "closing"))
                 )
             ).all()
             return [_row_to_trade(r) for r in rows]
@@ -145,7 +145,7 @@ class PostgresPaperTradeStore:
         with self._lock, self._session_factory() as session:
             rows = session.scalars(
                 select(PaperTradeModel.fingerprint).where(
-                    PaperTradeModel.status.in_(("pending_honest", "open"))
+                    PaperTradeModel.status.in_(("pending_honest", "open", "closing"))
                 )
             ).all()
             return set(rows)

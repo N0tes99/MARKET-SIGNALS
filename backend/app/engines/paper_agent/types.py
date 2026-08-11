@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 
 PaperSource = Literal["crypto_setup", "equity_setup"]
-PaperStatus = Literal["pending_honest", "open", "closed"]
+PaperStatus = Literal["pending_honest", "open", "closing", "closed"]
 PaperDirection = Literal["long", "short"]
 
 

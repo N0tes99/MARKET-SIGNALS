@@ -171,7 +171,10 @@ def test_build_idea_and_plan_hood() -> None:
     assert idea.execution_plan.runner_rule
     assert any(inv.startswith("HARD:") for inv in idea.execution_plan.invalidation)
     assert any(inv.startswith("SOFT:") for inv in idea.execution_plan.invalidation)
-    assert any("support" in inv.lower() or "dma" in inv.lower() for inv in idea.execution_plan.invalidation)
+    assert any(
+        "support" in inv.lower() or "dma" in inv.lower()
+        for inv in idea.execution_plan.invalidation
+    )
     assert idea.opportunity_score > 0
 
 

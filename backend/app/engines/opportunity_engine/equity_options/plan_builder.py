@@ -92,8 +92,8 @@ def build_execution_plan(
         invalidation = [
             f"HARD: daily close below structure ${invalidate_px:.2f} "
             f"(support {support:.2f} − pad)",
-            f"HARD: call bid collapses >60% while underlying still holds "
-            f"(timing / IV crush — stand down new adds)",
+            "HARD: call bid collapses >60% while underlying still holds "
+            "(timing / IV crush — stand down new adds)",
             f"SOFT: loses {dma20_hint} and fails to reclaim within 2 sessions "
             f"— pause Expand (E3), keep risk cold",
             "SOFT: relative volume fades <0.8× on failed continuation day "

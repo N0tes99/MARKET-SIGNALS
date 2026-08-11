@@ -11,11 +11,11 @@ from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsS
 from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent.broker import (
     DEFAULT_SIZE_USD,
+    _bps_slip,
     last_price,
     next_bar_open_after,
     should_close,
     unrealized_pnl,
-    _bps_slip,
 )
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 
 AGENT_NAME = "Signal Engine Paper Agent"
 STARTING_CASH = 15_000.0
-MIN_CONFIDENCE = 55.0
+# Below scanner WATCH bar on purpose — paper takes best real setups, not only peak WATCH.
+MIN_CONFIDENCE = 50.0
+MAX_NEW_OPENS_PER_DAY = 3
+# Idea discovery is heavier than managing opens — don't rescan every tick.
+_DISCOVER_INTERVAL_SECONDS = 180.0
 
 
 def _fingerprint(source: str, symbol: str, setup_type: str, direction: str) -> str:
@@ -66,10 +70,17 @@ class PaperAgent:
         self._starting_cash = starting_cash
         self._size_usd = size_usd
         self._last_tick_at: datetime | None = None
+        self._last_discover_at: datetime | None = None
         raw = None
         get_meta = getattr(self._store, "get_meta", None)
         if callable(get_meta):
             raw = get_meta("last_tick_at")
+            raw_d = get_meta("last_discover_at")
+            if raw_d:
+                try:
+                    self._last_discover_at = datetime.fromisoformat(raw_d)
+                except ValueError:
+                    self._last_discover_at = None
         if raw:
             try:
                 self._last_tick_at = datetime.fromisoformat(raw)
@@ -84,8 +95,25 @@ class PaperAgent:
         """Clear all paper trades so both ledgers restart at starting cash."""
         cleared = self._store.clear_all()
         self._last_tick_at = None
+        self._last_discover_at = None
         logger.info("Paper agent reset cleared=%d starting_cash=%.0f", cleared, self._starting_cash)
         return cleared
+
+    def _should_discover(self, now: datetime) -> bool:
+        if self._last_discover_at is None:
+            return True
+        return (now - self._last_discover_at).total_seconds() >= _DISCOVER_INTERVAL_SECONDS
+
+    def _opens_on_utc_day(self, now: datetime) -> int:
+        day = now.astimezone(UTC).date()
+        n = 0
+        for t in self._store.list_all():
+            sat = t.signal_at
+            if sat.tzinfo is None:
+                sat = sat.replace(tzinfo=UTC)
+            if sat.astimezone(UTC).date() == day:
+                n += 1
+        return n
 
     def tick(self) -> list[str]:
         """Advance the agent once: open new ideas, resolve honest fills, manage exits."""
@@ -94,83 +122,132 @@ class PaperAgent:
         active = self._store.fingerprints_active()
         max_open = max(1, int(self._starting_cash // self._size_usd))
         hit_cap = False
+        daily_cap_hit = False
 
         def _slots_left() -> int:
             return max(0, max_open - len(self._store.open_or_pending()))
 
-        # --- Crypto Layer 2 ---
-        try:
-            crypto_ideas = self._crypto.scan_feed(watch_only=True, min_confidence=MIN_CONFIDENCE)
-        except Exception:
-            logger.exception("Paper agent crypto feed failed")
-            crypto_ideas = []
-            notes.append("crypto_feed_error")
+        discover = self._should_discover(now)
+        if discover:
+            candidates: list[dict] = []
 
-        for idea in crypto_ideas:
-            if _slots_left() <= 0:
-                hit_cap = True
-                break
-            direction = _dir(idea.direction_bias)
-            if direction is None:
-                continue
-            fp = _fingerprint("crypto_setup", idea.symbol, idea.setup_type, direction)
-            if fp in active:
-                continue
-            trade = self._open_from_signal(
-                source="crypto_setup",
-                symbol=idea.symbol,
-                setup_type=idea.setup_type,
-                direction=direction,
-                fingerprint=fp,
-                confidence=idea.confidence,
-                opportunity_score=idea.confidence,
-                factors=list(idea.factors[:5]),
-                now=now,
-            )
-            if trade:
-                notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
-                active.add(fp)
+            # --- Crypto Layer 2 ---
+            try:
+                crypto_ideas = self._crypto.scan_feed(
+                    watch_only=False, min_confidence=MIN_CONFIDENCE
+                )
+            except Exception:
+                logger.exception("Paper agent crypto feed failed")
+                crypto_ideas = []
+                notes.append("crypto_feed_error")
 
-        # --- Equity Layer 3 ---
-        try:
-            equity_ideas = self._equity.scan_feed(
-                watch_only=True,
-                min_confidence=MIN_CONFIDENCE,
-            )
-        except Exception:
-            logger.exception("Paper agent equity feed failed")
-            equity_ideas = []
-            notes.append("equity_feed_error")
+            for idea in crypto_ideas:
+                direction = _dir(idea.direction_bias)
+                if direction is None:
+                    continue
+                fp = _fingerprint("crypto_setup", idea.symbol, idea.setup_type, direction)
+                if fp in active:
+                    continue
+                candidates.append(
+                    {
+                        "source": "crypto_setup",
+                        "symbol": idea.symbol,
+                        "setup_type": idea.setup_type,
+                        "direction": direction,
+                        "fingerprint": fp,
+                        "confidence": float(idea.confidence),
+                        "opportunity_score": float(idea.confidence),
+                        "factors": list(idea.factors[:5]),
+                        "score": float(idea.confidence),
+                    }
+                )
 
-        for idea in equity_ideas:
-            if _slots_left() <= 0:
-                hit_cap = True
-                break
-            direction = _dir(idea.direction_bias)
-            if direction is None:
-                continue
-            fp = _fingerprint("equity_setup", idea.symbol, idea.setup_type, direction)
-            if fp in active:
-                continue
-            trade = self._open_from_signal(
-                source="equity_setup",
-                symbol=idea.symbol,
-                setup_type=idea.setup_type,
-                direction=direction,
-                fingerprint=fp,
-                confidence=idea.confidence,
-                opportunity_score=idea.opportunity_score,
-                factors=list(idea.factors[:5]),
-                now=now,
-            )
-            if trade:
-                notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
-                active.add(fp)
+            # --- Equity Layer 3 ---
+            try:
+                equity_ideas = self._equity.scan_feed(
+                    watch_only=False,
+                    min_confidence=MIN_CONFIDENCE,
+                )
+            except Exception:
+                logger.exception("Paper agent equity feed failed")
+                equity_ideas = []
+                notes.append("equity_feed_error")
+
+            for idea in equity_ideas:
+                direction = _dir(idea.direction_bias)
+                if direction is None:
+                    continue
+                fp = _fingerprint("equity_setup", idea.symbol, idea.setup_type, direction)
+                if fp in active:
+                    continue
+                score = float(getattr(idea, "opportunity_score", idea.confidence))
+                candidates.append(
+                    {
+                        "source": "equity_setup",
+                        "symbol": idea.symbol,
+                        "setup_type": idea.setup_type,
+                        "direction": direction,
+                        "fingerprint": fp,
+                        "confidence": float(idea.confidence),
+                        "opportunity_score": score,
+                        "factors": list(idea.factors[:5]),
+                        "score": score,
+                    }
+                )
+
+            candidates.sort(key=lambda c: c["score"], reverse=True)
+            opens_today = self._opens_on_utc_day(now)
+            daily_left = max(0, MAX_NEW_OPENS_PER_DAY - opens_today)
+            if daily_left <= 0 and candidates:
+                daily_cap_hit = True
+                notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
+
+            for cand in candidates:
+                if daily_left <= 0:
+                    daily_cap_hit = True
+                    break
+                if _slots_left() <= 0:
+                    hit_cap = True
+                    break
+                trade = self._open_from_signal(
+                    source=cand["source"],
+                    symbol=cand["symbol"],
+                    setup_type=cand["setup_type"],
+                    direction=cand["direction"],
+                    fingerprint=cand["fingerprint"],
+                    confidence=cand["confidence"],
+                    opportunity_score=cand["opportunity_score"],
+                    factors=cand["factors"],
+                    now=now,
+                )
+                if trade:
+                    notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
+                    active.add(cand["fingerprint"])
+                    daily_left -= 1
+                    logger.info(
+                        "paper_open id=%s symbol=%s setup=%s conf=%.1f score=%.1f daily_left=%d",
+                        trade.id,
+                        trade.symbol,
+                        trade.setup_type,
+                        trade.confidence,
+                        trade.opportunity_score,
+                        daily_left,
+                    )
+
+            if daily_cap_hit and f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}" not in notes:
+                notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
+
+            self._last_discover_at = now
+            set_meta = getattr(self._store, "set_meta", None)
+            if callable(set_meta):
+                set_meta("last_discover_at", now.isoformat())
+        else:
+            notes.append("discover:skipped")
 
         if hit_cap:
             notes.append(f"skip:max_open:{max_open}")
 
-        # --- Manage open / pending ---
+        # --- Manage open / pending / closing ---
         for trade in list(self._store.open_or_pending()):
             self._advance_trade(trade, now=now, notes=notes)
 
@@ -285,7 +362,16 @@ class PaperAgent:
                 trade.optimistic_exit = exit_px
                 trade.optimistic_pnl_usd = pnl
                 trade.optimistic_return_pct = ret
+                trade.close_reason = trade.close_reason or reason
                 notes.append(f"opt_close:{trade.symbol}:{reason}")
+                logger.info(
+                    "paper_opt_close id=%s symbol=%s reason=%s pnl=%.2f exit=%.6g",
+                    trade.id,
+                    trade.symbol,
+                    reason,
+                    pnl,
+                    exit_px,
+                )
 
         # Honest exit only after honest fill
         if trade.honest_entry is not None and trade.honest_exit is None:
@@ -309,30 +395,62 @@ class PaperAgent:
                 trade.honest_return_pct = ret
                 trade.close_reason = reason
                 notes.append(f"honest_close:{trade.symbol}:{reason}")
+                logger.info(
+                    "paper_honest_close id=%s symbol=%s reason=%s pnl=%.2f exit=%.6g",
+                    trade.id,
+                    trade.symbol,
+                    reason,
+                    pnl,
+                    exit_px,
+                )
 
-        # Fully closed when optimistic resolved; prefer wait for honest if pending briefly
-        if trade.optimistic_exit is not None and (
-            trade.honest_exit is not None or trade.honest_entry is None
+        prev = trade.status
+        # Opt done + honest never filled → fully closed
+        if trade.optimistic_exit is not None and trade.honest_entry is None:
+            trade.close_reason = trade.close_reason or "optimistic_done_honest_unfilled"
+            trade.status = "closed"
+            trade.closed_at = trade.closed_at or now
+        # Both legs exited → fully closed
+        elif trade.optimistic_exit is not None and trade.honest_exit is not None:
+            trade.status = "closed"
+            trade.closed_at = trade.closed_at or now
+        # Opt done, honest still live → show in history while managing honest
+        elif (
+            trade.optimistic_exit is not None
+            and trade.honest_entry is not None
+            and trade.honest_exit is None
         ):
-            # If honest never filled after max hold from signal, close pending as cancel
-            if trade.honest_entry is None:
-                trade.close_reason = trade.close_reason or "optimistic_done_honest_unfilled"
-            trade.status = "closed"
-            trade.closed_at = now
+            trade.status = "closing"
 
-        # Or both legs exited
-        if trade.optimistic_exit is not None and trade.honest_exit is not None:
-            trade.status = "closed"
-            trade.closed_at = now
+        if trade.status == "closed" and prev != "closed":
+            notes.append(f"paper_close:{trade.symbol}:{trade.close_reason or 'done'}")
+            logger.info(
+                "paper_close id=%s symbol=%s reason=%s opt_pnl=%s honest_pnl=%s",
+                trade.id,
+                trade.symbol,
+                trade.close_reason or "done",
+                f"{trade.optimistic_pnl_usd:.2f}" if trade.optimistic_pnl_usd is not None else "-",
+                f"{trade.honest_pnl_usd:.2f}" if trade.honest_pnl_usd is not None else "-",
+            )
+        elif trade.status == "closing" and prev != "closing":
+            notes.append(f"paper_closing:{trade.symbol}:{trade.close_reason or 'opt_done'}")
+            logger.info(
+                "paper_closing id=%s symbol=%s reason=%s opt_pnl=%.2f honest=open",
+                trade.id,
+                trade.symbol,
+                trade.close_reason or "opt_done",
+                trade.optimistic_pnl_usd or 0.0,
+            )
 
         self._store.upsert(trade)
 
     def summary(self, *, tick_notes: list[str] | None = None) -> PaperAgentSummary:
         trades = self._store.list_all()
         open_trades = [t for t in trades if t.status in {"pending_honest", "open"}]
-        closed = [t for t in trades if t.status == "closed"]
-        closed_sorted = sorted(
-            closed,
+        # Include "closing" so optimistic exits appear in history while honest finishes.
+        history = [t for t in trades if t.status in {"closing", "closed"}]
+        history_sorted = sorted(
+            history,
             key=lambda t: t.closed_at or t.signal_at,
             reverse=True,
         )[:20]
@@ -345,7 +463,7 @@ class PaperAgent:
             optimistic=self._ledger("optimistic", trades),
             honest=self._ledger("honest", trades),
             open_trades=sorted(open_trades, key=lambda t: t.signal_at, reverse=True),
-            recent_closed=closed_sorted,
+            recent_closed=history_sorted,
             tick_notes=list(tick_notes or []),
         )
 
@@ -377,7 +495,10 @@ class PaperAgent:
                     wins += 1
                 elif pnl_closed < 0:
                     losses += 1
-            elif t.status in {"pending_honest", "open"} and t.mark_price is not None:
+            elif (
+                t.status in {"pending_honest", "open", "closing"}
+                and t.mark_price is not None
+            ):
                 open_n += 1
                 deployed += t.size_usd
                 u_pnl, _ = unrealized_pnl(

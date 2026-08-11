@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 # Fixed paper risk per idea — Risk Engine remains authority for live later
 DEFAULT_SIZE_USD = 2_500.0
 SLIPPAGE_BPS = 5.0  # 0.05% adverse vs reference
-TAKE_PROFIT_PCT = 8.0
-STOP_LOSS_PCT = 4.0
-MAX_HOLD_HOURS = 24 * 5
+# Slightly tighter than the first pass so sleeves rotate on real moves.
+TAKE_PROFIT_PCT = 6.0
+STOP_LOSS_PCT = 3.0
+MAX_HOLD_HOURS = 24 * 3
 
 
 def _bps_slip(price: float, direction: str, *, entry: bool) -> float:
@@ -78,10 +79,7 @@ def unrealized_pnl(
     """Return (pnl_usd, return_pct)."""
     if entry <= 0 or size_usd <= 0:
         return 0.0, 0.0
-    if direction == "long":
-        ret = (mark - entry) / entry * 100.0
-    else:
-        ret = (entry - mark) / entry * 100.0
+    ret = (mark - entry) / entry * 100.0 if direction == "long" else (entry - mark) / entry * 100.0
     pnl = size_usd * (ret / 100.0)
     return pnl, ret
 

@@ -58,6 +58,9 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://signal_engine:signal_engine@localhost:5432/signal_engine
           REDIS_URL: redis://localhost:6379/0
+          # Unit/API tests use injected fixtures; don't bind live Postgres tables
+          # that CI has not migrated.
+          SIGNAL_STORE: memory
         run: pytest --cov=app --cov-report=term-missing
 
   frontend:
