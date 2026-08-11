@@ -12,6 +12,7 @@ from app.models.post import Post
 from app.models.post_like import PostLike
 from app.models.signal_record import SignalRecordModel
 from app.models.user import User
+from app.models.wallet import WalletAccount, WalletAuthChallenge
 
 __all__ = [
     "AccessGrantModel",
@@ -27,4 +28,6 @@ __all__ = [
     "PostLike",
     "SignalRecordModel",
     "User",
+    "WalletAccount",
+    "WalletAuthChallenge",
 ]

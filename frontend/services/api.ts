@@ -813,6 +813,56 @@ export async function loginAccount(email: string, password: string): Promise<Aut
   return response.json() as Promise<AuthUser>;
 }
 
+export async function walletChallenge(body: {
+  chain?: string;
+  address: string;
+  chain_id?: number;
+}): Promise<{
+  chain: string;
+  address: string;
+  nonce: string;
+  message: string;
+  expires_at: string;
+}> {
+  const response = await fetch(apiUrl("/api/v1/auth/wallet/challenge"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chain: body.chain ?? "ethereum",
+      address: body.address,
+      chain_id: body.chain_id ?? 1,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json();
+}
+
+export async function walletVerify(body: {
+  chain?: string;
+  address: string;
+  signature: string;
+  nonce: string;
+}): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/wallet/verify"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chain: body.chain ?? "ethereum",
+      address: body.address,
+      signature: body.signature,
+      nonce: body.nonce,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
+}
+
 export async function logoutAccount(): Promise<void> {
   const response = await fetch(apiUrl("/api/v1/auth/logout"), {
     method: "POST",
