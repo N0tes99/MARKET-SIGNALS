@@ -10,11 +10,12 @@ import { SiteHeader } from "@/components/site-header";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, loading } = useAuth();
+  const { login, loginWithEthereum, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [walletBusy, setWalletBusy] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -36,6 +37,19 @@ export default function LoginPage() {
     }
   }
 
+  async function onEthereum() {
+    setError(null);
+    setWalletBusy(true);
+    try {
+      await loginWithEthereum();
+      router.push("/unlock");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Wallet sign-in failed");
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
   return (
     <main className="min-h-screen">
       <SiteHeader compact />
@@ -43,7 +57,8 @@ export default function LoginPage() {
         <p className="label-caps">Account</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Use your Signal Engine email and password.
+          Email and password, or connect an Ethereum wallet (message signature only —
+          no transaction).
         </p>
 
         <form onSubmit={onSubmit} className="surface mt-8 space-y-4 p-5">
@@ -78,12 +93,32 @@ export default function LoginPage() {
           {error ? <p className="text-sm text-bearish">{error}</p> : null}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || walletBusy}
             className="w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <div className="mt-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/[0.08]" />
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+            or
+          </span>
+          <div className="h-px flex-1 bg-white/[0.08]" />
+        </div>
+
+        <button
+          type="button"
+          disabled={submitting || walletBusy}
+          onClick={() => void onEthereum()}
+          className="mt-6 w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+        >
+          {walletBusy ? "Waiting for wallet…" : "Continue with Ethereum"}
+        </button>
+        <p className="mt-2 font-mono text-[10px] text-muted-foreground/55">
+          Signs a login message only. Solana and Sui arrive in a later release.
+        </p>
 
         <p className="mt-6 text-sm text-muted-foreground">
           No account?{" "}

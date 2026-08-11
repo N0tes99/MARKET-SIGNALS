@@ -114,6 +114,8 @@ def is_access_public_path(path: str) -> bool:
         "/api/v1/auth/resend-verification",
         "/api/v1/auth/forgot-password",
         "/api/v1/auth/reset-password",
+        "/api/v1/auth/wallet/challenge",
+        "/api/v1/auth/wallet/verify",
     }
     if normalized in public:
         return True

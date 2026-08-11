@@ -17,14 +17,21 @@ import {
   registerAccount,
   resendVerification,
   verifyEmailToken,
+  walletChallenge,
+  walletVerify,
   type AuthUser,
 } from "@/services/api";
+import {
+  connectEthereumAddress,
+  personalSignEthereum,
+} from "@/lib/ethereum-wallet";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<AuthUser>;
+  loginWithEthereum: () => Promise<AuthUser>;
   register: (email: string, username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<AuthUser>;
@@ -54,6 +61,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const next = await loginAccount(email, password);
+    setUser(next);
+    return next;
+  }, []);
+
+  const loginWithEthereum = useCallback(async () => {
+    const { address, chainId } = await connectEthereumAddress();
+    const challenge = await walletChallenge({
+      chain: "ethereum",
+      address,
+      chain_id: chainId,
+    });
+    const signature = await personalSignEthereum(challenge.address, challenge.message);
+    const next = await walletVerify({
+      chain: "ethereum",
+      address: challenge.address,
+      signature,
+      nonce: challenge.nonce,
+    });
     setUser(next);
     return next;
   }, []);
@@ -91,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       login,
+      loginWithEthereum,
       register,
       logout,
       verifyEmail,
@@ -101,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       login,
+      loginWithEthereum,
       register,
       logout,
       verifyEmail,

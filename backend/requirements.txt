@@ -18,6 +18,7 @@ email-validator>=2.2.0
 PyJWT>=2.9.0
 bcrypt>=4.2.0
 pyotp>=2.9.0
+eth-account>=0.13.0
 
 # Task queue
 celery[redis]>=5.4.0
