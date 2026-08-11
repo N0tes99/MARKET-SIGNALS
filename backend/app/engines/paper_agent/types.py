@@ -47,6 +47,7 @@ class PaperTrade:
     close_reason: str | None = None
     factors: list[str] = field(default_factory=list)
     notes: str = ""
+    signal_record_id: str | None = None
 
 
 @dataclass
@@ -69,6 +70,24 @@ class PaperLedgerSnapshot:
 
 
 @dataclass
+class PaperMaturitySnapshot:
+    """Training readiness toward private micro live."""
+
+    honest_closed: int
+    memory_outcomes: int
+    win_rate: float
+    avg_return_pct: float
+    expectancy_ok: bool
+    max_drawdown_pct: float
+    drawdown_ok: bool
+    target_honest_closed: int
+    target_memory_outcomes: int
+    score_pct: float
+    ready_for_private_live: bool
+    blockers: list[str] = field(default_factory=list)
+
+
+@dataclass
 class PaperAgentSummary:
     """Public dashboard payload."""
 
@@ -81,3 +100,4 @@ class PaperAgentSummary:
     open_trades: list[PaperTrade]
     recent_closed: list[PaperTrade]
     tick_notes: list[str] = field(default_factory=list)
+    maturity: PaperMaturitySnapshot | None = None

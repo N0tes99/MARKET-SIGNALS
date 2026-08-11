@@ -10,6 +10,7 @@ import {
   fetchPaperSummary,
   resetPaperAgent,
   type PaperLedger,
+  type PaperMaturity,
   type PaperTrade,
 } from "@/services/api";
 
@@ -27,6 +28,39 @@ function money(n: number): string {
 function pct(n: number): string {
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}%`;
+}
+
+function MaturityBar({ maturity }: { maturity: PaperMaturity }) {
+  return (
+    <div className="mt-4 border border-white/[0.06] bg-card/15 px-3 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="label-caps text-muted-foreground/70">Training memory</p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          {maturity.ready_for_private_live
+            ? "private live unlock met"
+            : `${maturity.score_pct.toFixed(0)}% sample density`}
+        </p>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden bg-white/[0.06]">
+        <div
+          className="h-full bg-foreground/55 transition-[width] duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, maturity.score_pct))}%` }}
+        />
+      </div>
+      <p className="mt-2 font-mono text-[10px] text-muted-foreground/55">
+        honest closes {maturity.honest_closed}/{maturity.target_honest_closed}
+        {" · "}
+        memory {maturity.memory_outcomes}/{maturity.target_memory_outcomes}
+        {" · "}
+        W/R {maturity.win_rate.toFixed(0)}% · avg {pct(maturity.avg_return_pct)}
+        {" · "}
+        DD {maturity.max_drawdown_pct.toFixed(1)}%
+        {maturity.blockers.length > 0
+          ? ` · blockers ${maturity.blockers.slice(0, 3).join(", ")}`
+          : ""}
+      </p>
+    </div>
+  );
 }
 
 function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedger; hint: string }) {
@@ -261,13 +295,15 @@ export function PaperAgentPanel() {
 
           <p className="mt-3 font-mono text-[10px] text-muted-foreground/45">
             Starting {money(data.starting_cash)} paper · each idea locks {money(data.optimistic.size_usd ?? 2500)}{" "}
-            notional (equity only moves with PnL) · max {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} open ·
-            TP +8% / SL −4% · max hold 5d
+            notional (equity only moves with PnL) · max{" "}
+            {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} open · up to 3
+            opens/day · TP +6% / SL −3% · max hold 3d
             {data.last_tick_at
               ? ` · last tick ${new Date(data.last_tick_at).toLocaleTimeString()}`
               : ""}
           </p>
 
+          {data.maturity ? <MaturityBar maturity={data.maturity} /> : null}
           {tradeCount > 0 ? (
             collapseTrades ? (
               <div className="mt-5">

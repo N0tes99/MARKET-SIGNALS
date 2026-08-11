@@ -41,3 +41,8 @@ class SignalRecordModel(Base):
     realized_return_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="dashboard", index=True)
+    paper_trade_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    ledger: Mapped[str | None] = mapped_column(String(16), nullable=True)

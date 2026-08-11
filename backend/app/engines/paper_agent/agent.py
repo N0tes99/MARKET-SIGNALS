@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.engines.learning_engine.engine import LearningEngine
 from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsScanner
 from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent.broker import (
@@ -17,11 +18,13 @@ from app.engines.paper_agent.broker import (
     unrealized_pnl,
     _bps_slip,
 )
+from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
     PaperAgentSummary,
     PaperDirection,
     PaperLedgerSnapshot,
+    PaperMaturitySnapshot,
     PaperTrade,
 )
 from app.market_data.service import MarketDataService
@@ -60,6 +63,7 @@ class PaperAgent:
         crypto_scanner: SetupScanner,
         equity_scanner: EquityOptionsScanner,
         store: PaperTradeStore | None = None,
+        learning: LearningEngine | None = None,
         starting_cash: float = STARTING_CASH,
         size_usd: float = DEFAULT_SIZE_USD,
     ) -> None:
@@ -67,6 +71,7 @@ class PaperAgent:
         self._crypto = crypto_scanner
         self._equity = equity_scanner
         self._store = store or PaperTradeStore()
+        self._learning = learning
         self._starting_cash = starting_cash
         self._size_usd = size_usd
         self._last_tick_at: datetime | None = None
@@ -314,6 +319,7 @@ class PaperAgent:
             trade.notes += f" Honest fill @ {trade.honest_entry:.6g} bar {bar_ts.isoformat()}."
 
         self._store.upsert(trade)
+        self._remember_open(trade)
         logger.info(
             "Paper open %s %s %s conf=%.1f opt=%.6g honest=%s",
             trade.symbol,
@@ -324,6 +330,62 @@ class PaperAgent:
             f"{trade.honest_entry:.6g}" if trade.honest_entry else "pending",
         )
         return trade
+
+    def _remember_open(self, trade: PaperTrade) -> None:
+        if self._learning is None or trade.signal_record_id:
+            return
+        try:
+            record = self._learning.record_paper_open(
+                paper_trade_id=trade.id,
+                symbol=trade.symbol,
+                setup_type=trade.setup_type,
+                direction=trade.direction,
+                confidence=trade.confidence,
+                opportunity_score=trade.opportunity_score,
+                entry_price=trade.optimistic_entry,
+                factors=trade.factors,
+            )
+            trade.signal_record_id = str(record.id)
+            self._store.upsert(trade)
+            logger.info(
+                "paper_memory_open trade=%s record=%s symbol=%s",
+                trade.id,
+                record.id,
+                trade.symbol,
+            )
+        except Exception:
+            logger.exception("Paper memory open failed trade=%s", trade.id)
+
+    def _remember_close(self, trade: PaperTrade) -> None:
+        if self._learning is None:
+            return
+        try:
+            outcome, ret = map_honest_close_outcome(trade)
+            resolved = self._learning.resolve_paper_close(
+                paper_trade_id=trade.id,
+                outcome=outcome,
+                realized_return_pct=ret,
+                close_reason=trade.close_reason,
+            )
+            if resolved is None and trade.signal_record_id is None:
+                # Close arrived without open memory (legacy) — create then resolve.
+                self._remember_open(trade)
+                resolved = self._learning.resolve_paper_close(
+                    paper_trade_id=trade.id,
+                    outcome=outcome,
+                    realized_return_pct=ret,
+                    close_reason=trade.close_reason,
+                )
+            if resolved is not None:
+                logger.info(
+                    "paper_memory_close trade=%s record=%s outcome=%s ret=%s",
+                    trade.id,
+                    resolved.id,
+                    outcome,
+                    f"{ret:.3f}" if ret is not None else "-",
+                )
+        except Exception:
+            logger.exception("Paper memory close failed trade=%s", trade.id)
 
     def _advance_trade(self, trade: PaperTrade, *, now: datetime, notes: list[str]) -> None:
         mark = last_price(self._market, trade.symbol) or trade.mark_price
@@ -432,6 +494,7 @@ class PaperAgent:
                 f"{trade.optimistic_pnl_usd:.2f}" if trade.optimistic_pnl_usd is not None else "-",
                 f"{trade.honest_pnl_usd:.2f}" if trade.honest_pnl_usd is not None else "-",
             )
+            self._remember_close(trade)
         elif trade.status == "closing" and prev != "closing":
             notes.append(f"paper_closing:{trade.symbol}:{trade.close_reason or 'opt_done'}")
             logger.info(
@@ -443,6 +506,35 @@ class PaperAgent:
             )
 
         self._store.upsert(trade)
+
+    def maturity(self) -> PaperMaturitySnapshot:
+        """Training readiness from honest closes + paper learning memory."""
+        memory: list = []
+        if self._learning is not None:
+            try:
+                memory = self._learning.list_paper_memory(limit=500)
+            except Exception:
+                logger.exception("Paper maturity memory load failed")
+                memory = []
+        raw = compute_maturity(
+            self._store.list_all(),
+            starting_cash=self._starting_cash,
+            memory_records=memory,
+        )
+        return PaperMaturitySnapshot(
+            honest_closed=raw.honest_closed,
+            memory_outcomes=raw.memory_outcomes,
+            win_rate=raw.win_rate,
+            avg_return_pct=raw.avg_return_pct,
+            expectancy_ok=raw.expectancy_ok,
+            max_drawdown_pct=raw.max_drawdown_pct,
+            drawdown_ok=raw.drawdown_ok,
+            target_honest_closed=raw.target_honest_closed,
+            target_memory_outcomes=raw.target_memory_outcomes,
+            score_pct=raw.score_pct,
+            ready_for_private_live=raw.ready_for_private_live,
+            blockers=list(raw.blockers or []),
+        )
 
     def summary(self, *, tick_notes: list[str] | None = None) -> PaperAgentSummary:
         trades = self._store.list_all()
@@ -465,6 +557,7 @@ class PaperAgent:
             open_trades=sorted(open_trades, key=lambda t: t.signal_at, reverse=True),
             recent_closed=history_sorted,
             tick_notes=list(tick_notes or []),
+            maturity=self.maturity(),
         )
 
     def _ledger(self, mode: str, trades: list[PaperTrade]) -> PaperLedgerSnapshot:

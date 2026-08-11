@@ -14,7 +14,12 @@ from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.agent import PaperAgent
 from app.engines.paper_agent.types import PaperTrade
 from app.models.user import User
-from app.schemas.paper import PaperLedgerSchema, PaperSummarySchema, PaperTradeSchema
+from app.schemas.paper import (
+    PaperLedgerSchema,
+    PaperMaturitySchema,
+    PaperSummarySchema,
+    PaperTradeSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +59,15 @@ def _trade_schema(t: PaperTrade) -> PaperTradeSchema:
         close_reason=t.close_reason,
         factors=list(t.factors),
         notes=t.notes,
+        signal_record_id=t.signal_record_id,
     )
 
 
 def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperSummarySchema:
     s = agent.summary(tick_notes=notes)
+    maturity = None
+    if s.maturity is not None:
+        maturity = PaperMaturitySchema(**s.maturity.__dict__)
     return PaperSummarySchema(
         agent_name=s.agent_name,
         starting_cash=s.starting_cash,
@@ -69,6 +78,7 @@ def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperS
         open_trades=[_trade_schema(t) for t in s.open_trades],
         recent_closed=[_trade_schema(t) for t in s.recent_closed],
         tick_notes=list(s.tick_notes),
+        maturity=maturity,
     )
 
 

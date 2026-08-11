@@ -49,6 +49,22 @@ class PaperTradeSchema(BaseModel):
     close_reason: str | None = None
     factors: list[str] = Field(default_factory=list)
     notes: str = ""
+    signal_record_id: str | None = None
+
+
+class PaperMaturitySchema(BaseModel):
+    honest_closed: int
+    memory_outcomes: int
+    win_rate: float
+    avg_return_pct: float
+    expectancy_ok: bool
+    max_drawdown_pct: float
+    drawdown_ok: bool
+    target_honest_closed: int
+    target_memory_outcomes: int
+    score_pct: float
+    ready_for_private_live: bool
+    blockers: list[str] = Field(default_factory=list)
 
 
 class PaperSummarySchema(BaseModel):
@@ -61,3 +77,4 @@ class PaperSummarySchema(BaseModel):
     open_trades: list[PaperTradeSchema] = Field(default_factory=list)
     recent_closed: list[PaperTradeSchema] = Field(default_factory=list)
     tick_notes: list[str] = Field(default_factory=list)
+    maturity: PaperMaturitySchema | None = None

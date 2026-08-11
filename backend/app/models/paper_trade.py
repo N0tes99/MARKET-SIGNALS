@@ -55,6 +55,9 @@ class PaperTradeModel(Base):
     close_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
     factors: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    signal_record_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
