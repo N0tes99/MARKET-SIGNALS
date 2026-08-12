@@ -295,6 +295,73 @@ def test_live_mode_detection(monkeypatch) -> None:
     assert snap.base_url == "https://api.alpaca.markets"
 
 
+def test_strips_v2_suffix_from_base_url(monkeypatch) -> None:
+    monkeypatch.setattr(alpaca_mod.settings, "alpaca_api_key", "PK")
+    monkeypatch.setattr(alpaca_mod.settings, "alpaca_api_secret", "SK")
+    monkeypatch.setattr(
+        alpaca_mod.settings,
+        "alpaca_base_url",
+        "https://paper-api.alpaca.markets/v2",
+    )
+    seen: list[str] = []
+
+    class _Resp:
+        status_code = 200
+        text = ""
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self):
+            return (
+                []
+                if getattr(self, "_list", False)
+                else {
+                    "equity": "1",
+                    "cash": "1",
+                    "buying_power": "1",
+                    "portfolio_value": "1",
+                    "status": "ACTIVE",
+                }
+            )
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def get(self, url: str, params: dict | None = None):
+            seen.append(url)
+            r = _Resp()
+            if url.endswith("/v2/positions") or url.endswith("/v2/orders"):
+                r._list = True  # type: ignore[attr-defined]
+            return r
+
+    monkeypatch.setattr(alpaca_mod.httpx, "Client", _Client)
+    snap = fetch_alpaca_mirror(use_cache=False)
+    assert snap.error is None
+    assert snap.base_url == "https://paper-api.alpaca.markets"
+    assert any(u.endswith("/v2/account") and u.count("/v2") == 1 for u in seen)
+
+
+def test_rejects_broker_api_base_url(monkeypatch) -> None:
+    monkeypatch.setattr(alpaca_mod.settings, "alpaca_api_key", "PK")
+    monkeypatch.setattr(alpaca_mod.settings, "alpaca_api_secret", "SK")
+    monkeypatch.setattr(
+        alpaca_mod.settings,
+        "alpaca_base_url",
+        "https://broker-api.sandbox.alpaca.markets",
+    )
+    snap = fetch_alpaca_mirror(use_cache=False)
+    assert snap.error is not None
+    assert "Broker API" in snap.error
+
+
 def test_adapter_satisfies_readonly_protocol(monkeypatch) -> None:
     """Smoke: module helpers line up with the planned read-only adapter shape."""
 
