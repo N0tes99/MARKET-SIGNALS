@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     # Keep-warm / scheduled paper ticks (header X-Cron-Secret). Empty = cron-tick off.
     cron_secret: str = ""
 
+    # Reddit social confirmation (public JSON). Disabled = F&G-only sentiment.
+    reddit_social_enabled: bool = True
+    reddit_user_agent: str = "signal-engine/1.0 (research bot; +https://github.com/N0tes99/MARKET-SIGNALS)"
+
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"
     site_totp_secret: str = ""

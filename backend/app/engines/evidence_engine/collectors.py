@@ -127,13 +127,13 @@ class OnChainEvidenceCollector:
 
 
 class SentimentEvidenceCollector:
-    """Collects Fear & Greed sentiment evidence."""
+    """Collects Fear & Greed + optional Reddit confirmation evidence."""
 
     def __init__(self, engine: SentimentEngine | None = None) -> None:
         self._engine = engine or SentimentEngine()
 
     def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:
-        """Return sentiment evidence."""
+        """Return sentiment evidence (uses symbol for Reddit confirmation)."""
         return self._engine.contribute_evidence(symbol, timeframe)
 
 

@@ -28,5 +28,9 @@ celery_app.conf.update(
             "task": "app.tasks.warm_cache.tick_paper_agent",
             "schedule": 300.0,
         },
+        "warm-reddit-social": {
+            "task": "app.tasks.warm_cache.warm_reddit_social",
+            "schedule": 900.0,
+        },
     },
 )

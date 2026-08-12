@@ -68,4 +68,4 @@
 - [x] API: `/equity-setups`, `/assets/{symbol}/equity-setups`
 - [x] Dashboard + asset detail UI
 - [ ] Unusual options flow adapter (paid data — deferred)
-- [ ] Social/narrative confirmation adapter (deferred)
+- [x] Social/narrative confirmation adapter (Reddit public buzz, confirmation-only)

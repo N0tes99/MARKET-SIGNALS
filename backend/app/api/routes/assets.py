@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+from threading import Lock, Thread
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import TypeAdapter
@@ -32,6 +33,31 @@ _ASSET_SUMMARY_LIST = TypeAdapter(list[AssetSummary])
 _DISK_CACHE_PATH = Path(
     os.environ.get("ASSETS_DISK_CACHE_PATH", "/tmp/se_assets_dashboard.json")
 )
+_REDDIT_WARM_LOCK = Lock()
+_REDDIT_WARM_STARTED = False
+
+
+def _kick_reddit_warm() -> None:
+    """Background-fill Reddit caches so ranking can pick them up next cycle."""
+    global _REDDIT_WARM_STARTED
+    with _REDDIT_WARM_LOCK:
+        if _REDDIT_WARM_STARTED:
+            return
+        _REDDIT_WARM_STARTED = True
+
+    def _run() -> None:
+        try:
+            from app.config import settings
+            from app.market_data.providers.reddit_public import prefetch_reddit_buzz
+
+            if not settings.reddit_social_enabled:
+                return
+            result = prefetch_reddit_buzz(list(TRACKED_SYMBOLS))
+            logger.info("Background Reddit warm: %s", result)
+        except Exception:
+            logger.exception("Background Reddit warm failed")
+
+    Thread(target=_run, name="reddit-warm", daemon=True).start()
 
 
 def _score_for_category(decision, category: str) -> float:
@@ -130,6 +156,7 @@ async def list_assets(
     alerts: AlertService = Depends(get_alert_service),
 ) -> list[AssetSummary]:
     """Return summary metrics for all tracked dashboard assets (SWR ~120s + disk)."""
+    _kick_reddit_warm()
     assets = await asyncio.to_thread(_get_dashboard_assets, pipeline, learning)
 
     # Don't block the response on Discord/email dispatch

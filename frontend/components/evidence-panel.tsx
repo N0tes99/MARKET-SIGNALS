@@ -64,6 +64,7 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
   }
 
   const itemsByCategory = Object.fromEntries(data.items.map((item) => [item.category, item]));
+  const sentimentItems = data.items.filter((item) => item.category === "Sentiment");
   const liquidationsUrl = coinglassLiquidationsUrl(symbol);
 
   return (
@@ -87,7 +88,11 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Object.entries(SECTION_MAP).map(([section, categories]) => {
-          const item = categories.map((c) => itemsByCategory[c]).find(Boolean);
+          const sectionItems =
+            section === "Sentiment"
+              ? sentimentItems
+              : categories.map((c) => itemsByCategory[c]).filter(Boolean);
+          const item = sectionItems[0];
           const showLiquidations = section === "On-Chain" && liquidationsUrl;
           return (
             <div key={section} className="surface p-5">
@@ -111,13 +116,31 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
                   </span>
                 )}
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                {item?.description ?? "—"}
-              </p>
-              {item && (
-                <p className="mt-3 font-mono text-[10px] text-muted-foreground/70">
-                  w{item.weight} · {item.source}
-                </p>
+              {sectionItems.length > 1 ? (
+                <ul className="mt-3 space-y-2">
+                  {sectionItems.map((row) => (
+                    <li key={`${row.source}-${row.description.slice(0, 24)}`}>
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {row.description}
+                      </p>
+                      <p className="mt-1 font-mono text-[10px] text-muted-foreground/70">
+                        <span className={scoreColor(row.score)}>{row.score.toFixed(0)}</span>
+                        {" · "}w{row.weight} · {row.source}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {item?.description ?? "—"}
+                  </p>
+                  {item && (
+                    <p className="mt-3 font-mono text-[10px] text-muted-foreground/70">
+                      w{item.weight} · {item.source}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           );
