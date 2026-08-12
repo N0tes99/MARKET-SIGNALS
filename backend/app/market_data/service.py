@@ -19,7 +19,9 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(ttl_seconds=180.0)
+_CHART_OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(ttl_seconds=30.0)
 _TICKER_CACHE: TTLCache[TickerSnapshot] = TTLCache(ttl_seconds=60.0)
+_CHART_TIMEFRAMES = frozenset({"1m", "5m", "15m"})
 _DERIVATIVES_CACHE: TTLCache[DerivativesSnapshot] = TTLCache(ttl_seconds=120.0)
 _WARM_WORKERS = 16
 
@@ -101,7 +103,8 @@ class MarketDataService:
             )
             return raw
 
-        df = _OHLCV_CACHE.get_or_set(cache_key, fetch)
+        cache = _CHART_OHLCV_CACHE if timeframe in _CHART_TIMEFRAMES else _OHLCV_CACHE
+        df = cache.get_or_set(cache_key, fetch)
         return validate_ohlcv(df.copy(), min_rows=min_rows)
 
     def get_ticker(self, symbol: str) -> TickerSnapshot:
