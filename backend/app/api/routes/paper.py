@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
-import secrets
 
 from app.config import settings
 from app.core.auth_deps import require_admin_user

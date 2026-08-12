@@ -122,7 +122,7 @@ def get_runner_scanner():
     """Singleton Surface 4 Runner Detection scanner."""
     from app.engines.runner_engine import RunnerScanner
 
-    return RunnerScanner()
+    return RunnerScanner(market_data=get_market_data_service())
 
 
 @lru_cache

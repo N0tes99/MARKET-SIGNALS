@@ -57,7 +57,7 @@ async def test_public_preview_allowed_when_gate_on(totp_secret: str) -> None:
 
 @pytest.mark.asyncio
 async def test_assets_list_allowed_for_keepwarm_when_gate_on(totp_secret: str) -> None:
-    """Exact /assets list is MFA-public so Actions keep-warm can rank; Basic Auth still applies in prod."""
+    """Exact /assets list is MFA-public so keep-warm can rank; Basic Auth still applies."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         res = await client.get("/api/v1/assets")

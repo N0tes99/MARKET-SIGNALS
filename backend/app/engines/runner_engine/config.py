@@ -108,6 +108,11 @@ class RunnerConfig:
     core_scale_low: float = 0.25
     core_scale_high: float = 1.25
     scan_cache_ttl_seconds: float = 120.0
+    # Tape-only (no fundamentals) cannot print a high Runner Score
+    structure_only_cap: float = 62.0
+
+
+RUNNER_PHASE = "2_structure"
 
 
 def default_runner_config() -> RunnerConfig:

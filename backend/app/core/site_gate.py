@@ -143,7 +143,7 @@ def is_access_public_path(path: str) -> bool:
     }
     if normalized in public:
         return True
-    # Admin waitlist / grants — still require_admin_user (session), so /admin/access works after MFA expiry.
+    # Admin waitlist / grants still require_admin_user after MFA expiry.
     if normalized.startswith("/api/v1/auth/access/"):
         return True
     return settings.app_env == "development" and normalized in {

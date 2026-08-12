@@ -114,7 +114,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
-| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 1 stub** |
+| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -479,7 +479,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 
 | System | Path | Status |
 |--------|------|--------|
-| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 1 stub** |
+| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Integration research plan | `docs/research/10x-runner-detection-layer.md` | **Written** |
 
 #### API (planned → Phase 1 live)
@@ -500,7 +500,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Seed universe is for testing/benchmarking — not hard-coded recommendations
 - Backtest must measure **lead time** and forbid look-ahead bias
 
-**Status:** `PHASE 1 STUB` — data model, composite score, stage classifier, seed scan, `/api/v1/runners*`. Dimension scorers are missing-data placeholders until Phase 2–3 providers land. See `docs/research/10x-runner-detection-layer.md`.
+**Status:** `PHASE 2 PREVIEW` — real daily structure (momentum + RS) and optional market-cap asymmetry. Fundamentals/catalyst still missing. Runner Score is structure-only capped. UI `/radar` is labeled preview. Ignition/running lists stay empty until Phase 3. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 
@@ -950,7 +950,7 @@ When adding a new system, follow this checklist:
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
-| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 1 stub** |
+| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview** |
 
 ---
 

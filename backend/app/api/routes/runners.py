@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_runner_scanner
-from app.engines.runner_engine.config import default_runner_config
+from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
 from app.engines.runner_engine.scanner import RunnerScanner
 from app.engines.runner_engine.types import RunnerCandidate
 from app.schemas.runners import (
@@ -71,6 +71,11 @@ def _to_schema(candidate: RunnerCandidate) -> RunnerCandidateSchema:
         data_quality=candidate.data_quality,
         as_of=candidate.as_of,
         phase=candidate.phase,
+        qualities=dict(candidate.qualities),
+        ret_20d_pct=candidate.tape.ret_20d_pct,
+        relative_volume=candidate.tape.relative_volume,
+        rs_benchmark=candidate.tape.rs_benchmark,
+        rs_pct=candidate.tape.rs_pct,
     )
 
 
@@ -136,7 +141,7 @@ async def get_runner_config_meta() -> RunnerConfigMetaResponse:
         alert_standard_runner_min=cfg.alerts.standard_runner_min,
         alert_early_fundamental_min=cfg.alerts.early_fundamental_min,
         alert_early_discovery_gap_min=cfg.alerts.early_discovery_gap_min,
-        phase="1_stub",
+        phase=RUNNER_PHASE,
     )
 
 

@@ -87,7 +87,7 @@ _SYMBOL_ALIASES: dict[str, tuple[str, ...]] = {
     "IBIT": ("IBIT", "Bitcoin ETF"),
 }
 
-_MEM_CACHE: TTLCache["RedditBuzzSnapshot | None"] = TTLCache(ttl_seconds=_CACHE_TTL)
+_MEM_CACHE: TTLCache[RedditBuzzSnapshot | None] = TTLCache(ttl_seconds=_CACHE_TTL)
 _RATE_LOCK = Lock()
 _LAST_REQUEST_AT = 0.0
 
@@ -336,7 +336,8 @@ def _fetch_live(symbol: str) -> RedditBuzzSnapshot:
 
     _throttle()
     try:
-        with httpx.Client(timeout=10.0, headers=_request_headers(), follow_redirects=True) as client:
+        headers = _request_headers()
+        with httpx.Client(timeout=10.0, headers=headers, follow_redirects=True) as client:
             resp = client.get(url, params=params)
             if resp.status_code in _BLOCK_STATUSES:
                 _note_block(resp.status_code, sym)

@@ -10,6 +10,14 @@ from app.utils.scoring_helpers import clamp_score
 
 logger = logging.getLogger(__name__)
 
+_CORE = ("fundamental", "catalyst", "structure", "asymmetry")
+_MODIFIERS = (
+    ("discovery_gap", "discovery_gap"),
+    ("theme_bottleneck", "theme_bottleneck"),
+    ("institutional_accum", "institutional_accum"),
+    ("short_squeeze_potential", "short_squeeze"),
+)
+
 
 def _scale(score: float, low: float, high: float) -> float:
     """Map 0–100 score into multiplicative band [low, high]."""
@@ -17,73 +25,81 @@ def _scale(score: float, low: float, high: float) -> float:
     return low + (high - low) * t
 
 
+def _filled(dim: DimensionScore) -> bool:
+    return dim.data_quality != "missing"
+
+
 def compose_runner_scores(
     dimensions: dict[str, DimensionScore],
     config: RunnerConfig,
 ) -> RunnerScores:
-    """Build RunnerScores from dimension outputs.
+    """Build RunnerScores from filled dimensions only.
 
-    Core = product of scaled Fundamental × Catalyst × Structure × Asymmetry.
-    Then add weighted modifiers and subtract penalties (Phase 1: penalties=0).
+    Missing stub 50s do not enter the core. Structure-only scans are capped
+    so tape cannot print a high Runner Score before fundamentals exist.
     """
-    f = dimensions["fundamental"].score
-    c = dimensions["catalyst"].score
-    s = dimensions["structure"].score
-    a = dimensions["asymmetry"].score
-    gap = dimensions["discovery_gap"].score
-    theme = dimensions["theme_bottleneck"].score
-    inst = dimensions["institutional_accum"].score
-    si = dimensions["short_squeeze_potential"].score
-
     low, high = config.core_scale_low, config.core_scale_high
-    core = (
-        _scale(f, low, high)
-        * _scale(c, low, high)
-        * _scale(s, low, high)
-        * _scale(a, low, high)
-    )
-    # Geometric mean-ish normalization so core≈1.0 maps near mid score
-    # four factors at 0.75 mid-scale → product ~0.316; map via root
-    core_norm = core ** 0.25 if core > 0 else 0.0
-    base = clamp_score(core_norm * 100.0)
+    filled_core = [name for name in _CORE if _filled(dimensions[name])]
+
+    if filled_core:
+        product = 1.0
+        for name in filled_core:
+            product *= _scale(dimensions[name].score, low, high)
+        core_norm = product ** (1.0 / len(filled_core)) if product > 0 else 0.0
+        base = clamp_score(core_norm * 100.0)
+    else:
+        core_norm = 0.0
+        base = 0.0
 
     w = config.weights
-    # Modifier contribution: (dim - 50) * weight, clipped
-    modifiers = (
-        w.discovery_gap * (gap - 50.0)
-        + w.theme_bottleneck * (theme - 50.0)
-        + w.institutional_accum * (inst - 50.0)
-        + w.short_squeeze * (si - 50.0)
-    )
+    modifiers = 0.0
+    weight_map = {
+        "discovery_gap": w.discovery_gap,
+        "theme_bottleneck": w.theme_bottleneck,
+        "institutional_accum": w.institutional_accum,
+        "short_squeeze_potential": w.short_squeeze,
+    }
+    for name, _attr in _MODIFIERS:
+        dim = dimensions[name]
+        if _filled(dim):
+            modifiers += weight_map[name] * (dim.score - 50.0)
+
     penalties = 0.0
     runner = clamp_score(base + modifiers - penalties)
 
-    # Risk stays separate: Phase 1 baseline elevated when data missing
+    fundamentals_ready = _filled(dimensions["fundamental"])
+    if not fundamentals_ready:
+        runner = min(runner, config.structure_only_cap)
+
     missing = sum(1 for d in dimensions.values() if d.data_quality == "missing")
     risk = clamp_score(40.0 + missing * 4.0)
 
+    def _reported(name: str) -> float:
+        return clamp_score(dimensions[name].score)
+
     scores = RunnerScores(
-        fundamental=clamp_score(f),
-        catalyst=clamp_score(c),
-        structure=clamp_score(s),
-        asymmetry=clamp_score(a),
-        discovery_gap=clamp_score(gap),
-        theme_bottleneck=clamp_score(theme),
-        institutional_accum=clamp_score(inst),
-        short_squeeze_potential=clamp_score(si),
+        fundamental=_reported("fundamental"),
+        catalyst=_reported("catalyst"),
+        structure=_reported("structure"),
+        asymmetry=_reported("asymmetry"),
+        discovery_gap=_reported("discovery_gap"),
+        theme_bottleneck=_reported("theme_bottleneck"),
+        institutional_accum=_reported("institutional_accum"),
+        short_squeeze_potential=_reported("short_squeeze_potential"),
         runner_score=runner,
         risk_score=risk,
         penalties=penalties,
     )
     logger.info(
-        "runner_compose core=%.4f core_norm=%.4f base=%.1f modifiers=%.2f "
-        "runner=%.1f risk=%.1f",
-        core,
+        "runner_compose filled_core=%s core_norm=%.4f base=%.1f modifiers=%.2f "
+        "runner=%.1f risk=%.1f cap=%s",
+        filled_core,
         core_norm,
         base,
         modifiers,
         runner,
         risk,
+        None if fundamentals_ready else config.structure_only_cap,
     )
     return scores
 
@@ -122,8 +138,9 @@ def collect_explainability(
 
 
 def confidence_from_dimensions(dimensions: dict[str, DimensionScore]) -> float:
-    """Mean dimension confidence, clamped."""
-    if not dimensions:
+    """Mean confidence of filled dimensions only."""
+    filled = [d for d in dimensions.values() if _filled(d)]
+    if not filled:
         return 0.0
-    avg = sum(d.confidence for d in dimensions.values()) / len(dimensions)
+    avg = sum(d.confidence for d in filled) / len(filled)
     return clamp_score(avg * 100.0 if avg <= 1.5 else avg)

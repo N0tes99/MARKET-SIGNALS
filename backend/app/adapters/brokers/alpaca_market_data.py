@@ -36,7 +36,7 @@ _MAX_SYMBOLS = 40
 _BATCH_SIZE = 20
 _SOFT_FAIL_STATUSES = frozenset({401, 403, 404, 429})
 
-_ACTIVITY_CACHE: TTLCache["AlpacaActivitySnapshot"] = TTLCache(
+_ACTIVITY_CACHE: TTLCache[AlpacaActivitySnapshot] = TTLCache(
     ttl_seconds=_CACHE_TTL_SECONDS
 )
 

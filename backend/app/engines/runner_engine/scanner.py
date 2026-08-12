@@ -14,7 +14,7 @@ from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
-_FEED_MAX_WORKERS = 6
+_FEED_MAX_WORKERS = 3
 
 
 class RunnerScanner:
@@ -24,9 +24,12 @@ class RunnerScanner:
         self,
         engine: RunnerEngine | None = None,
         config: RunnerConfig | None = None,
+        market_data=None,
     ) -> None:
         self.config = config or default_runner_config()
-        self.engine = engine or RunnerEngine(config=self.config)
+        self.engine = engine or RunnerEngine(
+            config=self.config, market_data=market_data
+        )
         self._cache: TTLCache[list[RunnerCandidate]] = TTLCache(
             ttl_seconds=self.config.scan_cache_ttl_seconds
         )

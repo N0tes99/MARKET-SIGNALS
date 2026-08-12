@@ -60,7 +60,12 @@ class RunnerCandidateSchema(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     data_quality: DataQuality = "missing"
     as_of: datetime
-    phase: str = "1_stub"
+    phase: str = "2_structure"
+    qualities: dict[str, DataQuality] = Field(default_factory=dict)
+    ret_20d_pct: float | None = None
+    relative_volume: float | None = None
+    rs_benchmark: str | None = None
+    rs_pct: float | None = None
 
 
 class RunnerFeedResponse(BaseModel):
@@ -99,4 +104,4 @@ class RunnerConfigMetaResponse(BaseModel):
     alert_standard_runner_min: float
     alert_early_fundamental_min: float
     alert_early_discovery_gap_min: float
-    phase: str = "1_stub"
+    phase: str = "2_structure"

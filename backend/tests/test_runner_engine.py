@@ -1,4 +1,4 @@
-"""Unit tests for Surface 4 Runner Detection (Phase 1 stub)."""
+"""Unit tests for Surface 4 Runner Detection (Phase 2 structure)."""
 
 from __future__ import annotations
 
@@ -8,46 +8,125 @@ from httpx import AsyncClient
 from app.core.service_dependencies import get_runner_scanner
 from app.engines.runner_engine import (
     DEFAULT_SEED_UNIVERSE,
+    RUNNER_PHASE,
     RunnerEngine,
     RunnerScanner,
     default_runner_config,
 )
 from app.engines.runner_engine.compose import compose_runner_scores
 from app.engines.runner_engine.config import RunnerConfig, StageThresholds
+from app.engines.runner_engine.scoring.structure import score_structure
 from app.engines.runner_engine.scoring.stubs import score_all_dimensions
 from app.engines.runner_engine.stage import classify, classify_stage
-from app.engines.runner_engine.types import RunnerScores
+from app.engines.runner_engine.types import DimensionScore, RunnerScores
 from app.main import app
+from app.market_data.providers.mock import MockMarketDataProvider, generate_trending_ohlcv
+from app.market_data.service import MarketDataService
+from app.market_data.symbols import TRACKED_SYMBOLS, is_tracked
+
+
+def _mock_md(*, market_cap: float | None = 1_200_000_000.0) -> MarketDataService:
+    return MarketDataService(
+        provider=MockMarketDataProvider(
+            ohlcv=generate_trending_ohlcv(rows=80),
+            market_cap=market_cap,
+        )
+    )
+
+
+def _missing(name: str, score: float = 50.0) -> DimensionScore:
+    return DimensionScore(
+        name=name,
+        score=score,
+        confidence=0.35,
+        factors=["stub"],
+        conflicts=["Insufficient data"],
+        data_quality="missing",
+    )
+
+
+def _good(name: str, score: float) -> DimensionScore:
+    return DimensionScore(
+        name=name,
+        score=score,
+        confidence=0.85,
+        factors=["live"],
+        conflicts=[],
+        data_quality="good",
+    )
 
 
 def test_seed_universe_nonempty() -> None:
     assert len(DEFAULT_SEED_UNIVERSE) >= 10
     assert "CRDO" in DEFAULT_SEED_UNIVERSE
     assert "SMCI" in DEFAULT_SEED_UNIVERSE
+    assert not is_tracked("CRDO")
 
 
-def test_stub_dimensions_mark_missing_data() -> None:
-    dims = score_all_dimensions("CRDO")
-    assert set(dims) >= {
-        "fundamental",
-        "catalyst",
-        "structure",
-        "asymmetry",
-        "discovery_gap",
+def test_structure_scorer_uses_momentum(monkeypatch) -> None:
+    md = _mock_md()
+    dim, tape = score_structure("CRDO", market_data=md)
+    assert dim.data_quality == "good"
+    assert 0 <= dim.score <= 100
+    assert any("20DMA" in f or "momentum" in f.lower() or "Momentum" in f for f in dim.factors)
+    assert tape.ret_20d_pct is not None
+    assert tape.relative_volume is not None
+
+
+def test_stub_fundamentals_still_missing() -> None:
+    dims, _tape = score_all_dimensions("CRDO", market_data=_mock_md())
+    assert dims["fundamental"].data_quality == "missing"
+    assert dims["catalyst"].data_quality == "missing"
+    assert dims["discovery_gap"].data_quality == "missing"
+    assert dims["structure"].data_quality == "good"
+
+
+def test_compose_ignores_missing_fifties() -> None:
+    dims = {
+        "fundamental": _missing("fundamental"),
+        "catalyst": _missing("catalyst"),
+        "structure": _good("structure", 80.0),
+        "asymmetry": _missing("asymmetry"),
+        "discovery_gap": _missing("discovery_gap"),
+        "theme_bottleneck": _missing("theme_bottleneck"),
+        "institutional_accum": _missing("institutional_accum"),
+        "short_squeeze_potential": _missing("short_squeeze_potential"),
     }
-    for dim in dims.values():
-        assert dim.data_quality == "missing"
-        assert 0 <= dim.score <= 100
-        assert dim.factors
-
-
-def test_compose_keeps_opportunity_and_risk_separate() -> None:
-    dims = score_all_dimensions("VRT")
     scores = compose_runner_scores(dims, default_runner_config())
-    assert 0 <= scores.runner_score <= 100
-    assert 0 <= scores.risk_score <= 100
-    # Missing data should elevate risk above a "clean data" baseline
+    assert scores.runner_score <= default_runner_config().structure_only_cap
+    assert scores.runner_score > 0
     assert scores.risk_score >= 50
+
+
+def test_compose_all_missing_is_capped_zeroish() -> None:
+    dims = {
+        name: _missing(name)
+        for name in (
+            "fundamental",
+            "catalyst",
+            "structure",
+            "asymmetry",
+            "discovery_gap",
+            "theme_bottleneck",
+            "institutional_accum",
+            "short_squeeze_potential",
+        )
+    }
+    scores = compose_runner_scores(dims, default_runner_config())
+    assert scores.runner_score == 0.0
+    assert scores.risk_score >= 50
+
+
+def test_structure_only_cannot_reach_ignition() -> None:
+    scores = RunnerScores(fundamental=50, catalyst=50, structure=90, discovery_gap=50)
+    stage, signal, watchlist = classify(
+        scores, default_runner_config(), fundamentals_available=False
+    )
+    assert stage in {"dormant", "early_accumulation"}
+    assert stage != "ignition"
+    assert watchlist in {"early", "none"}
+    assert watchlist != "ignition"
+    assert watchlist != "running"
 
 
 def test_stage_classifier_prioritizes_inflection_to_ignition() -> None:
@@ -73,43 +152,44 @@ def test_stage_classifier_prioritizes_inflection_to_ignition() -> None:
 
 def test_classify_watchlist_early_for_inflection() -> None:
     scores = RunnerScores(fundamental=75, catalyst=40, structure=40, discovery_gap=80)
-    stage, signal, watchlist = classify(scores, default_runner_config())
+    stage, signal, watchlist = classify(
+        scores, default_runner_config(), fundamentals_available=True
+    )
     assert stage == "fundamental_inflection"
     assert signal == "early_runner"
     assert watchlist == "early"
 
 
-def test_engine_evaluate_returns_explainable_candidate() -> None:
-    engine = RunnerEngine()
+def test_engine_evaluate_phase_two() -> None:
+    engine = RunnerEngine(market_data=_mock_md())
     candidate = engine.evaluate("crdo")
     assert candidate.symbol == "CRDO"
     assert candidate.instrument_type == "runner"
-    assert candidate.phase == "1_stub"
-    assert candidate.data_quality == "missing"
-    assert candidate.scores.runner_score >= 0
-    assert candidate.scores.risk_score >= 0
+    assert candidate.phase == RUNNER_PHASE
+    assert candidate.qualities["fundamental"] == "missing"
+    assert candidate.qualities["structure"] == "good"
+    assert candidate.scores.runner_score <= default_runner_config().structure_only_cap
+    assert candidate.stage in {"dormant", "early_accumulation"}
     assert any("Runner Score" in f for f in candidate.factors)
-    assert any("Risk Score" in f for f in candidate.factors)
-    assert candidate.risk_flags  # missing-data flags
-    assert candidate.conflicts
+    assert candidate.risk_flags
 
 
 def test_scanner_covers_seed_universe() -> None:
-    # Tiny universe for speed
     cfg = RunnerConfig(seed_universe=("CRDO", "ALAB", "VRT"))
-    scanner = RunnerScanner(config=cfg)
+    scanner = RunnerScanner(config=cfg, market_data=_mock_md())
     results = scanner.scan(use_cache=False)
     assert len(results) == 3
     assert {c.symbol for c in results} == {"CRDO", "ALAB", "VRT"}
     lists = scanner.lists()
     assert set(lists) == {"early", "ignition", "running"}
+    assert lists["ignition"] == []
+    assert lists["running"] == []
 
 
 @pytest.mark.asyncio
 async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
-    # Inject a tiny scanner so the feed stays fast
     cfg = RunnerConfig(seed_universe=("CRDO", "SMCI"))
-    scanner = RunnerScanner(config=cfg)
+    scanner = RunnerScanner(config=cfg, market_data=_mock_md())
     app.dependency_overrides[get_runner_scanner] = lambda: scanner
 
     feed = await client.get("/api/v1/runners")
@@ -118,34 +198,26 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
     assert body["symbols_scanned"] == 2
     assert len(body["candidates"]) == 2
     first = body["candidates"][0]
-    assert "scores" in first
-    assert "runner_score" in first["scores"]
-    assert "risk_score" in first["scores"]
-    assert first["factors"]
-    assert first["data_quality"] == "missing"
+    assert first["phase"] == RUNNER_PHASE
+    assert first["qualities"]["fundamental"] == "missing"
+    assert first["qualities"]["structure"] == "good"
+    assert first["scores"]["runner_score"] <= 62.0
 
     detail = await client.get("/api/v1/runners/CRDO")
     assert detail.status_code == 200
     cand = detail.json()["candidate"]
     assert cand["symbol"] == "CRDO"
-    assert cand["stage"] in {
-        "dormant",
-        "fundamental_inflection",
-        "early_accumulation",
-        "catalyst",
-        "ignition",
-        "discovery",
-        "momentum",
-        "extended",
-    }
+    assert cand["stage"] in {"dormant", "early_accumulation"}
 
     meta = await client.get("/api/v1/runners/meta/config")
     assert meta.status_code == 200
+    assert meta.json()["phase"] == RUNNER_PHASE
     assert "CRDO" in meta.json()["seed_universe"]
 
     lists = await client.get("/api/v1/runners/lists")
     assert lists.status_code == 200
-    assert "early" in lists.json()
+    assert lists.json()["ignition"] == []
+    assert lists.json()["running"] == []
 
     app.dependency_overrides.pop(get_runner_scanner, None)
 
@@ -153,6 +225,19 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_runners_api_does_not_require_surface1_tracked(client: AsyncClient) -> None:
     """Ad-hoc symbols are allowed — Surface 4 has its own universe."""
+    cfg = RunnerConfig(seed_universe=("ZZZZ",))
+    scanner = RunnerScanner(config=cfg, market_data=_mock_md())
+    app.dependency_overrides[get_runner_scanner] = lambda: scanner
     resp = await client.get("/api/v1/runners/ZZZZ")
     assert resp.status_code == 200
     assert resp.json()["candidate"]["symbol"] == "ZZZZ"
+    app.dependency_overrides.pop(get_runner_scanner, None)
+
+
+@pytest.mark.asyncio
+async def test_assets_list_excludes_untracked_runner_seed(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/assets")
+    assert response.status_code == 200
+    symbols = {row["symbol"] for row in response.json()}
+    assert "CRDO" not in symbols
+    assert symbols == set(TRACKED_SYMBOLS)

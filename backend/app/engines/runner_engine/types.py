@@ -43,6 +43,17 @@ STAGE_ORDER: tuple[RunnerStage, ...] = (
 
 
 @dataclass
+class RunnerTapeSnapshot:
+    """Structure-tape extras for the preview Radar UI (None = unknown)."""
+
+    ret_20d_pct: float | None = None
+    relative_volume: float | None = None
+    rs_benchmark: str | None = None
+    rs_pct: float | None = None
+    structure_score: float | None = None
+
+
+@dataclass
 class DimensionScore:
     """One scored dimension with explainability."""
 
@@ -88,4 +99,6 @@ class RunnerCandidate:
     data_quality: DataQuality = "missing"
     as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
     instrument_type: Literal["runner"] = "runner"
-    phase: str = "1_stub"
+    phase: str = "2_structure"
+    qualities: dict[str, DataQuality] = field(default_factory=dict)
+    tape: RunnerTapeSnapshot = field(default_factory=RunnerTapeSnapshot)

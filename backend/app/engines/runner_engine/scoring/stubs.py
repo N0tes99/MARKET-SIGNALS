@@ -1,18 +1,18 @@
-"""Phase 1 stub dimension scorers — explicit missing-data placeholders.
-
-Real fundamentals / catalysts / SI arrive in later phases. Structure stays
-neutral here; Phase 2 wires existing momentum / Sector RS helpers.
-"""
+"""Phase 2: real structure/asymmetry; other dimensions stay missing stubs."""
 
 from __future__ import annotations
 
 import logging
 
-from app.engines.runner_engine.types import DimensionScore
+from app.engines.runner_engine.config import RunnerConfig, default_runner_config
+from app.engines.runner_engine.scoring.asymmetry import score_asymmetry
+from app.engines.runner_engine.scoring.structure import score_structure
+from app.engines.runner_engine.types import DimensionScore, RunnerTapeSnapshot
+from app.market_data.service import MarketDataService
 
 logger = logging.getLogger(__name__)
 
-_STUB_NOTE = "Phase 1 stub — awaiting dedicated provider"
+_STUB_NOTE = "Phase 2 stub — awaiting dedicated provider"
 
 
 def _neutral(name: str, *, extra: str | None = None) -> DimensionScore:
@@ -47,19 +47,6 @@ def score_catalyst(symbol: str) -> DimensionScore:
     return _neutral("catalyst", extra=f"{symbol}: no catalyst detector wired yet")
 
 
-def score_structure(symbol: str) -> DimensionScore:
-    """Stub market-structure score (Phase 2: momentum + RS + volume)."""
-    return _neutral(
-        "structure",
-        extra=f"{symbol}: structure will reuse Layer 3 momentum / Sector RS in Phase 2",
-    )
-
-
-def score_asymmetry(symbol: str) -> DimensionScore:
-    """Stub asymmetry score (Phase 2: market cap / float / liquidity)."""
-    return _neutral("asymmetry", extra=f"{symbol}: market-cap / dilution feeds pending")
-
-
 def score_discovery_gap(symbol: str) -> DimensionScore:
     """Stub discovery-gap score (Phase 3)."""
     return _neutral(
@@ -86,15 +73,27 @@ def score_short_squeeze(symbol: str) -> DimensionScore:
     )
 
 
-def score_all_dimensions(symbol: str) -> dict[str, DimensionScore]:
-    """Return all Phase 1 stub dimensions for a symbol."""
-    return {
-        "fundamental": score_fundamental(symbol),
-        "catalyst": score_catalyst(symbol),
-        "structure": score_structure(symbol),
-        "asymmetry": score_asymmetry(symbol),
-        "discovery_gap": score_discovery_gap(symbol),
-        "theme_bottleneck": score_theme_bottleneck(symbol),
-        "institutional_accum": score_institutional(symbol),
-        "short_squeeze_potential": score_short_squeeze(symbol),
-    }
+def score_all_dimensions(
+    symbol: str,
+    *,
+    market_data: MarketDataService | None = None,
+    config: RunnerConfig | None = None,
+) -> tuple[dict[str, DimensionScore], RunnerTapeSnapshot]:
+    """Return Phase 2 dimensions: live structure/asymmetry, stub remainder."""
+    normalized = symbol.upper().strip()
+    md = market_data or MarketDataService()
+    cfg = config or default_runner_config()
+    structure, tape = score_structure(normalized, market_data=md)
+    return (
+        {
+            "fundamental": score_fundamental(normalized),
+            "catalyst": score_catalyst(normalized),
+            "structure": structure,
+            "asymmetry": score_asymmetry(normalized, market_data=md, config=cfg),
+            "discovery_gap": score_discovery_gap(normalized),
+            "theme_bottleneck": score_theme_bottleneck(normalized),
+            "institutional_accum": score_institutional(normalized),
+            "short_squeeze_potential": score_short_squeeze(normalized),
+        },
+        tape,
+    )

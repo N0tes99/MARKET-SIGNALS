@@ -109,8 +109,29 @@ def classify(
     config: RunnerConfig,
     *,
     has_severe_risk: bool = False,
+    fundamentals_available: bool = False,
 ) -> tuple[RunnerStage, RunnerSignalType, WatchlistBucket]:
-    """Full classification with logging."""
+    """Full classification with logging.
+
+    Until fundamentals are real, only dormant / early_accumulation may emit.
+    Ignition and running lists stay empty.
+    """
+    if not fundamentals_available:
+        if scores.structure >= config.stages.structure_accumulation:
+            stage: RunnerStage = "early_accumulation"
+        else:
+            stage = "dormant"
+        signal = classify_signal(stage, scores, has_severe_risk=has_severe_risk)
+        watchlist = classify_watchlist(stage, signal)
+        logger.info(
+            "runner_stage structure_only s%.1f → stage=%s signal=%s list=%s",
+            scores.structure,
+            stage,
+            signal,
+            watchlist,
+        )
+        return stage, signal, watchlist
+
     stage = classify_stage(scores, config.stages)
     signal = classify_signal(stage, scores, has_severe_risk=has_severe_risk)
     watchlist = classify_watchlist(stage, signal)

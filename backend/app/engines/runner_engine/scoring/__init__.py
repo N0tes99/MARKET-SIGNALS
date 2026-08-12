@@ -1,4 +1,4 @@
-"""Modular Runner Detection scorers (Phase 1 stubs → later real providers)."""
+"""Modular Runner Detection scorers (Phase 2: live structure; other dims stub)."""
 
 from app.engines.runner_engine.scoring.stubs import score_all_dimensions
 

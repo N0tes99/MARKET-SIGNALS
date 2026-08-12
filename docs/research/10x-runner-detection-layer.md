@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 1 stub implemented** (API + model live; dimension providers still placeholders).
+> Status: **Phase 2 preview** (structure + optional asymmetry live; fundamentals still missing; `/radar` labeled preview).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -184,12 +184,13 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 - Unit tests on types, stage classifier stubs, config loading
 - **No** dashboard polish yet beyond API
 
-### Phase 2 — Structure + asymmetry from existing data
+### Phase 2 — Structure + asymmetry from existing data (**done — preview**)
 
 - Reuse Layer 3 momentum helpers + Sector RS + volume for **Market Structure Score**
-- Yahoo (or existing) market cap / float proxies for **Asymmetry** (with microcap penalties when data present)
-- Seed universe scan (config list: NBIS, CRDO, …) without polluting Surface 1 tracked set
-- Compression → ignition heuristics from ATR range + rel volume
+- Yahoo `fast_info.market_cap` for **Asymmetry** (missing when cap absent)
+- Seed universe scan without polluting Surface 1 `TRACKED_SYMBOLS` (Yahoo accepts ad-hoc 1–5 letter tickers)
+- Compose uses **filled dimensions only**; structure-only Runner Score capped; ignition/running blocked
+- Preview UI: `/radar` + home strip, labeled **Preview · structure only**. Missing dims render as em dash, not 50.
 
 ### Phase 3 — Fundamentals + catalyst + discovery gap
 

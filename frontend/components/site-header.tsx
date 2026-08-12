@@ -39,12 +39,20 @@ function MainNav() {
         Social
       </Link>
       {user ? (
-        <Link
-          href="/request-ticker"
-          className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Request
-        </Link>
+        <>
+          <Link
+            href="/radar"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Radar
+          </Link>
+          <Link
+            href="/request-ticker"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Request
+          </Link>
+        </>
       ) : null}
       {user?.is_admin ? (
         <>
