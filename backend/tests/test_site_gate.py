@@ -43,6 +43,19 @@ async def test_data_requires_login_when_gate_on(totp_secret: str) -> None:
 
 
 @pytest.mark.asyncio
+async def test_public_preview_allowed_when_gate_on(totp_secret: str) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/public/preview")
+    assert res.status_code == 200
+    body = res.json()
+    assert "hot_picks" in body
+    assert "optimistic" in body
+    assert "honest" in body
+    assert "total_pnl" in body["optimistic"]
+
+
+@pytest.mark.asyncio
 async def test_verify_totp_code_helper(totp_secret: str) -> None:
     code = pyotp.TOTP(totp_secret).now()
     assert verify_totp_code(code)

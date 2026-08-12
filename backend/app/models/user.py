@@ -39,11 +39,21 @@ class User(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    # Per-user authenticator: secret shown once until confirmed
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+
+    @property
+    def totp_enrolled(self) -> bool:
+        return self.totp_confirmed_at is not None and bool(self.totp_secret)
 
     posts: Mapped[list["Post"]] = relationship(  # noqa: F821
         back_populates="author",

@@ -57,13 +57,31 @@ export default function RegisterPage() {
         <h1 className="mt-2 text-2xl font-light tracking-tight">Create account</h1>
 
         {checkEmail ? (
-          <div className="surface mt-8 space-y-3 p-5">
-            <p className="text-sm text-foreground">Check your email</p>
-            <p className="text-sm text-muted-foreground">
-              We sent a confirmation link to{" "}
-              <span className="text-foreground">{checkEmail}</span>. Open it to
-              activate your account before posting.
-            </p>
+          <div className="surface mt-8 space-y-4 p-5">
+            <div>
+              <p className="text-sm text-foreground">Check your email</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                We sent a confirmation link to{" "}
+                <span className="text-foreground">{checkEmail}</span>. Open it to
+                activate your account.
+              </p>
+            </div>
+            <div className="border-t border-white/[0.06] pt-4">
+              <p className="label-caps text-muted-foreground/60">What happens next</p>
+              <ol className="mt-3 list-decimal space-y-2 pl-4 text-sm text-muted-foreground">
+                <li>Confirm your email, then sign in.</li>
+                <li>Wait on the waitlist until an admin grants access.</li>
+                <li>
+                  When first allowed, add your personal setup key to an authenticator
+                  app (Google Authenticator, Authy, etc.) and keep it there — you&apos;ll
+                  need that app ongoing.
+                </li>
+                <li>
+                  Unlock with the 6-digit code from the app whenever your session
+                  resets (about every 12 hours).
+                </li>
+              </ol>
+            </div>
             <Link
               href="/login"
               className="inline-block font-mono text-xs uppercase tracking-wide text-foreground underline-offset-4 hover:underline"
@@ -74,7 +92,8 @@ export default function RegisterPage() {
         ) : (
           <>
             <p className="mt-2 text-sm text-muted-foreground">
-              Join discussions on tracked assets. We&apos;ll email a confirmation link.
+              Join discussions on tracked assets. We&apos;ll email a confirmation
+              link, then walk you through access and authenticator unlock.
             </p>
 
             <form onSubmit={onSubmit} className="surface mt-8 space-y-4 p-5">
