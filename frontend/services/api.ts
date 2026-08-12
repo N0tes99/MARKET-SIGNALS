@@ -611,6 +611,89 @@ export async function fetchAssetEquitySetups(
   );
 }
 
+export type RunnerStage =
+  | "dormant"
+  | "fundamental_inflection"
+  | "early_accumulation"
+  | "catalyst"
+  | "ignition"
+  | "discovery"
+  | "momentum"
+  | "extended";
+
+export type RunnerWatchlist = "early" | "ignition" | "running" | "none";
+export type RunnerDataQuality = "good" | "degraded" | "missing";
+
+export interface RunnerScores {
+  fundamental: number;
+  catalyst: number;
+  structure: number;
+  asymmetry: number;
+  discovery_gap: number;
+  theme_bottleneck: number;
+  institutional_accum: number;
+  short_squeeze_potential: number;
+  runner_score: number;
+  risk_score: number;
+  penalties: number;
+}
+
+export interface RunnerCandidate {
+  id: string;
+  symbol: string;
+  instrument_type: "runner";
+  stage: RunnerStage;
+  signal_type: string;
+  watchlist: RunnerWatchlist;
+  scores: RunnerScores;
+  factors: string[];
+  conflicts: string[];
+  risk_flags: string[];
+  confidence: number;
+  data_quality: RunnerDataQuality;
+  as_of: string;
+  phase: string;
+  qualities: Record<string, RunnerDataQuality>;
+  ret_20d_pct: number | null;
+  relative_volume: number | null;
+  rs_benchmark: string | null;
+  rs_pct: number | null;
+}
+
+export interface RunnerFeedResponse {
+  candidates: RunnerCandidate[];
+  scanned_at: string;
+  symbols_scanned: number;
+  watchlist: RunnerWatchlist | null;
+  min_runner_score: number;
+  stage: RunnerStage | null;
+}
+
+export interface RunnerListsResponse {
+  early: RunnerCandidate[];
+  ignition: RunnerCandidate[];
+  running: RunnerCandidate[];
+  scanned_at: string;
+  symbols_scanned: number;
+}
+
+export interface RunnerDetailResponse {
+  candidate: RunnerCandidate;
+  scanned_at: string;
+}
+
+export async function fetchRunnersFeed(): Promise<RunnerFeedResponse> {
+  return apiFetch<RunnerFeedResponse>("/api/v1/runners", 120_000);
+}
+
+export async function fetchRunnerLists(): Promise<RunnerListsResponse> {
+  return apiFetch<RunnerListsResponse>("/api/v1/runners/lists", 120_000);
+}
+
+export async function fetchRunnerDetail(symbol: string): Promise<RunnerDetailResponse> {
+  return apiFetch<RunnerDetailResponse>(`/api/v1/runners/${symbol}`, 90_000);
+}
+
 export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }

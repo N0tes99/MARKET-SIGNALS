@@ -20,6 +20,7 @@ from app.api.routes import (
     paper,
     public_preview,
     quotes,
+    runners,
     setups,
     social,
     ticker_requests,
@@ -52,6 +53,7 @@ api_router.include_router(equity_setups.router, prefix="/assets", tags=["equity-
 api_router.include_router(
     equity_setups.feed_router, prefix="/equity-setups", tags=["equity-setups"]
 )
+api_router.include_router(runners.router, prefix="/runners", tags=["runners"])
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper"])

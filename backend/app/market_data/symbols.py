@@ -1,5 +1,6 @@
 """Tracked assets, asset classes, and exchange symbol mappings."""
 
+import re
 from enum import StrEnum
 from typing import Final
 
@@ -142,9 +143,24 @@ TIMEFRAME_MAP: dict[str, str] = {
 }
 
 
+_US_EQUITY_TICKER = re.compile(r"^[A-Z]{1,5}$")
+
+
 def is_tracked(symbol: str) -> bool:
     """Return True if the symbol is on the dashboard watchlist."""
     return symbol.upper() in TRACKED_SYMBOLS_SET
+
+
+def looks_like_us_equity_ticker(symbol: str) -> bool:
+    """True for a 1–5 letter US ticker that is not a tracked crypto symbol.
+
+    Used by Surface 4 / Yahoo so seed names (CRDO, ALAB, …) can fetch OHLCV
+    without being added to Surface 1 ``TRACKED_SYMBOLS``.
+    """
+    normalized = symbol.upper().strip()
+    if not _US_EQUITY_TICKER.fullmatch(normalized):
+        return False
+    return normalized not in ASSET_CLASS_MAP or ASSET_CLASS_MAP[normalized] != AssetClass.CRYPTO
 
 
 def get_asset_class(symbol: str) -> AssetClass:

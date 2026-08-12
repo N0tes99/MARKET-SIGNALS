@@ -47,9 +47,14 @@ def generate_trending_ohlcv(
 class MockMarketDataProvider:
     """In-memory market data for unit tests."""
 
-    def __init__(self, ohlcv: pd.DataFrame | None = None) -> None:
+    def __init__(
+        self,
+        ohlcv: pd.DataFrame | None = None,
+        market_cap: float | None = None,
+    ) -> None:
         """Initialize with optional pre-built OHLCV data."""
-        self._ohlcv = ohlcv or generate_trending_ohlcv()
+        self._ohlcv = generate_trending_ohlcv() if ohlcv is None else ohlcv
+        self._market_cap = market_cap
 
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
         """Return synthetic OHLCV data."""
@@ -58,7 +63,12 @@ class MockMarketDataProvider:
     def get_ticker(self, symbol: str) -> TickerSnapshot:
         """Return ticker based on latest synthetic close."""
         price = float(self._ohlcv.iloc[-1]["close"])
-        return TickerSnapshot(symbol=symbol.upper(), price=price, timestamp=datetime.now(UTC))
+        return TickerSnapshot(
+            symbol=symbol.upper(),
+            price=price,
+            timestamp=datetime.now(UTC),
+            market_cap=self._market_cap,
+        )
 
     def get_derivatives(self, symbol: str) -> DerivativesSnapshot:
         """Return neutral derivatives snapshot."""

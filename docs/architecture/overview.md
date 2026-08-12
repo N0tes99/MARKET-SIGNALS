@@ -20,6 +20,8 @@ Market Data → [Specialized Engines] → Evidence Engine → Opportunity Engine
 
 Analysis engines, decision pipeline (Opportunity / Execution / Risk), Learning Engine, AI Analyst, and backtesting are **implemented**. Dashboard rankings come from `GET /api/v1/assets` (TanStack Query poll); responses include `data_degraded` when market data is stale or providers fail repeatedly. Backend `WS /api/v1/ws/dashboard` exists; a frontend live client is deferred (Next.js API proxy does not upgrade WebSockets). Compose runs `celery-beat` for the warm-cache schedule. See `ARCHITECTURE.md` §3–§9 and `docs/roadmap/milestones.md`.
 
+**Surfaces:** (1) asset ranking, (2) crypto setups, (3) equity options (MVP), (4) Runner Detection / 10X Radar — **Phase 2 preview** (structure + optional cap; `/radar` labeled preview; fundamentals TBD). Plan: `docs/research/10x-runner-detection-layer.md`.
+
 ## Scoring Weights (Default)
 
 13 categories normalized to 100. Core seven (Structure / Momentum / Trend / Risk / Volume / Macro / Derivatives) are relative shares of ~80–85; residual ~15–20 across Correlation, Volatility, Events, Sector RS, On-Chain, Sentiment. See `DEFAULT_WEIGHTS` and `REGIME_WEIGHT_PROFILES` in `backend/app/scoring/weights.py`. Regime swaps full profiles (Trending / Choppy / High-vol); item `confidence` defaults to 1.0.

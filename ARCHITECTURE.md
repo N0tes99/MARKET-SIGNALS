@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.5.0 |
-| Last updated | 2026-08-09 |
-| Status | M4–M6 complete; Layer 3 equity-options surface in progress |
+| Version | 0.5.1 |
+| Last updated | 2026-08-12 |
+| Status | M4–M9 MVP complete; Surface 4 Runner Detection planned (M10) |
 
 ---
 
@@ -114,6 +114,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
+| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -419,6 +420,87 @@ Layer 3 **does not** alter 13-category grades or crypto scanners. It is WATCH/IG
 | `/api/v1/assets/{symbol}/equity-setups` | GET | Per-asset Layer 3 ideas + plan |
 
 **Status:** `IMPLEMENTED` (MVP) — momentum scanner, Yahoo option-chain selector, staged plans; unusual flow deferred
+
+---
+
+### 5.5 Surface 4 — Runner Detection Layer (10X Radar)
+
+**Purpose:** Fourth decision surface. Early-warning radar for **asymmetric fundamental transitions** — companies moving from undiscovered → accumulating → catalyst-driven → institutional discovery → breakout — *before* the market fully prices a structural change.
+
+```
+Surface 1 — Asset ranking          Evidence → Opportunity grade → WAIT/WATCH/EXECUTE
+Surface 2 — Crypto setups          funding_extreme / liq_flush / basis_rich (perps)
+Surface 3 — Equity options setups  momentum_continuation / breakout_convexity + option pick + staged plan
+Surface 4 — Runner detection       Fundamental inflection → discovery gap → ignition (equities)
+```
+
+Surface 4 **does not** alter 13-category grades, crypto scanners, or Layer 3 options scores. It is an opportunity detector (WATCHLIST / ALERT), not an EXECUTE path in M10.
+
+#### Core question
+
+> Which companies are undergoing a meaningful fundamental or market-structure change that the market may not have fully priced in yet?
+
+Optimize for **inflection lead time**, not “stocks that go up tomorrow.” A 10× outcome is an extreme tail, not the expected label.
+
+#### Pipeline
+
+```
+Runner universe (config seed → later screener)
+        ↓
+Data collection (OHLCV + fundamentals + catalysts + SI/ownership)
+        ↓
+Fundamental acceleration → Catalyst → Market structure → Asymmetry → Discovery gap
+        ↓
+Theme / bottleneck + modifiers − risk penalties
+        ↓
+RUNNER_SCORE + RISK_SCORE (separate) → Stage 0–7 → Signal type
+        ↓
+EARLY / IGNITION / RUNNING lists → Alerts + 10X Radar dashboard
+```
+
+#### Score dimensions
+
+| Score | Role |
+|-------|------|
+| Fundamental | Business inflection; **acceleration > absolute growth** |
+| Catalyst | Expectation-changing events (weighted by materiality) |
+| Market Structure | RS, volume, compression → ignition |
+| Asymmetry | Cap/float/liquidity/dilution (cap is a variable, not a buy signal) |
+| Discovery Gap | Fundamental/catalyst change vs price already paid |
+| Theme / Bottleneck | Second-order beneficiaries (“find the bottleneck,” not hard-coded AI) |
+
+Short interest = **accelerant only**. Popularity ≠ bullish. Always explain factors + conflicts + risk flags.
+
+#### Stages (prioritize 1→4)
+
+`Dormant → Fundamental Inflection → Early Accumulation → Catalyst → Ignition → Discovery → Momentum → Extended`
+
+#### Module location
+
+| System | Path | Status |
+|--------|------|--------|
+| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
+| Integration research plan | `docs/research/10x-runner-detection-layer.md` | **Written** |
+
+#### API (planned → Phase 1 live)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/runners` | GET | Ranked feed + EARLY/IGNITION/RUNNING filters |
+| `/api/v1/runners/lists` | GET | EARLY / IGNITION / RUNNING buckets |
+| `/api/v1/runners/meta/config` | GET | Public thresholds + seed universe |
+| `/api/v1/runners/{symbol}` | GET | Full score breakdown + explainability |
+
+#### Design rules
+
+- Reuse existing momentum / Sector RS / volume helpers; do not duplicate blindly
+- New fundamentals / short interest / ownership providers behind protocols with graceful degrade
+- Config-driven weights and alert thresholds (`runner_engine/config.py`)
+- Opportunity Score and Risk Score never collapse into one number
+- Seed universe is for testing/benchmarking — not hard-coded recommendations
+- Backtest must measure **lead time** and forbid look-ahead bias
+
+**Status:** `PHASE 2 PREVIEW` — real daily structure (momentum + RS) and optional market-cap asymmetry. Fundamentals/catalyst still missing. Runner Score is structure-only capped. UI `/radar` is labeled preview. Ignition/running lists stay empty until Phase 3. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 
@@ -868,6 +950,7 @@ When adding a new system, follow this checklist:
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
+| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview** |
 
 ---
 
