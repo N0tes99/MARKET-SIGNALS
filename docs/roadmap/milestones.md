@@ -69,3 +69,16 @@
 - [x] Dashboard + asset detail UI
 - [ ] Unusual options flow adapter (paid data — deferred)
 - [x] Social/narrative confirmation adapter (Reddit public buzz, confirmation-only)
+
+## Milestone 10 — Surface 4 Runner Detection (10X Radar)
+
+Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-runner-detection-layer.md`.
+
+- [x] Architecture spec (Surface 4; does not alter Surfaces 1–3)
+- [x] Integration plan (reuse map, gaps, phases, API sketch)
+- [ ] Phase 1 — Data model, config, stub `RunnerEngine` + `/api/v1/runners`
+- [ ] Phase 2 — Structure + asymmetry from existing OHLCV/RS helpers; seed universe scan
+- [ ] Phase 3 — Fundamentals provider, catalyst detection, Discovery Gap (+ optional SI/ownership)
+- [ ] Phase 4 — Stages, signal types, EARLY/IGNITION/RUNNING, alerts, 10X Radar dashboard
+- [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
+- [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
