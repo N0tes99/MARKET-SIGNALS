@@ -1,5 +1,6 @@
 """Binance public REST API market data provider."""
 
+import os
 from datetime import UTC, datetime
 
 import httpx
@@ -12,6 +13,18 @@ from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
 # Geo/auth blocks — fail fast so FallbackProvider can try Kraken.
 _SOFT_FAIL_STATUS = frozenset({403, 418, 451})
+
+
+def use_binance() -> bool:
+    """False on Render (US IPs get 451). Opt in with BINANCE_ENABLED=true."""
+    raw = os.environ.get("BINANCE_ENABLED", "").strip().lower()
+    if raw in {"0", "false", "no"}:
+        return False
+    if raw in {"1", "true", "yes"}:
+        return True
+    if os.environ.get("RENDER"):
+        return False
+    return bool(settings.binance_enabled)
 
 
 class BinanceBlockedError(RuntimeError):

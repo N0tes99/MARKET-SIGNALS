@@ -1,4 +1,4 @@
-"""Deep derivatives snapshots — Binance first, Bybit fallback."""
+"""Deep derivatives snapshots — Bybit on Render; Binance only when reachable."""
 
 from __future__ import annotations
 
@@ -242,13 +242,16 @@ def fetch_bybit_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth | N
 
 
 def fetch_derivatives_depth(symbol: str) -> DerivativesDepth | None:
-    """Binance first; fall back to Bybit when Binance fails or is empty."""
+    """Bybit on geo-blocked hosts; Binance only when it can actually answer."""
+    from app.market_data.providers.binance import use_binance
+
     key = symbol.upper()
 
     def _load() -> DerivativesDepth | None:
-        depth = fetch_binance_depth(key)
-        if depth is not None and depth.funding_rate is not None:
-            return depth
+        if use_binance():
+            depth = fetch_binance_depth(key)
+            if depth is not None and depth.funding_rate is not None:
+                return depth
         return fetch_bybit_depth(key)
 
     return _DEPTH_CACHE.get_or_set(key, _load)

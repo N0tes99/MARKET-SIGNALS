@@ -118,7 +118,7 @@ export default function AdminAccessPage() {
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          <p className="break-words font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
             {health?.strip ?? "env…"}
           </p>
           <button

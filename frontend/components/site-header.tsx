@@ -31,7 +31,7 @@ function BuiltByNotes() {
 function MainNav() {
   const { user } = useAuth();
   return (
-    <nav className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-4 sm:gap-y-2">
+    <nav className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:gap-x-4 sm:gap-y-2">
       <Link
         href="/social"
         className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
@@ -104,9 +104,14 @@ export function SiteHeader({
   if (compact) {
     return (
       <header className="sticky top-0 z-40 border-b border-white/[0.05] bg-card/20 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/15">
-        <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3.5">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <SignalEngineLogo size="sm" />
+        <div className="container mx-auto flex flex-col gap-2 px-3 py-3 sm:px-4 sm:py-3.5">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <SignalEngineLogo size="sm" />
+              <p className="truncate font-mono text-[11px] uppercase tracking-widest text-muted-foreground/70">
+                {title}
+              </p>
+            </div>
             <BuiltByNotes />
           </div>
           <MainNav />
