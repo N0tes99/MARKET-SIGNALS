@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.dependencies import get_db
 from app.core.security import SESSION_COOKIE_NAME, cookie_secure, create_access_token, hash_password
+from app.core.wallet_identity import random_wallet_username, synthetic_wallet_email
 from app.models.user import User
 from app.models.wallet import WalletAccount, WalletAuthChallenge
 from app.schemas.auth import UserSchema
@@ -270,15 +271,9 @@ def _user_schema(user: User) -> UserSchema:
     )
 
 
-def _synthetic_identity(chain: str, address: str) -> tuple[str, str]:
-    if chain == CHAIN_ETHEREUM:
-        compact = address.lower().removeprefix("0x")
-        return f"eth.{compact}@wallets.signalengine.app", f"eth_{compact[:8]}"
-    if chain == CHAIN_SOLANA:
-        compact = re.sub(r"[^a-zA-Z0-9]", "", address)[:16].lower()
-        return f"sol.{compact}@wallets.signalengine.app", f"sol_{compact[:8]}"
-    compact = address.lower().removeprefix("0x")[:16]
-    return f"sui.{compact}@wallets.signalengine.app", f"sui_{compact[:8]}"
+async def _taken_usernames(session: AsyncSession) -> set[str]:
+    rows = await session.execute(select(User.username))
+    return {name.lower() for name in rows.scalars().all() if name}
 
 
 async def _get_or_create_wallet_user(
@@ -301,16 +296,11 @@ async def _get_or_create_wallet_user(
             raise HTTPException(status_code=500, detail="Wallet user missing")
         return user
 
-    email, username = _synthetic_identity(chain, address)
-    prefix = {"ethereum": "eth", "solana": "sol", "sui": "sui"}[chain]
-    base_username = username
-    for i in range(8):
-        clash = await session.execute(select(User).where(User.username == username))
-        if clash.scalar_one_or_none() is None:
-            break
-        username = f"{base_username}{i + 1}"
-    else:
-        username = f"{prefix}_{secrets.token_hex(4)}"
+    try:
+        username = random_wallet_username(address, taken=await _taken_usernames(session))
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail="Could not assign username") from exc
+    email = synthetic_wallet_email(username)
 
     user = User(
         email=email,

@@ -13,6 +13,7 @@ from eth_account.messages import encode_defunct
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from tests.conftest import _test_admin_user
 
 from app.api.routes.wallet_auth import (
     _build_login_message,
@@ -23,6 +24,7 @@ from app.api.routes.wallet_auth import (
     _verify_sui_signature,
 )
 from app.config import settings
+from app.core.auth_deps import require_admin_user
 from app.core.dependencies import get_db
 from app.core.security import SESSION_COOKIE_NAME
 from app.database.base import Base
@@ -143,7 +145,12 @@ async def test_wallet_challenge_and_verify_roundtrip(wallet_client) -> None:
     )
     assert verify.status_code == 200
     user = verify.json()
-    assert user["username"].startswith("eth_")
+    handle = user["username"]
+    assert 3 <= len(handle) <= 8
+    assert handle.isalpha()
+    assert set(handle.lower()).isdisjoint({ch.lower() for ch in address if ch.isalnum()})
+    assert address.lower().removeprefix("0x") not in handle.lower()
+    assert "@" not in handle
     assert SESSION_COOKIE_NAME in verify.cookies
 
     async with factory() as session:
@@ -155,6 +162,9 @@ async def test_wallet_challenge_and_verify_roundtrip(wallet_client) -> None:
         db_user = await session.get(User, links[0].user_id)
         assert db_user is not None
         assert db_user.email_verified_at is not None
+        assert db_user.username == handle
+        assert address.lower().removeprefix("0x") not in db_user.email.lower()
+        assert db_user.email.endswith("@wallets.signalengine.app")
 
     replay = await client.post(
         "/api/v1/auth/wallet/verify",
@@ -192,7 +202,8 @@ async def test_solana_challenge_and_verify_roundtrip(wallet_client) -> None:
         },
     )
     assert verify.status_code == 200
-    assert verify.json()["username"].startswith("sol_")
+    handle = verify.json()["username"]
+    assert set(handle.lower()).isdisjoint({ch.lower() for ch in address if ch.isalnum()})
 
     async with factory() as session:
         rows = await session.execute(
@@ -227,7 +238,8 @@ async def test_sui_challenge_and_verify_roundtrip(wallet_client) -> None:
         },
     )
     assert verify.status_code == 200
-    assert verify.json()["username"].startswith("sui_")
+    handle = verify.json()["username"]
+    assert set(handle.lower()).isdisjoint({ch.lower() for ch in address if ch.isalnum()})
 
     async with factory() as session:
         rows = await session.execute(select(WalletAccount).where(WalletAccount.chain == "sui"))
@@ -256,6 +268,47 @@ async def test_wallet_verify_rejects_wrong_signer(wallet_client) -> None:
         },
     )
     assert verify.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_wallet_inbox_shows_address(wallet_client) -> None:
+    client, _factory = wallet_client
+    acct = Account.create()
+    address = acct.address
+    challenge = await client.post(
+        "/api/v1/auth/wallet/challenge",
+        json={"chain": "ethereum", "address": address, "chain_id": 1},
+    )
+    body = challenge.json()
+    signed = acct.sign_message(encode_defunct(text=body["message"]))
+    signature = signed.signature.hex()
+    if not signature.startswith("0x"):
+        signature = f"0x{signature}"
+    verify = await client.post(
+        "/api/v1/auth/wallet/verify",
+        json={
+            "chain": "ethereum",
+            "address": address,
+            "signature": signature,
+            "nonce": body["nonce"],
+        },
+    )
+    assert verify.status_code == 200
+    handle = verify.json()["username"]
+
+    app.dependency_overrides[require_admin_user] = _test_admin_user
+    try:
+        inbox = await client.get("/api/v1/auth/access/wallets")
+    finally:
+        app.dependency_overrides.pop(require_admin_user, None)
+
+    assert inbox.status_code == 200
+    rows = inbox.json()
+    assert len(rows) == 1
+    assert rows[0]["username"] == handle
+    assert rows[0]["address"] == address.lower()
+    assert rows[0]["chain"] == "ethereum"
+    assert rows[0]["granted"] is False
 
 
 @pytest.mark.asyncio

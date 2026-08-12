@@ -980,6 +980,17 @@ export interface WaitlistUser {
   email_verified: boolean;
 }
 
+export interface WalletAccessUser {
+  user_id: string;
+  username: string;
+  chain: string;
+  address: string;
+  created_at: string;
+  granted: boolean;
+  grant_id: string | null;
+  grant_expires_at: string | null;
+}
+
 export async function fetchGateStatus(): Promise<GateStatus> {
   const response = await fetch(apiUrl("/api/v1/auth/gate/status"), {
     credentials: FETCH_CREDENTIALS,
@@ -1048,6 +1059,17 @@ export async function fetchWaitlistUsers(): Promise<WaitlistUser[]> {
     throw new Error(await readErrorDetail(response));
   }
   return response.json() as Promise<WaitlistUser[]>;
+}
+
+export async function fetchAccessWallets(): Promise<WalletAccessUser[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/wallets"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<WalletAccessUser[]>;
 }
 
 export async function createAccessGrant(body: {

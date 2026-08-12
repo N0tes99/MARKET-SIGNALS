@@ -27,6 +27,7 @@ from app.core.dependencies import get_db
 from app.core.security import JWT_ALGORITHM, SESSION_COOKIE_NAME, cookie_secure, decode_access_token
 from app.models.access_grant import AccessGrantModel
 from app.models.user import User
+from app.models.wallet import WalletAccount
 
 MFA_COOKIE_NAME = "se_mfa"
 router = APIRouter()
@@ -259,6 +260,17 @@ class WaitlistUserSchema(BaseModel):
     email_verified: bool
 
 
+class WalletAccessSchema(BaseModel):
+    user_id: UUID
+    username: str
+    chain: str
+    address: str
+    created_at: datetime
+    granted: bool
+    grant_id: UUID | None = None
+    grant_expires_at: datetime | None = None
+
+
 def _user_has_access(user: User, granted: bool) -> bool:
     return granted or settings.is_admin_username(user.username)
 
@@ -433,10 +445,11 @@ async def list_waitlist(
         AccessGrantModel.revoked_at.is_(None),
         AccessGrantModel.expires_at > now,
     )
+    wallet_ids = select(WalletAccount.user_id)
     rows = (
         await session.execute(
             select(User)
-            .where(User.id.notin_(active_ids))
+            .where(User.id.notin_(active_ids), User.id.notin_(wallet_ids))
             .order_by(User.created_at.desc())
             .limit(80)
         )
@@ -452,6 +465,56 @@ async def list_waitlist(
         for u in rows
         if not settings.is_admin_username(u.username)
     ]
+
+
+@router.get("/access/wallets", response_model=list[WalletAccessSchema])
+async def list_wallet_users(
+    _admin: User = Depends(require_admin_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[WalletAccessSchema]:
+    """Wallet-linked accounts — addresses stay on this admin inbox only."""
+    now = datetime.now(UTC)
+    rows = (
+        await session.execute(
+            select(WalletAccount, User)
+            .join(User, User.id == WalletAccount.user_id)
+            .order_by(WalletAccount.created_at.desc())
+            .limit(200)
+        )
+    ).all()
+    user_ids = [u.id for _link, u in rows]
+    grants_by_user: dict[UUID, AccessGrantModel] = {}
+    if user_ids:
+        grant_rows = (
+            await session.execute(
+                select(AccessGrantModel)
+                .where(
+                    AccessGrantModel.user_id.in_(user_ids),
+                    AccessGrantModel.revoked_at.is_(None),
+                    AccessGrantModel.expires_at > now,
+                )
+                .order_by(AccessGrantModel.expires_at.desc())
+            )
+        ).scalars().all()
+        for grant in grant_rows:
+            grants_by_user.setdefault(grant.user_id, grant)
+
+    out: list[WalletAccessSchema] = []
+    for link, u in rows:
+        grant = grants_by_user.get(u.id)
+        out.append(
+            WalletAccessSchema(
+                user_id=u.id,
+                username=u.username,
+                chain=link.chain,
+                address=link.address,
+                created_at=link.created_at,
+                granted=grant is not None,
+                grant_id=grant.id if grant else None,
+                grant_expires_at=grant.expires_at if grant else None,
+            )
+        )
+    return out
 
 
 @router.get("/access/grants", response_model=list[AccessGrantSchema])
@@ -471,12 +534,15 @@ async def list_grants(
     out: list[AccessGrantSchema] = []
     for grant, u in rows:
         active = grant.revoked_at is None and grant.expires_at > now
+        email = u.email
+        if email.endswith("@wallets.signalengine.app"):
+            email = "wallet account"
         out.append(
             AccessGrantSchema(
                 id=grant.id,
                 user_id=u.id,
                 username=u.username,
-                email=u.email,
+                email=email,
                 expires_at=grant.expires_at,
                 notes=grant.notes or "",
                 revoked_at=grant.revoked_at,

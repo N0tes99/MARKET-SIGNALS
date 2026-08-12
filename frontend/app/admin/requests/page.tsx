@@ -65,6 +65,10 @@ export default function AdminTickerRequestsPage() {
           <Link href="/admin/access" className="underline-offset-2 hover:underline">
             Access grants
           </Link>
+          {" · "}
+          <Link href="/admin/wallets" className="underline-offset-2 hover:underline">
+            Wallets
+          </Link>
         </p>
 
         <div className="mt-6 flex gap-2">

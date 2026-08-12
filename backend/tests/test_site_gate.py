@@ -145,3 +145,12 @@ async def test_waitlist_skips_mfa_but_still_requires_admin(totp_secret: str) -> 
     assert res.status_code == 401
     body = res.json()
     assert body.get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
+
+
+@pytest.mark.asyncio
+async def test_wallet_inbox_skips_mfa_but_still_requires_admin(totp_secret: str) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/auth/access/wallets")
+    assert res.status_code == 401
+    assert res.json().get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
