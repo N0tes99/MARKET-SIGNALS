@@ -1,6 +1,7 @@
 "use client";
 
 import { Share } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useHomescreen } from "@/components/homescreen-provider";
@@ -13,11 +14,13 @@ const STORAGE_KEY = "se_homescreen_tip_dismissed_v1";
  */
 export function HomescreenInstallTip() {
   const { displayMode, isApple, isInstallable, promptInstall } = useHomescreen();
+  const pathname = usePathname() ?? "/";
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (displayMode === "standalone") return;
+    if (pathname !== "/") return;
     try {
       if (window.localStorage.getItem(STORAGE_KEY) === "1") return;
     } catch {
@@ -25,7 +28,7 @@ export function HomescreenInstallTip() {
     }
     const t = window.setTimeout(() => setVisible(true), 1800);
     return () => window.clearTimeout(t);
-  }, [displayMode]);
+  }, [displayMode, pathname]);
 
   if (!visible || displayMode === "standalone") return null;
 

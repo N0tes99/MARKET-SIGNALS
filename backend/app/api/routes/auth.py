@@ -166,8 +166,11 @@ async def login(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response) -> None:
-    """Clear the session cookie."""
+    """Clear the session cookie and authenticator unlock cookie."""
+    from app.core.site_gate import clear_mfa_cookie
+
     _clear_session_cookie(response)
+    clear_mfa_cookie(response)
 
 
 @router.get("/me", response_model=UserSchema)

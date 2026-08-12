@@ -73,7 +73,11 @@ export function AlpacaActivityPanel() {
   });
 
   const configured = data?.configured === true;
-  const rows = [...(data?.rows ?? [])].sort((a, b) => {
+  if (isLoading || !data || !configured) {
+    return null;
+  }
+
+  const rows = [...(data.rows ?? [])].sort((a, b) => {
     const av = Math.abs(a.change_pct ?? 0);
     const bv = Math.abs(b.change_pct ?? 0);
     return bv - av;
@@ -90,7 +94,7 @@ export function AlpacaActivityPanel() {
         </div>
         <div className="flex items-center gap-3">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
-            {configured ? `${data?.feed ?? "iex"}` : "keys needed"}
+            {data?.feed ?? "iex"}
             {data?.cached ? " · cached" : ""}
           </p>
           <button
@@ -104,32 +108,21 @@ export function AlpacaActivityPanel() {
         </div>
       </div>
 
-      {isLoading && (
-        <p className="mt-4 font-mono text-xs text-muted-foreground/60">Loading IEX snapshots…</p>
-      )}
       {isError && (
         <p className="mt-4 font-mono text-xs text-bearish">Could not load Alpaca activity.</p>
       )}
 
-      {!isLoading && data && !configured && (
-        <p className="mt-4 border border-dashed border-white/[0.08] px-4 py-6 font-mono text-xs text-muted-foreground/65">
-          Set <span className="text-foreground/80">ALPACA_API_KEY</span> +{" "}
-          <span className="text-foreground/80">ALPACA_API_SECRET</span> on the API to enable free
-          IEX activity (Basic plan — no paid SIP).
-        </p>
-      )}
-
-      {!isLoading && data && configured && data.error && (
+      {data.error && (
         <p className="mt-4 font-mono text-xs text-bearish">{data.error}</p>
       )}
 
-      {!isLoading && data && configured && !data.error && rows.length === 0 && (
+      {!data.error && rows.length === 0 && (
         <p className="mt-4 font-mono text-xs text-muted-foreground/60">
           No IEX rows returned (market closed or symbols quiet on IEX).
         </p>
       )}
 
-      {!isLoading && configured && rows.length > 0 && (
+      {rows.length > 0 && (
         <ul className="mt-4 max-h-80 overflow-y-auto">
           {rows.slice(0, 24).map((row) => (
             <ActivityRow key={row.symbol} row={row} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -8,10 +8,27 @@ import { useAuth } from "@/components/auth-provider";
 import { SignalEngineLogo } from "@/components/signal-engine-logo";
 import { fetchGateStatus, type GateStatus } from "@/services/api";
 
+function routeForGate(status: GateStatus): string | null {
+  if (status.next_step === "mfa" || status.next_step === "enroll") return "/unlock";
+  if (status.next_step === "dashboard" || status.next_step === "open") return "/";
+  if (status.next_step === "login") return "/login?next=/pending";
+  return null;
+}
+
 export default function PendingPage() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
   const [status, setStatus] = useState<GateStatus | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const applyStatus = useCallback(
+    (s: GateStatus) => {
+      setStatus(s);
+      const dest = routeForGate(s);
+      if (dest) router.replace(dest);
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -23,17 +40,24 @@ export default function PendingPage() {
     (async () => {
       const s = await fetchGateStatus();
       if (cancelled) return;
-      setStatus(s);
-      if (s.next_step === "mfa" || s.next_step === "enroll") {
-        router.replace("/unlock");
-      } else if (s.next_step === "dashboard" || s.next_step === "open") {
-        router.replace("/");
-      }
+      applyStatus(s);
     })().catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [loading, user, router]);
+  }, [loading, user, router, applyStatus]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      const s = await fetchGateStatus();
+      applyStatus(s);
+    } catch {
+      /* keep last status */
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
     <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
@@ -71,10 +95,11 @@ export default function PendingPage() {
         <div className="mt-8 flex flex-wrap gap-4">
           <button
             type="button"
-            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
-            onClick={() => void fetchGateStatus().then(setStatus)}
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline disabled:opacity-40"
+            disabled={refreshing}
+            onClick={() => void onRefresh()}
           >
-            Refresh
+            {refreshing ? "Checking…" : "Refresh"}
           </button>
           <Link
             href="/login"

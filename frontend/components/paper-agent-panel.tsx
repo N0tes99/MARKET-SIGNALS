@@ -16,6 +16,14 @@ import {
 
 const TRADE_COLLAPSE_AFTER = 5;
 
+function lastTickMeta(iso: string | null): { text: string; stale: boolean } {
+  if (!iso) return { text: "no tick yet", stale: true };
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (min < 2) return { text: "just now", stale: false };
+  if (min < 60) return { text: `${min}m ago`, stale: min > 15 };
+  return { text: `${Math.round(min / 60)}h ago`, stale: true };
+}
+
 function money(n: number): string {
   const sign = n > 0 ? "+" : n < 0 ? "" : "";
   return `${sign}${n.toLocaleString(undefined, {
@@ -246,7 +254,7 @@ export function PaperAgentPanel() {
         <div>
           <h2 className="label-caps">Paper agent</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            living bot · up to 3 opens/day · dual fills · public track record
+            public proof track · dual fills · daily open cap
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -317,13 +325,23 @@ export function PaperAgentPanel() {
 
           <p className="mt-3 font-mono text-[10px] text-muted-foreground/45">
             Starting {money(data.starting_cash)} paper · each idea locks {money(data.optimistic.size_usd ?? 2500)}{" "}
-            notional (equity only moves with PnL) · max{" "}
-            {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} open · up to 3
-            opens/day · TP +6% / SL −3% · max hold 3d
-            {data.last_tick_at
-              ? ` · last tick ${new Date(data.last_tick_at).toLocaleTimeString()}`
-              : ""}
+            notional · max{" "}
+            {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} concurrent ·{" "}
+            {Math.max(0, (data.daily_open_cap ?? 3) - (data.opens_today ?? 0))} of{" "}
+            {data.daily_open_cap ?? 3} daily opens left · TP +6% / SL −3% · max hold 3d
+            {" · last tick "}
+            <span className={lastTickMeta(data.last_tick_at).stale ? "text-muted-foreground/70" : ""}>
+              {lastTickMeta(data.last_tick_at).text}
+            </span>
           </p>
+          {data.tick_notes?.some((n) => n.startsWith("skip:daily_cap") || n === "discover:skipped") ? (
+            <p className="mt-1 font-mono text-[10px] text-muted-foreground/40">
+              {data.tick_notes
+                .filter((n) => n.startsWith("skip:daily_cap") || n === "discover:skipped")
+                .slice(0, 2)
+                .join(" · ")}
+            </p>
+          ) : null}
 
           {data.maturity ? <MaturityBar maturity={data.maturity} /> : null}
           {tradeCount > 0 ? (

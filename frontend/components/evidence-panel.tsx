@@ -57,7 +57,7 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
     return (
       <div className="surface p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          Unable to load evidence. Start the backend to see live data.
+          Unable to load evidence. Retry in a moment — the API may still be warming.
         </p>
       </div>
     );

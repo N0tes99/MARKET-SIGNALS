@@ -143,6 +143,9 @@ def is_access_public_path(path: str) -> bool:
     }
     if normalized in public:
         return True
+    # Admin waitlist / grants — still require_admin_user (session), so /admin/access works after MFA expiry.
+    if normalized.startswith("/api/v1/auth/access/"):
+        return True
     return settings.app_env == "development" and normalized in {
         "/docs",
         "/redoc",
@@ -246,6 +249,14 @@ class AccessGrantCreateSchema(BaseModel):
     username: str = Field(min_length=1, max_length=32)
     expires_at: datetime
     notes: str = Field(default="", max_length=500)
+
+
+class WaitlistUserSchema(BaseModel):
+    id: UUID
+    username: str
+    email: str
+    created_at: datetime
+    email_verified: bool
 
 
 def _user_has_access(user: User, granted: bool) -> bool:
@@ -409,6 +420,38 @@ async def gate_logout(
 ) -> GateStatusSchema:
     clear_mfa_cookie(response)
     return await gate_status(request, user, session)
+
+
+@router.get("/access/waitlist", response_model=list[WaitlistUserSchema])
+async def list_waitlist(
+    _admin: User = Depends(require_admin_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[WaitlistUserSchema]:
+    """Users with no active grant — the operator waitlist inbox."""
+    now = datetime.now(UTC)
+    active_ids = select(AccessGrantModel.user_id).where(
+        AccessGrantModel.revoked_at.is_(None),
+        AccessGrantModel.expires_at > now,
+    )
+    rows = (
+        await session.execute(
+            select(User)
+            .where(User.id.notin_(active_ids))
+            .order_by(User.created_at.desc())
+            .limit(80)
+        )
+    ).scalars().all()
+    return [
+        WaitlistUserSchema(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            created_at=u.created_at,
+            email_verified=u.email_verified,
+        )
+        for u in rows
+        if not settings.is_admin_username(u.username)
+    ]
 
 
 @router.get("/access/grants", response_model=list[AccessGrantSchema])

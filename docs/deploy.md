@@ -16,7 +16,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 - `GET /api/v1/health` is public (Render healthchecks).
 - All other API routes require Basic Auth when `AUTH_PASSWORD` is set (proxy injects it).
 - **Site Authenticator gate:** when `SITE_TOTP_SECRET` is set, browsers must unlock
-  via `/unlock` with a 6-digit TOTP code; unlock sets httpOnly cookie `se_gate`
+  via `/unlock` with a 6-digit TOTP code; unlock sets httpOnly cookie `se_mfa`
   (default 12h). API also requires that cookie (Basic Auth alone is not enough).
 - Social accounts use a second layer: email/password JWT in httpOnly cookie `se_session`
   (Secure + SameSite=Lax). The `/api/backend/*` proxy forwards `Cookie` / `Set-Cookie`.

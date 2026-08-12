@@ -38,7 +38,7 @@ function ResetPasswordInner() {
     try {
       await resetPassword(token, password);
       await refresh();
-      router.replace("/unlock");
+      router.replace("/unlock?next=/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reset password");
     } finally {

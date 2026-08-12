@@ -104,6 +104,8 @@ def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperS
         recent_closed=[_trade_schema(t) for t in s.recent_closed],
         tick_notes=list(s.tick_notes),
         maturity=maturity,
+        opens_today=s.opens_today,
+        daily_open_cap=s.daily_open_cap,
     )
 
 
