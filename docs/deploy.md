@@ -169,7 +169,7 @@ Defaults use the Netlify proxy when variables are unset. Prefer **direct Render 
 | `API_ASSETS_URL` | `https://market-signals-51f0.onrender.com/api/v1/assets` |
 | `API_PAPER_CRON_URL` | optional; defaults from health host → `/api/v1/paper/cron-tick` |
 
-`/assets` and `/paper/cron-tick` are Basic-Auth protected on Render. Add Actions **secrets** (not variables):
+`/assets` and `/paper/cron-tick` bypass the MFA product gate (so keep-warm works without a browser session) but stay **Basic-Auth** protected on Render. Add Actions **secrets** (not variables):
 
 | Secret | Value |
 |--------|--------|

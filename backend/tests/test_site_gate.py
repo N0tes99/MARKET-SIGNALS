@@ -56,6 +56,26 @@ async def test_public_preview_allowed_when_gate_on(totp_secret: str) -> None:
 
 
 @pytest.mark.asyncio
+async def test_assets_list_allowed_for_keepwarm_when_gate_on(totp_secret: str) -> None:
+    """Exact /assets list is MFA-public so Actions keep-warm can rank; Basic Auth still applies in prod."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/assets")
+    # Not LOGIN_REQUIRED — middleware let it through (handler may 200 or soft-fail).
+    assert res.status_code != 401
+    assert res.headers.get("www-authenticate") is None
+
+
+@pytest.mark.asyncio
+async def test_asset_symbol_still_requires_mfa_when_gate_on(totp_secret: str) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/assets/AAPL")
+    assert res.status_code == 401
+    assert res.json()["code"] == "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
 async def test_verify_totp_code_helper(totp_secret: str) -> None:
     code = pyotp.TOTP(totp_secret).now()
     assert verify_totp_code(code)
