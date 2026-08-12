@@ -6,6 +6,7 @@ import hashlib
 import logging
 from datetime import UTC, datetime
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from app.engines.learning_engine.engine import LearningEngine
 from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsScanner
@@ -52,6 +53,13 @@ def _dir(bias: str) -> PaperDirection | None:
     if bias == "short":
         return "short"
     return None
+
+
+def us_cash_session_open(now: datetime) -> bool:
+    """True Mon–Fri in America/New_York. Weekend equity last prints are stale."""
+    aware = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    et = aware.astimezone(ZoneInfo("America/New_York"))
+    return et.weekday() < 5
 
 
 class PaperAgent:
@@ -169,15 +177,19 @@ class PaperAgent:
                 )
 
             # --- Equity Layer 3 ---
-            try:
-                equity_ideas = self._equity.scan_feed(
-                    watch_only=False,
-                    min_confidence=MIN_CONFIDENCE,
-                )
-            except Exception:
-                logger.exception("Paper agent equity feed failed")
+            if not us_cash_session_open(now):
+                notes.append("skip:equity_weekend")
                 equity_ideas = []
-                notes.append("equity_feed_error")
+            else:
+                try:
+                    equity_ideas = self._equity.scan_feed(
+                        watch_only=False,
+                        min_confidence=MIN_CONFIDENCE,
+                    )
+                except Exception:
+                    logger.exception("Paper agent equity feed failed")
+                    equity_ideas = []
+                    notes.append("equity_feed_error")
 
             for idea in equity_ideas:
                 direction = _dir(idea.direction_bias)

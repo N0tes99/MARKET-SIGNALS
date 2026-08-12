@@ -718,3 +718,50 @@ def test_ledger_exit_without_pnl_uses_exit_not_live_mark() -> None:
     assert opt.losses == 1
     assert opt.total_pnl < 0
     assert abs(opt.realized_pnl - (-75.0)) < 0.01
+
+
+def test_us_cash_session_weekend() -> None:
+    from app.engines.paper_agent.agent import us_cash_session_open
+
+    sunday = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    monday = datetime(2026, 8, 10, 15, 0, tzinfo=UTC)
+    assert us_cash_session_open(sunday) is False
+    assert us_cash_session_open(monday) is True
+
+
+def test_agent_skips_equity_on_weekend(monkeypatch) -> None:
+    store = PaperTradeStore()
+    sunday = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            raise AssertionError("equity scanner must not run on weekend")
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=100.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+    )
+
+    class _DT:
+        @staticmethod
+        def now(tz=None):
+            return sunday
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    notes = agent.tick()
+    assert "skip:equity_weekend" in notes
+    assert store.list_all() == []

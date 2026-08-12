@@ -13,5 +13,5 @@ class AIExplanationSchema(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     factors: list[str] = Field(default_factory=list, description="Supporting evidence bullets")
     conflicts: list[str] = Field(default_factory=list, description="Opposing signals flagged")
-    source: str = Field(..., description="local or openai")
+    source: str = Field(..., description="local, openai, or gemini")
     generated_at: datetime

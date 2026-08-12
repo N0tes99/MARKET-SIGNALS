@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/1"
 
     openai_api_key: str = ""
+    # Google AI Studio (free quota). Used when OPENAI_API_KEY is empty.
+    gemini_api_key: str = ""
 
     binance_spot_url: str = "https://api.binance.com"
     binance_futures_url: str = "https://fapi.binance.com"

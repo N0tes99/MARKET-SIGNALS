@@ -16,8 +16,12 @@ def _sample_decision() -> DecisionResult:
     return pipeline.evaluate("BTC")
 
 
-def test_local_explanation_produces_summary() -> None:
+def test_local_explanation_produces_summary(monkeypatch) -> None:
     """AI Analyst returns a summary without OpenAI key."""
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
     analyst = AIAnalyst()
     decision = _sample_decision()
     explanation = analyst.explain_decision(decision)
@@ -48,4 +52,68 @@ async def test_analysis_api_endpoint(client: AsyncClient) -> None:
     data = response.json()
     assert data["symbol"] == "BTC"
     assert "summary" in data
-    assert data["source"] in {"local", "openai"}
+    assert data["source"] in {"local", "openai", "gemini"}
+
+
+def test_local_summary_uses_fear_greed_and_reddit(monkeypatch) -> None:
+    from app.engines.evidence_engine.types import EvidenceBundle
+    from app.engines.execution_engine.engine import ExecutionResult, ExecutionSignal
+    from app.engines.opportunity_engine.engine import OpportunityResult
+    from app.scoring.grading import TradeState
+
+    items = [
+        EvidenceItem(
+            "sentiment_engine",
+            "Sentiment",
+            34.0,
+            2.0,
+            "Fear & Greed 82 (Extreme Greed) — extreme greed, caution",
+        ),
+        EvidenceItem(
+            "reddit_social",
+            "Sentiment",
+            38.0,
+            1.0,
+            "Reddit: crowded bullish chatter — caution (12 posts, eng 400, lean +0.80)",
+        ),
+        EvidenceItem("t", "Trend", 72.0, 20.0, "uptrend intact"),
+        EvidenceItem("mo", "Momentum", 68.0, 15.0, "thrust higher"),
+        EvidenceItem("ev", "Events", 55.0, 5.0, "no near catalyst"),
+    ]
+    evidence = EvidenceBundle(
+        symbol="NVDA",
+        timeframe="1h",
+        items=items,
+        total_confidence=62.0,
+    )
+    decision = DecisionResult(
+        symbol="NVDA",
+        evidence=evidence,
+        opportunity=OpportunityResult(
+            symbol="NVDA",
+            opportunity_score=62.0,
+            trade_grade="C",
+            expected_value=0.0,
+            trade_state=TradeState.WATCH,
+            description="NVDA: Building evidence",
+        ),
+        execution=ExecutionResult(
+            symbol="NVDA",
+            signal=ExecutionSignal.WATCH,
+            confidence=62.0,
+            description="watch",
+        ),
+        risk=None,
+        trade_state=TradeState.WATCH,
+        summary="NVDA — watch",
+    )
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
+    explanation = AIAnalyst().explain_decision(decision)
+    assert explanation.source == "local"
+    assert "Crowd:" in explanation.summary
+    assert "Fear & Greed" in explanation.summary
+    assert "Reddit" in explanation.summary
+    assert any("crowded" in c.lower() or "chase" in c.lower() for c in explanation.conflicts)

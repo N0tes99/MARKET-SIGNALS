@@ -70,6 +70,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `ALPACA_API_SECRET` | optional — pair with `ALPACA_API_KEY`; leave both blank to show empty state |
 | `ALPACA_BASE_URL` | optional; default `https://paper-api.alpaca.markets` (paper). Use `https://api.alpaca.markets` for live keys |
 | `ALPACA_DATA_BASE_URL` | optional; default `https://data.alpaca.markets` — Market Data host for **IEX-only** free snapshots (`feed=iex`). Never request SIP / Algo Trader Plus. Yahoo remains primary OHLCV. |
+| `OPENAI_API_KEY` | optional **paid** — `gpt-4o-mini` on `/assets/{symbol}/analysis`. Leave blank unless you accept bills |
+| `GEMINI_API_KEY` | optional **free quota** — Google AI Studio. Used when `OPENAI_API_KEY` is empty. Analysis still works locally with Fear & Greed + tape if both are blank |
 
 ### Optional alert / email-verify vars
 
