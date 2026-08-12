@@ -29,6 +29,15 @@ export interface AssetSummary {
   data_stale_reason?: string | null;
 }
 
+export type RankingStatus = "fresh" | "stale" | "warming";
+
+export interface AssetsDashboard {
+  assets: AssetSummary[];
+  ranking_status: RankingStatus;
+  cache_age_seconds?: number | null;
+  as_of?: string | null;
+}
+
 export interface HealthResponse {
   status: string;
   app_name: string;
@@ -243,9 +252,9 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/v1/health");
 }
 
-export async function fetchAssets(): Promise<AssetSummary[]> {
-  // Match Netlify proxy budget for cold rank_all (see backend/[...path]/route.ts).
-  return apiFetch<AssetSummary[]>("/api/v1/assets", 110_000);
+export async function fetchAssets(): Promise<AssetsDashboard> {
+  // Default path is progressive (snapshot + background warm) — short budget.
+  return apiFetch<AssetsDashboard>("/api/v1/assets", 20_000);
 }
 
 export async function fetchAsset(symbol: string): Promise<AssetSummary> {
