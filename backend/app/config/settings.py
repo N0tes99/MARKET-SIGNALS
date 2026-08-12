@@ -97,8 +97,11 @@ class Settings(BaseSettings):
     # Keep-warm / scheduled paper ticks (header X-Cron-Secret). Empty = cron-tick off.
     cron_secret: str = ""
 
-    # Reddit social confirmation (public JSON). Disabled = F&G-only sentiment.
+    # Reddit social confirmation. Disabled = F&G-only sentiment.
     reddit_social_enabled: bool = True
+    # Official OAuth from reddit.com/prefs/apps (script or web). Required on Render.
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
     # Reddit format: <platform>:<app ID>:<version> (contact). Override via REDDIT_USER_AGENT.
     reddit_user_agent: str = (
         "web:signal-engine:v1.1.0 (research; +https://github.com/N0tes99/MARKET-SIGNALS)"

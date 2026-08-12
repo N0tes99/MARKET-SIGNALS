@@ -1,4 +1,4 @@
-"""Polite Reddit public JSON client (no OAuth) for ticker buzz."""
+"""Reddit ticker-buzz client (official OAuth, public JSON fallback)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,10 @@ from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_BASE = "https://www.reddit.com"
+_PUBLIC_SEARCH_BASE = "https://www.reddit.com"
+_OAUTH_SEARCH_BASE = "https://oauth.reddit.com"
+_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+_INSTALLED_GRANT = "https://oauth.reddit.com/grants/installed_client"
 _CACHE_TTL = 1_800.0  # 30 minutes
 _MIN_REQUEST_GAP = 1.25  # polite spacing between live Reddit calls
 _DISK_DIR = Path("/tmp/signal-engine/reddit")
@@ -97,6 +100,10 @@ _CONSECUTIVE_BLOCKS = 0
 _LAST_BLOCK_LOG_AT = 0.0
 _SUPPRESSED_BLOCK_LOGS = 0
 
+_TOKEN_LOCK = Lock()
+_ACCESS_TOKEN: str | None = None
+_TOKEN_EXPIRES_AT = 0.0
+
 
 @dataclass(frozen=True)
 class RedditPostHit:
@@ -147,13 +154,96 @@ def _user_agent() -> str:
     return _DEFAULT_USER_AGENT
 
 
-def _request_headers() -> dict[str, str]:
-    """Headers Reddit expects for public JSON (unique UA + browser-ish Accept)."""
-    return {
+def _request_headers(*, bearer: str | None = None) -> dict[str, str]:
+    """Headers Reddit expects (unique UA + browser-ish Accept)."""
+    headers = {
         "User-Agent": _user_agent(),
         "Accept": "application/json",
         "Accept-Language": "en-US,en;q=0.9",
     }
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
+    return headers
+
+
+def oauth_configured() -> bool:
+    """True when a Reddit app client id is set (secret optional for installed apps)."""
+    return bool(settings.reddit_client_id.strip())
+
+
+def reset_oauth_token() -> None:
+    """Drop cached OAuth token (tests / after 401)."""
+    global _ACCESS_TOKEN, _TOKEN_EXPIRES_AT
+    with _TOKEN_LOCK:
+        _ACCESS_TOKEN = None
+        _TOKEN_EXPIRES_AT = 0.0
+
+
+def _cached_token() -> str | None:
+    with _TOKEN_LOCK:
+        if _ACCESS_TOKEN and time.monotonic() < _TOKEN_EXPIRES_AT:
+            return _ACCESS_TOKEN
+    return None
+
+
+def _store_token(token: str, expires_in: float) -> None:
+    global _ACCESS_TOKEN, _TOKEN_EXPIRES_AT
+    # Refresh a minute early so we never send an already-expired token.
+    ttl = max(60.0, float(expires_in) - 60.0)
+    with _TOKEN_LOCK:
+        _ACCESS_TOKEN = token
+        _TOKEN_EXPIRES_AT = time.monotonic() + ttl
+
+
+def _token_form() -> dict[str, str]:
+    """Password-less application-only grant (script/web or installed)."""
+    if settings.reddit_client_secret.strip():
+        return {"grant_type": "client_credentials"}
+    return {
+        "grant_type": _INSTALLED_GRANT,
+        "device_id": "signal-engine-render",
+    }
+
+
+def _fetch_access_token() -> str | None:
+    cached = _cached_token()
+    if cached:
+        return cached
+
+    client_id = settings.reddit_client_id.strip()
+    if not client_id:
+        return None
+    secret = settings.reddit_client_secret.strip()
+
+    _throttle()
+    try:
+        with httpx.Client(timeout=10.0, headers=_request_headers(), follow_redirects=True) as client:
+            resp = client.post(
+                _TOKEN_URL,
+                auth=(client_id, secret),
+                data=_token_form(),
+            )
+            if resp.status_code in _BLOCK_STATUSES:
+                logger.warning("Reddit OAuth token blocked (HTTP %s)", resp.status_code)
+                return None
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception:
+        logger.warning("Reddit OAuth token request failed", exc_info=True)
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        logger.warning("Reddit OAuth token response missing access_token")
+        return None
+    try:
+        expires_in = float(payload.get("expires_in") or 3600)
+    except (TypeError, ValueError):
+        expires_in = 3600.0
+    _store_token(token, expires_in)
+    return token
 
 
 def _throttle() -> None:
@@ -211,9 +301,9 @@ def _note_block(status: int, symbol: str) -> None:
     if opened:
         logger.warning(
             "Reddit search blocked (HTTP %s for %s)%s; pausing live fetches for %.0fs. "
-            "Datacenter IPs (e.g. Render) often get 403 on public JSON — sentiment "
-            "continues without Reddit. Set REDDIT_SOCIAL_ENABLED=false to disable, or "
-            "REDDIT_USER_AGENT to Reddit's platform:app:version format.",
+            "Datacenter IPs (e.g. Render) often get 403 on public JSON — set "
+            "REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET from reddit.com/prefs/apps. "
+            "Sentiment continues without Reddit. Set REDDIT_SOCIAL_ENABLED=false to disable.",
             status,
             symbol,
             extra,
@@ -332,12 +422,29 @@ def _fetch_live(symbol: str) -> RedditBuzzSnapshot:
         "restrict_sr": 1,
     }
     subs = _subreddit_filter(sym)
-    url = f"{_SEARCH_BASE}/r/{subs}/search.json" if subs else f"{_SEARCH_BASE}/search.json"
+    bearer: str | None = None
+    if oauth_configured():
+        bearer = _fetch_access_token()
+        if not bearer:
+            return _empty_snap(sym, query)
+        path = f"/r/{subs}/search" if subs else "/search"
+        url = f"{_OAUTH_SEARCH_BASE}{path}"
+    else:
+        path = f"/r/{subs}/search.json" if subs else "/search.json"
+        url = f"{_PUBLIC_SEARCH_BASE}{path}"
 
     _throttle()
     try:
-        with httpx.Client(timeout=10.0, headers=_request_headers(), follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=10.0,
+            headers=_request_headers(bearer=bearer),
+            follow_redirects=True,
+        ) as client:
             resp = client.get(url, params=params)
+            if resp.status_code == 401 and bearer:
+                reset_oauth_token()
+                logger.warning("Reddit OAuth token rejected (HTTP 401) for %s", sym)
+                return _empty_snap(sym, query)
             if resp.status_code in _BLOCK_STATUSES:
                 _note_block(resp.status_code, sym)
                 return _empty_snap(sym, query)

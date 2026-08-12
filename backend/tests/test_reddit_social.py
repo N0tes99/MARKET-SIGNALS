@@ -158,8 +158,11 @@ def test_circuit_opens_after_repeated_403(monkeypatch) -> None:
     from app.market_data.providers import reddit_public as rp
 
     rp.reset_circuit_state()
+    rp.reset_oauth_token()
     monkeypatch.setattr(rp, "_throttle", lambda: None)
     monkeypatch.setattr(rp.settings, "reddit_social_enabled", True)
+    monkeypatch.setattr(rp.settings, "reddit_client_id", "")
+    monkeypatch.setattr(rp.settings, "reddit_client_secret", "")
     monkeypatch.setattr(rp, "_BLOCK_LOG_COOLDOWN_SEC", 0.0)
 
     class _Resp:
@@ -219,3 +222,99 @@ def test_block_warnings_are_rate_limited(monkeypatch, caplog) -> None:
     assert len(soft) == 1
     assert "SMH" in soft[0].getMessage()
     assert rp._SUPPRESSED_BLOCK_LOGS == 2
+
+
+def test_oauth_search_uses_bearer_and_oauth_host(monkeypatch) -> None:
+    from app.market_data.providers import reddit_public as rp
+
+    rp.reset_circuit_state()
+    rp.reset_oauth_token()
+    monkeypatch.setattr(rp, "_throttle", lambda: None)
+    monkeypatch.setattr(rp.settings, "reddit_client_id", "abc123")
+    monkeypatch.setattr(rp.settings, "reddit_client_secret", "s3cret")
+    monkeypatch.setattr(rp.disk_cache, "write_json", lambda *args, **kwargs: None)
+
+    seen: dict[str, object] = {}
+
+    class _TokenResp:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"access_token": "tok_live", "expires_in": 3600}
+
+    class _SearchResp:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "data": {
+                    "children": [
+                        {
+                            "data": {
+                                "title": "NVDA breakout",
+                                "selftext": "",
+                                "score": 12,
+                                "num_comments": 3,
+                                "subreddit": "stocks",
+                            }
+                        }
+                    ]
+                }
+            }
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            seen["headers"] = kwargs.get("headers") or {}
+
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def post(self, url, auth=None, data=None) -> _TokenResp:
+            seen["token_url"] = url
+            seen["auth"] = auth
+            seen["grant"] = data
+            return _TokenResp()
+
+        def get(self, url, params=None) -> _SearchResp:
+            seen["search_url"] = url
+            seen["params"] = params
+            return _SearchResp()
+
+    monkeypatch.setattr(rp.httpx, "Client", _Client)
+
+    snap = rp._fetch_live("NVDA")
+    assert snap.fetched_ok is True
+    assert snap.posts[0].title == "NVDA breakout"
+    assert seen["token_url"] == rp._TOKEN_URL
+    assert seen["auth"] == ("abc123", "s3cret")
+    assert seen["grant"] == {"grant_type": "client_credentials"}
+    assert str(seen["search_url"]).startswith("https://oauth.reddit.com/")
+    assert ".json" not in str(seen["search_url"])
+    assert seen["headers"].get("Authorization") == "Bearer tok_live"
+
+    # Cached token — second call should not post again.
+    seen.pop("token_url", None)
+    snap2 = rp._fetch_live("NVDA")
+    assert snap2.fetched_ok is True
+    assert "token_url" not in seen
+
+
+def test_installed_app_uses_device_grant(monkeypatch) -> None:
+    from app.market_data.providers import reddit_public as rp
+
+    rp.reset_oauth_token()
+    monkeypatch.setattr(rp.settings, "reddit_client_id", "installedid")
+    monkeypatch.setattr(rp.settings, "reddit_client_secret", "")
+    form = rp._token_form()
+    assert form["grant_type"] == rp._INSTALLED_GRANT
+    assert form["device_id"] == "signal-engine-render"
+    assert rp.oauth_configured() is True
