@@ -67,7 +67,7 @@ export function SiteHeader({
 }: SiteHeaderProps) {
   if (compact) {
     return (
-      <header className="border-b border-white/[0.05] bg-card/20 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-white/[0.05] bg-card/20 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/15">
         <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-3.5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <SignalEngineLogo size="sm" />
@@ -80,7 +80,7 @@ export function SiteHeader({
   }
 
   return (
-    <header className="border-b border-white/[0.05] bg-card/18 backdrop-blur-xl">
+    <header className="border-b border-white/[0.05] bg-card/18 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
       <div className="container mx-auto flex items-end justify-between gap-4 px-4 py-7 sm:py-8">
         <div className="min-w-0 overflow-visible">
           <SignalEngineLogo size="lg" href={false} />
