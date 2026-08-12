@@ -32,11 +32,17 @@ export function useDashboardView() {
   const [layout, setLayoutState] = useState<DashboardLayout>("grid");
   const [density, setDensityState] = useState<DashboardDensity>("m");
   const [ready, setReady] = useState(false);
+  const [narrow, setNarrow] = useState(false);
 
   useEffect(() => {
     setLayoutState(readLayout());
     setDensityState(readDensity());
+    const query = window.matchMedia("(max-width: 767px)");
+    const sync = () => setNarrow(query.matches);
+    sync();
+    query.addEventListener("change", sync);
     setReady(true);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   const setLayout = useCallback((next: DashboardLayout) => {
@@ -49,5 +55,5 @@ export function useDashboardView() {
     window.localStorage.setItem(DENSITY_KEY, next);
   }, []);
 
-  return { layout, density, setLayout, setDensity, ready };
+  return { layout, density, setLayout, setDensity, ready, narrow };
 }

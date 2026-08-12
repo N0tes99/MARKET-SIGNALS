@@ -28,7 +28,7 @@ export function DashboardViewControls({
   onDensity,
 }: DashboardViewControlsProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 pb-1 sm:gap-3 sm:border-b sm:border-white/[0.06] sm:pb-4">
       <p className="label-caps">View</p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="seg-control" role="group" aria-label="Layout">

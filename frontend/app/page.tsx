@@ -9,7 +9,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen">
       <DashboardHeader />
-      <div className="container mx-auto px-4 pb-16 pt-2">
+      <div className="container mx-auto px-3 pb-12 pt-1 sm:px-4 sm:pb-16 sm:pt-2">
         <AssetGrid />
         <OpportunitiesFeed />
         <EquityOpportunitiesFeed />

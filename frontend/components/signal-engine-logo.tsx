@@ -69,7 +69,7 @@ export function SignalEngineLogo({
         "inline-flex flex-wrap items-baseline gap-x-2 whitespace-nowrap font-brand font-semibold tracking-tight text-foreground",
         // Space Grotesk — geometric title; Syne stays for ranks
         large
-          ? "pb-[0.12em] pt-[0.04em] text-3xl leading-[1.2] sm:text-4xl"
+          ? "pb-[0.12em] pt-[0.04em] text-[1.7rem] leading-[1.2] sm:text-3xl md:text-4xl"
           : "pb-[0.08em] text-sm leading-[1.2]",
       )}
     >

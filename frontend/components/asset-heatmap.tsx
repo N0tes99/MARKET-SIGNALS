@@ -64,11 +64,16 @@ export function AssetHeatmap({
 
   return (
     <div className="space-y-2">
-      <div
-        className="relative w-full overflow-hidden rounded-sm border border-white/[0.08] bg-[#0a0c10]"
-        style={{ height: tall ? 380 : 240 }}
-      >
-        {cells.map((cell) => {
+      <div className="-mx-3 overflow-x-auto overscroll-x-contain px-3 [scrollbar-width:thin] sm:mx-0 sm:overflow-visible sm:px-0">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-sm border border-white/[0.08] bg-[#0a0c10]",
+            "h-[min(58dvh,22rem)] w-[min(200vw,40rem)] min-w-[34rem]",
+            "sm:h-[240px] sm:w-full sm:min-w-0 sm:max-w-none",
+            tall && "sm:h-[380px]",
+          )}
+        >
+          {cells.map((cell) => {
           if (!cell.asset) return null;
           const area = cell.w * cell.h;
           const showDelta = area > 70 && cell.delta != null;
@@ -109,10 +114,12 @@ export function AssetHeatmap({
               ) : null}
             </Link>
           );
-        })}
+          })}
+        </div>
       </div>
       <p className="px-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
         Size ≈ market weight · green up / red down
+        <span className="sm:hidden"> · swipe sideways</span>
       </p>
     </div>
   );

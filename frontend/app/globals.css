@@ -32,7 +32,7 @@
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     min-height: 100dvh;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: contain;
   }
 
   /* Homescreen / standalone — feel like a native shell */
@@ -85,7 +85,7 @@
   }
 
   .seg-control-btn {
-    @apply px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-[color,background-color] duration-200;
+    @apply min-h-9 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition-[color,background-color] duration-200 sm:min-h-0 sm:px-2.5 sm:py-1.5;
   }
 
   .seg-control-btn[data-active="true"] {
