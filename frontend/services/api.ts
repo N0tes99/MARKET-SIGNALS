@@ -354,6 +354,56 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export interface AlpacaAccount {
+  equity: number;
+  cash: number;
+  buying_power: number;
+  portfolio_value: number;
+  status: string;
+  currency: string;
+}
+
+export interface AlpacaPosition {
+  symbol: string;
+  qty: number;
+  side: string;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pl: number;
+  unrealized_plpc: number;
+  current_price: number;
+  avg_entry_price: number;
+  change_today: number;
+}
+
+export interface AlpacaFill {
+  id: string;
+  symbol: string;
+  side: string;
+  qty: number;
+  filled_avg_price: number | null;
+  filled_at: string | null;
+  status: string;
+  order_type: string;
+  notional: number | null;
+}
+
+export interface AlpacaMirror {
+  configured: boolean;
+  mode: string;
+  base_url: string;
+  as_of: string;
+  cached: boolean;
+  error: string | null;
+  account: AlpacaAccount | null;
+  positions: AlpacaPosition[];
+  recent_fills: AlpacaFill[];
+}
+
+export async function fetchAlpacaMirror(): Promise<AlpacaMirror> {
+  return apiFetch<AlpacaMirror>("/api/v1/brokers/alpaca/mirror", 30_000);
+}
+
 export interface PublicPreview {
   as_of: string;
   hot_picks: AssetSummary[];

@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     alerts,
+    alpaca,
     analysis,
     assets,
     auth,
@@ -50,6 +51,7 @@ api_router.include_router(
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper"])
+api_router.include_router(alpaca.router, prefix="/brokers/alpaca", tags=["brokers"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])
 api_router.include_router(tuning.router, prefix="/tuning", tags=["tuning"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
