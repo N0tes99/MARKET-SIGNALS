@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from httpx import AsyncClient
 
@@ -17,12 +19,25 @@ from app.engines.runner_engine.compose import compose_runner_scores
 from app.engines.runner_engine.config import RunnerConfig, StageThresholds
 from app.engines.runner_engine.scoring.structure import score_structure
 from app.engines.runner_engine.scoring.stubs import score_all_dimensions
+from app.engines.runner_engine.scoring.yahoo_snapshot import (
+    YahooRunnerSnapshot,
+    empty_yahoo_snapshot,
+)
 from app.engines.runner_engine.stage import classify, classify_stage
 from app.engines.runner_engine.types import DimensionScore, RunnerScores
 from app.main import app
 from app.market_data.providers.mock import MockMarketDataProvider, generate_trending_ohlcv
 from app.market_data.service import MarketDataService
 from app.market_data.symbols import TRACKED_SYMBOLS, is_tracked
+
+
+@pytest.fixture(autouse=True)
+def _quiet_yahoo(monkeypatch) -> None:
+    """Runner unit tests must not hit live Yahoo."""
+    monkeypatch.setattr(
+        "app.engines.runner_engine.scoring.stubs.fetch_yahoo_runner_snapshot",
+        lambda symbol: empty_yahoo_snapshot(symbol),
+    )
 
 
 def _mock_md(*, market_cap: float | None = 1_200_000_000.0) -> MarketDataService:
@@ -73,12 +88,78 @@ def test_structure_scorer_uses_momentum(monkeypatch) -> None:
     assert tape.relative_volume is not None
 
 
-def test_stub_fundamentals_still_missing() -> None:
-    dims, _tape = score_all_dimensions("CRDO", market_data=_mock_md())
+def test_empty_yahoo_snapshot_stays_missing() -> None:
+    dims, _tape = score_all_dimensions(
+        "CRDO",
+        market_data=_mock_md(),
+        snapshot=empty_yahoo_snapshot("CRDO"),
+    )
     assert dims["fundamental"].data_quality == "missing"
     assert dims["catalyst"].data_quality == "missing"
     assert dims["discovery_gap"].data_quality == "missing"
+    assert dims["short_squeeze_potential"].data_quality == "missing"
     assert dims["structure"].data_quality == "good"
+    assert dims["fundamental"].conflicts == []
+
+
+def _rich_snapshot() -> YahooRunnerSnapshot:
+    return YahooRunnerSnapshot(
+        symbol="CRDO",
+        fetched_ok=True,
+        market_cap=1_200_000_000.0,
+        revenue_growth=0.42,
+        earnings_quarterly_growth=0.31,
+        profit_margins=0.18,
+        return_on_equity=0.22,
+        trailing_pe=48.0,
+        forward_pe=32.0,
+        short_percent_of_float=0.08,
+        short_ratio=3.2,
+        shares_short=8_000_000,
+        shares_short_prior=7_200_000,
+        held_percent_institutions=0.55,
+        held_percent_insiders=0.12,
+        number_of_analysts=4,
+        sector="Technology",
+        industry="Semiconductors",
+        earnings_date=date(2026, 8, 20),
+    )
+
+
+def test_yahoo_snapshot_fills_all_dims() -> None:
+    dims, _tape = score_all_dimensions(
+        "CRDO",
+        market_data=_mock_md(),
+        snapshot=_rich_snapshot(),
+    )
+    assert dims["fundamental"].data_quality == "good"
+    assert dims["catalyst"].data_quality == "good"
+    assert dims["discovery_gap"].data_quality == "good"
+    assert dims["theme_bottleneck"].data_quality == "good"
+    assert dims["institutional_accum"].data_quality == "good"
+    assert dims["short_squeeze_potential"].data_quality == "good"
+    assert dims["theme_bottleneck"].score >= 70
+    assert all("Insufficient data" not in c for d in dims.values() for c in d.conflicts)
+
+
+def test_compose_skips_missing_dim_spam() -> None:
+    from app.engines.runner_engine.compose import collect_explainability
+
+    dims = {
+        "fundamental": _missing("fundamental"),
+        "catalyst": _missing("catalyst"),
+        "structure": _good("structure", 80.0),
+        "asymmetry": _good("asymmetry", 80.0),
+        "discovery_gap": _missing("discovery_gap"),
+        "theme_bottleneck": _missing("theme_bottleneck"),
+        "institutional_accum": _missing("institutional_accum"),
+        "short_squeeze_potential": _missing("short_squeeze_potential"),
+    }
+    factors, conflicts, flags = collect_explainability(dims)
+    assert not any("Insufficient data" in item for item in conflicts)
+    assert not any(item.startswith("Missing data:") for item in flags)
+    assert any("Yahoo incomplete" in item for item in flags)
+    assert any("[structure]" in item for item in factors)
 
 
 def test_compose_ignores_missing_fifties() -> None:
@@ -160,7 +241,7 @@ def test_classify_watchlist_early_for_inflection() -> None:
     assert watchlist == "early"
 
 
-def test_engine_evaluate_phase_two() -> None:
+def test_engine_evaluate_without_yahoo() -> None:
     engine = RunnerEngine(market_data=_mock_md())
     candidate = engine.evaluate("crdo")
     assert candidate.symbol == "CRDO"
@@ -171,7 +252,21 @@ def test_engine_evaluate_phase_two() -> None:
     assert candidate.scores.runner_score <= default_runner_config().structure_only_cap
     assert candidate.stage in {"dormant", "early_accumulation"}
     assert any("Runner Score" in f for f in candidate.factors)
-    assert candidate.risk_flags
+    assert not any("Insufficient data" in c for c in candidate.conflicts)
+    assert not any(f.startswith("Missing data:") for f in candidate.risk_flags)
+
+
+def test_engine_evaluate_with_yahoo_snapshot(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.runner_engine.scoring.stubs.fetch_yahoo_runner_snapshot",
+        lambda symbol: _rich_snapshot(),
+    )
+    engine = RunnerEngine(market_data=_mock_md())
+    candidate = engine.evaluate("CRDO")
+    assert candidate.qualities["fundamental"] == "good"
+    assert candidate.qualities["short_squeeze_potential"] == "good"
+    assert candidate.scores.runner_score > 0
+    assert not any("Insufficient data" in c for c in candidate.conflicts)
 
 
 def test_scanner_covers_seed_universe() -> None:
@@ -199,7 +294,6 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
     assert len(body["candidates"]) == 2
     first = body["candidates"][0]
     assert first["phase"] == RUNNER_PHASE
-    assert first["qualities"]["fundamental"] == "missing"
     assert first["qualities"]["structure"] == "good"
     assert first["scores"]["runner_score"] <= 62.0
 

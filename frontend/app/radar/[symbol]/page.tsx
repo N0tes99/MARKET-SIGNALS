@@ -25,7 +25,7 @@ export default function RadarDetailPage() {
         </Link>
 
         <p className="mt-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-          preview · structure only · fundamentals not scored
+          yahoo tape + fundamentals · missing fields stay —
         </p>
 
         {isLoading ? <div className="surface skeleton mt-6 h-40" /> : null}
@@ -53,7 +53,7 @@ export default function RadarDetailPage() {
                 </span>
               </div>
               <p className="mt-3 font-mono text-xs text-muted-foreground">
-                runner {c.scores.runner_score.toFixed(0)} (capped) · risk{" "}
+                runner {c.scores.runner_score.toFixed(0)} · risk{" "}
                 {c.scores.risk_score.toFixed(0)} · conf {c.confidence.toFixed(0)} ·{" "}
                 {c.phase}
               </p>
@@ -65,6 +65,11 @@ export default function RadarDetailPage() {
               <p className="mt-2 font-mono text-xs text-muted-foreground">
                 fund {dimDisplay(c, "fundamental")} · cat {dimDisplay(c, "catalyst")} ·
                 disc {dimDisplay(c, "discovery_gap")}
+              </p>
+              <p className="mt-2 font-mono text-xs text-muted-foreground">
+                theme {dimDisplay(c, "theme_bottleneck")} · inst{" "}
+                {dimDisplay(c, "institutional_accum")} · squeeze{" "}
+                {dimDisplay(c, "short_squeeze_potential")}
               </p>
             </div>
 

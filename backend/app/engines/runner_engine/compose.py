@@ -71,8 +71,8 @@ def compose_runner_scores(
     if not fundamentals_ready:
         runner = min(runner, config.structure_only_cap)
 
-    missing = sum(1 for d in dimensions.values() if d.data_quality == "missing")
-    risk = clamp_score(40.0 + missing * 4.0)
+    missing_core = sum(1 for name in _CORE if not _filled(dimensions[name]))
+    risk = clamp_score(38.0 + missing_core * 6.0)
 
     def _reported(name: str) -> float:
         return clamp_score(dimensions[name].score)
@@ -117,11 +117,13 @@ def aggregate_data_quality(dimensions: dict[str, DimensionScore]) -> DataQuality
 def collect_explainability(
     dimensions: dict[str, DimensionScore],
 ) -> tuple[list[str], list[str], list[str]]:
-    """Merge factors, conflicts, and risk flags from dimensions."""
+    """Merge factors/conflicts from filled dims only. One flag if Yahoo core is empty."""
     factors: list[str] = []
     conflicts: list[str] = []
     risk_flags: list[str] = []
     for dim in dimensions.values():
+        if dim.data_quality == "missing":
+            continue
         for item in dim.factors:
             labeled = f"[{dim.name}] {item}"
             if labeled not in factors:
@@ -130,10 +132,9 @@ def collect_explainability(
             labeled = f"[{dim.name}] {item}"
             if labeled not in conflicts:
                 conflicts.append(labeled)
-        if dim.data_quality == "missing":
-            flag = f"Missing data: {dim.name}"
-            if flag not in risk_flags:
-                risk_flags.append(flag)
+    missing_core = [name for name in _CORE if not _filled(dimensions[name])]
+    if missing_core:
+        risk_flags.append("Yahoo incomplete: " + ", ".join(missing_core))
     return factors, conflicts, risk_flags
 
 

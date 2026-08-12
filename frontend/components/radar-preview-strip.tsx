@@ -20,7 +20,7 @@ export function RadarPreviewStrip() {
             </Link>
           </h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            preview · structure only · fundamentals not scored
+            yahoo tape + fundamentals · missing fields stay —
           </p>
         </div>
         {isFetching && !isLoading ? (

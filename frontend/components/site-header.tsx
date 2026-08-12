@@ -41,6 +41,12 @@ function MainNav() {
       {user ? (
         <>
           <Link
+            href="/tape"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Tape
+          </Link>
+          <Link
             href="/radar"
             className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
           >

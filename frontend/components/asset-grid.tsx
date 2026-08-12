@@ -53,7 +53,7 @@ export function compareByScore(a: AssetSummary, b: AssetSummary): number {
   return (GRADE_RANK[b.trade_grade] ?? 0) - (GRADE_RANK[a.trade_grade] ?? 0);
 }
 
-function SectionBody({
+export function SectionBody({
   assets,
   quotesBySymbol,
   layout,
@@ -148,23 +148,6 @@ export function AssetGrid() {
     [assets],
   );
 
-  const rankedAll = useMemo(() => {
-    const list = TRACKED_SYMBOLS.map((symbol) => {
-      const known = bySymbol.get(symbol);
-      if (known) return known;
-      const section = ASSET_SECTIONS.find((s) =>
-        (s.symbols as readonly string[]).includes(symbol),
-      );
-      return placeholderAsset(symbol, section?.class ?? "stock");
-    });
-    return [...list].sort(compareByScore);
-  }, [bySymbol]);
-
-  const topPicks = useMemo(
-    () => rankedAll.filter((a) => !isPlaceholder(a)).slice(0, 8),
-    [rankedAll],
-  );
-
   if (error && !assets) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const timedOut =
@@ -188,11 +171,10 @@ export function AssetGrid() {
     );
   }
 
-  const sectionTabs = [
-    ...ASSET_SECTIONS.map((section) => ({ id: section.label, label: section.label })),
-    { id: "top", label: "Top" },
-  ];
-  const showTop = !narrow || mobileSection === "top";
+  const sectionTabs = ASSET_SECTIONS.map((section) => ({
+    id: section.label,
+    label: section.label,
+  }));
   const visibleSections = narrow
     ? ASSET_SECTIONS.filter((section) => section.label === mobileSection)
     : ASSET_SECTIONS;
@@ -277,25 +259,6 @@ export function AssetGrid() {
           </section>
         );
       })}
-
-      {topPicks.length > 0 && showTop ? (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-            <h2 className="label-caps text-muted-foreground">Top picks</h2>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Ranked by confidence
-            </p>
-          </div>
-          <SectionBody
-            assets={topPicks}
-            quotesBySymbol={quotesBySymbol}
-            layout={layout}
-            density={density}
-            showRank
-            emphasizeFirst
-          />
-        </section>
-      ) : null}
 
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
         <p className="px-1 font-mono text-xs text-muted-foreground">

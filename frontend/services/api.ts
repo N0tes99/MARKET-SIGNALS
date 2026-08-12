@@ -611,6 +611,50 @@ export async function fetchAssetEquitySetups(
   );
 }
 
+export type TapeHeat = "hot" | "warm";
+
+export interface TapeHunt {
+  id: string;
+  symbol: string;
+  direction: "long" | "short";
+  heat: TapeHeat;
+  hunt_score: number;
+  relative_volume: number;
+  range_expansion: number;
+  ret_5d_pct: number;
+  ret_20d_pct: number;
+  put_call_vol: number;
+  option_volume: number;
+  unusual_vol_oi: number;
+  factors: string[];
+  conflicts: string[];
+  selected_option: OptionCandidate | null;
+  option_candidates: OptionCandidate[];
+  execution_plan: ExecutionPlan | null;
+  as_of: string;
+}
+
+export interface TapeBoardResponse {
+  longs: TapeHunt[];
+  shorts: TapeHunt[];
+  symbols_scanned: number;
+  symbols_optioned: number;
+  per_side: number;
+  scanned_at: string;
+  note: string;
+}
+
+export async function fetchOptionsTape(opts?: {
+  perSide?: number;
+  add?: string;
+}): Promise<TapeBoardResponse> {
+  const qs = new URLSearchParams({
+    per_side: String(opts?.perSide ?? 5),
+  });
+  if (opts?.add) qs.set("add", opts.add);
+  return apiFetch<TapeBoardResponse>(`/api/v1/options-tape?${qs}`, 120_000);
+}
+
 export type RunnerStage =
   | "dormant"
   | "fundamental_inflection"
