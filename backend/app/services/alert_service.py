@@ -520,8 +520,58 @@ class AlertService:
             events=fired,
         )
 
+    def send_paper_test(self) -> dict[str, bool | str]:
+        """Mint a paper-desk stamp and post it to Discord (new paper path)."""
+        from datetime import UTC, datetime
+
+        from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
+        from app.engines.paper_agent.types import PaperTrade
+
+        now = datetime.now(UTC)
+        trade = PaperTrade(
+            id="paper-test",
+            symbol="BTC",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="short",
+            fingerprint="paper-test",
+            signal_at=now,
+            confidence=72.0,
+            opportunity_score=72.0,
+            size_usd=2500.0,
+            status="open",
+            optimistic_entry=65000.0,
+            optimistic_entry_at=now,
+            take_profit_pct=8.0,
+            stop_loss_pct=4.0,
+        )
+        stamp = mint_stamp(trade.id)
+        trade.stamp = stamp.line
+        content, embed = paper_discord_payload("open", trade, stamp)
+        content = content.replace("PAPER OPEN", "PAPER OPEN (TEST)", 1)
+        embed["footer"]["text"] = f"{stamp.office} · {stamp.serial} · paper desk TEST"
+        ok = (
+            self.send_embed(
+                trade.symbol,
+                embed,
+                content=content,
+                username="Paper Desk",
+            )
+            if self.discord_configured()
+            else False
+        )
+        return {
+            "symbol": "BTC",
+            "discord": ok,
+            "discord_mode": self.status()["discord_mode"],
+            "stamp": stamp.line,
+            "configured": self.discord_configured(),
+        }
+
     def send_test(self, channel: str = "both") -> dict[str, bool | str]:
         """Send a test alert to configured channels."""
+        if channel == "paper":
+            return self.send_paper_test()
         event = AlertEvent(
             symbol="TEST",
             confidence=72.0,

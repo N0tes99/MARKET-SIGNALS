@@ -162,6 +162,33 @@ def test_material_confidence_up_refires(monkeypatch) -> None:
     assert "68%" in refs[1] and "75%" in refs[1]
 
 
+def test_send_paper_test_uses_stamp_embed(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(
+        "app.services.alert_service.settings.alert_discord_webhook_url",
+        "https://discord.test/webhook",
+    )
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_bot_token", "")
+    monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
+    captured: dict = {}
+
+    def fake_embed(symbol, embed, *, content=None, username="Signal Engine"):
+        captured["symbol"] = symbol
+        captured["content"] = content
+        captured["username"] = username
+        captured["footer"] = embed["footer"]["text"]
+        return True
+
+    monkeypatch.setattr(service, "send_embed", fake_embed)
+    result = service.send_test("paper")
+    assert result["discord"] is True
+    assert result["symbol"] == "BTC"
+    assert "PAPER OPEN (TEST)" in str(captured["content"])
+    assert captured["username"] == "Paper Desk"
+    assert "TEST" in captured["footer"]
+    assert result["stamp"]
+
+
 def test_send_discord_prefers_bot_over_webhook(monkeypatch) -> None:
     service = _service()
     monkeypatch.setattr(
