@@ -135,8 +135,10 @@ def _pick_rarity(rng: random.Random) -> tuple[str, int, str]:
     return _RARITIES[0][0], _RARITIES[0][2], _RARITIES[0][3]
 
 
-def paper_discord_payload(kind: str, trade, stamp: PaperStamp) -> tuple[str, dict]:
-    """Discord content + embed for a paper open or close."""
+def paper_discord_payload(kind: str, trade, stamp: PaperStamp) -> tuple[str, dict, bytes]:
+    """Discord content + embed + stamp PNG for a paper open or close."""
+    from app.engines.paper_agent.stamp_art import STAMP_FILENAME, render_stamp_png
+
     direction = str(getattr(trade, "direction", "")).upper()
     symbol = str(getattr(trade, "symbol", "?"))
     setup = str(getattr(trade, "setup_type", ""))
@@ -146,7 +148,8 @@ def paper_discord_payload(kind: str, trade, stamp: PaperStamp) -> tuple[str, dic
     sl = float(getattr(trade, "stop_loss_pct", 3.0))
     entry = float(getattr(trade, "optimistic_entry", 0.0) or 0.0)
 
-    if kind == "close":
+    body_kind = "open" if kind == "test" else kind
+    if body_kind == "close":
         pnl = getattr(trade, "honest_pnl_usd", None)
         if pnl is None:
             pnl = getattr(trade, "optimistic_pnl_usd", None)
@@ -172,7 +175,8 @@ def paper_discord_payload(kind: str, trade, stamp: PaperStamp) -> tuple[str, dic
         ]
         color = 0x8FA88A if pnl is not None and float(pnl) >= 0 else 0xA67C73
     else:
-        content = _content_line("PAPER OPEN", stamp)
+        label = "PAPER OPEN (TEST)" if kind == "test" else "PAPER OPEN"
+        content = _content_line(label, stamp)
         desc = f"{stamp.blurb}\n_{stamp.office}_"
         fields = [
             {"name": "Side", "value": f"{direction} {symbol}", "inline": True},
@@ -184,14 +188,21 @@ def paper_discord_payload(kind: str, trade, stamp: PaperStamp) -> tuple[str, dic
         ]
         color = stamp.color
 
+    png = render_stamp_png(
+        stamp,
+        symbol=symbol,
+        direction=direction,
+        kind="test" if kind == "test" else body_kind,
+    )
     embed = {
         "title": f"{symbol} · {setup or 'paper'}",
         "description": desc,
         "color": color,
         "fields": fields,
         "footer": {"text": f"{stamp.office} · {stamp.serial} · paper desk"},
+        "image": {"url": f"attachment://{STAMP_FILENAME}"},
     }
-    return content, embed
+    return content, embed, png
 
 
 def _content_line(kind: str, stamp: PaperStamp) -> str:

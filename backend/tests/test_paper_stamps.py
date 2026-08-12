@@ -7,6 +7,7 @@ from uuid import uuid4
 import pandas as pd
 
 from app.engines.paper_agent.agent import PaperAgent
+from app.engines.paper_agent.stamp_art import render_stamp_png
 from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import PaperTrade
@@ -23,6 +24,12 @@ def test_stamp_is_seeded() -> None:
     assert a.rarity in {"Common", "Uncommon", "Rare", "Holo", "Mythic"}
     assert a.serial.startswith("SE-")
     assert len(a.line) <= 160
+    png_a = render_stamp_png(a, symbol="BTC", direction="short", kind="open")
+    png_b = render_stamp_png(b, symbol="BTC", direction="short", kind="open")
+    png_c = render_stamp_png(c, symbol="ETH", direction="long", kind="open")
+    assert png_a == png_b
+    assert png_a != png_c
+    assert png_a.startswith(b"\x89PNG")
 
 
 def test_paper_embed_open_and_close() -> None:
@@ -46,16 +53,19 @@ def test_paper_embed_open_and_close() -> None:
         stop_loss_pct=4.0,
         stamp=stamp.line,
     )
-    content, embed = paper_discord_payload("open", trade, stamp)
+    content, embed, png = paper_discord_payload("open", trade, stamp)
     assert "PAPER OPEN" in content
     assert stamp.title in content
     assert embed["fields"][0]["value"] == "SHORT BTC"
+    assert embed["image"]["url"] == "attachment://paper-stamp.png"
+    assert png.startswith(b"\x89PNG")
 
     trade.status = "closed"
     trade.honest_pnl_usd = -75.0
     trade.honest_return_pct = -3.0
     trade.close_reason = "stop_loss_-4.0%"
-    content2, embed2 = paper_discord_payload("close", trade, stamp)
+    content2, embed2, png2 = paper_discord_payload("close", trade, stamp)
+    assert png2.startswith(b"\x89PNG")
     assert "VOIDED" in content2
     assert "stop_loss" in embed2["fields"][0]["value"]
 
@@ -69,7 +79,7 @@ def test_agent_stamps_and_pings_discord(monkeypatch) -> None:
         def discord_configured(self) -> bool:
             return True
 
-        def send_embed(self, symbol, embed, *, content=None, username="Signal Engine"):
+        def send_embed(self, symbol, embed, *, content=None, username="Signal Engine", **kwargs):
             sent.append((symbol, content or ""))
             return True
 
@@ -162,7 +172,7 @@ def test_close_pings_discord(monkeypatch) -> None:
         def discord_configured(self) -> bool:
             return True
 
-        def send_embed(self, symbol, embed, *, content=None, username="Signal Engine"):
+        def send_embed(self, symbol, embed, *, content=None, username="Signal Engine", **kwargs):
             sent.append(content or "")
             return True
 

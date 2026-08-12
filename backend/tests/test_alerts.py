@@ -172,11 +172,13 @@ def test_send_paper_test_uses_stamp_embed(monkeypatch) -> None:
     monkeypatch.setattr("app.services.alert_service.settings.alert_discord_channel_id", "")
     captured: dict = {}
 
-    def fake_embed(symbol, embed, *, content=None, username="Signal Engine"):
+    def fake_embed(symbol, embed, *, content=None, username="Signal Engine", files=None):
         captured["symbol"] = symbol
         captured["content"] = content
         captured["username"] = username
         captured["footer"] = embed["footer"]["text"]
+        captured["files"] = files
+        captured["image"] = embed.get("image")
         return True
 
     monkeypatch.setattr(service, "send_embed", fake_embed)
@@ -187,6 +189,9 @@ def test_send_paper_test_uses_stamp_embed(monkeypatch) -> None:
     assert captured["username"] == "Paper Desk"
     assert "TEST" in captured["footer"]
     assert result["stamp"]
+    assert captured["image"]["url"] == "attachment://paper-stamp.png"
+    assert captured["files"] and captured["files"][0][0] == "paper-stamp.png"
+    assert captured["files"][0][1].startswith(b"\x89PNG")
 
 
 def test_send_discord_prefers_bot_over_webhook(monkeypatch) -> None:

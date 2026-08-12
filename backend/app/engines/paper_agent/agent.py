@@ -403,7 +403,7 @@ class PaperAgent:
             if callable(configured) and not configured():
                 return
             stamp = mint_stamp(trade.id)
-            content, embed = paper_discord_payload(kind, trade, stamp)
+            content, embed, png = paper_discord_payload(kind, trade, stamp)
             sender = getattr(self._alerts, "send_embed", None)
             if not callable(sender):
                 return
@@ -412,6 +412,7 @@ class PaperAgent:
                 embed,
                 content=content,
                 username="Paper Desk",
+                files=[("paper-stamp.png", png)],
             )
             if ok:
                 logger.info(
