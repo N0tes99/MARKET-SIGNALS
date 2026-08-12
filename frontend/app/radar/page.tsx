@@ -5,11 +5,64 @@ import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { useRunnersFeed } from "@/hooks/use-runners";
 import { dimDisplay, formatRelVol, formatTapePct } from "@/lib/runner-display";
+import type { RunnerCandidate, RunnerWatchlist } from "@/services/api";
+
+const BUCKETS: { key: Exclude<RunnerWatchlist, "none">; label: string; hint: string }[] = [
+  { key: "early", label: "Early", hint: "inflection / accumulation" },
+  { key: "ignition", label: "Ignition", hint: "structure + catalyst or fund" },
+  { key: "running", label: "Running", hint: "discovery / momentum" },
+];
+
+function BucketColumn({
+  label,
+  hint,
+  names,
+}: {
+  label: string;
+  hint: string;
+  names: RunnerCandidate[];
+}) {
+  return (
+    <section>
+      <h2 className="label-caps">
+        {label} · {names.length}
+      </h2>
+      <p className="mt-1 mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+        {hint}
+      </p>
+      {names.length === 0 ? (
+        <p className="text-sm text-muted-foreground/50">Empty today.</p>
+      ) : (
+        <ul className="grid gap-2">
+          {names.map((c) => (
+            <li key={c.id}>
+              <Link
+                href={`/radar/${c.symbol}`}
+                className="surface block p-3 transition-colors hover:bg-white/[0.03]"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-sm tracking-wide">{c.symbol}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {c.stage.replaceAll("_", " ")}
+                  </span>
+                </div>
+                <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
+                  runner {c.scores.runner_score.toFixed(0)} · struct {dimDisplay(c, "structure")} ·
+                  fund {dimDisplay(c, "fundamental")}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function RadarPage() {
   const { data, isLoading, isError, refetch, isFetching } = useRunnersFeed();
   const candidates = data?.candidates ?? [];
-  const early = candidates.filter((c) => c.watchlist === "early");
+  const listed = candidates.filter((c) => c.watchlist !== "none");
 
   return (
     <main className="min-h-screen">
@@ -17,7 +70,8 @@ export default function RadarPage() {
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Yahoo tape + fundamentals. Missing fields stay as em dash — no fake
-          50s. Seed names are a benchmark set, not recommendations.
+          50s. Seed names are a benchmark set, not recommendations. Ignition and
+          running lists can fill now that Yahoo scores the missing dims.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -25,6 +79,15 @@ export default function RadarPage() {
             phase {data?.candidates[0]?.phase ?? "3_yahoo"} · scanned{" "}
             {data?.symbols_scanned ?? 0}
           </p>
+          {BUCKETS.map((bucket) => (
+            <p
+              key={bucket.key}
+              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55"
+            >
+              {bucket.label}{" "}
+              {candidates.filter((c) => c.watchlist === bucket.key).length}
+            </p>
+          ))}
           {isFetching && !isLoading ? (
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
               refreshing
@@ -53,18 +116,32 @@ export default function RadarPage() {
           </div>
         ) : null}
 
-        {!isLoading && !isError && early.length === 0 ? (
+        {!isLoading && !isError && listed.length === 0 ? (
           <p className="mt-6 text-sm text-muted-foreground/60">
-            No names in early accumulation on tape today.
+            No names on early, ignition, or running lists today.
           </p>
         ) : null}
 
+        {!isLoading && !isError && listed.length > 0 ? (
+          <div className="mt-6 grid gap-8 md:grid-cols-3">
+            {BUCKETS.map((bucket) => (
+              <BucketColumn
+                key={bucket.key}
+                label={bucket.label}
+                hint={bucket.hint}
+                names={candidates.filter((c) => c.watchlist === bucket.key)}
+              />
+            ))}
+          </div>
+        ) : null}
+
         {!isLoading && !isError && candidates.length > 0 ? (
-          <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[52rem] text-left text-sm">
+          <div className="mt-10 overflow-x-auto">
+            <table className="w-full min-w-[56rem] text-left text-sm">
               <thead>
                 <tr className="label-caps border-b border-white/[0.06] text-muted-foreground/70">
                   <th className="py-2 pr-3 font-normal">Symbol</th>
+                  <th className="py-2 pr-3 font-normal">List</th>
                   <th className="py-2 pr-3 font-normal">Struct</th>
                   <th className="py-2 pr-3 font-normal">RS</th>
                   <th className="py-2 pr-3 font-normal">Rel vol</th>
@@ -87,6 +164,9 @@ export default function RadarPage() {
                       >
                         {c.symbol}
                       </Link>
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {c.watchlist === "none" ? "—" : c.watchlist}
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-xs">
                       {dimDisplay(c, "structure")}
