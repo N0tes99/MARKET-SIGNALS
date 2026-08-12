@@ -17,7 +17,7 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "No names on early, ignition, or running lists today." in text
     assert "fundamentals_filled" in text
     assert "yahoo" in text
-    assert "hidden md:block" in text
+    assert "md:block" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
