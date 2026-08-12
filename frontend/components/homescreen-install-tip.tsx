@@ -1,5 +1,6 @@
 "use client";
 
+import { Share } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useHomescreen } from "@/components/homescreen-provider";
@@ -22,7 +23,6 @@ export function HomescreenInstallTip() {
     } catch {
       /* ignore */
     }
-    // Delay so first paint stays clean; only coach after a beat.
     const t = window.setTimeout(() => setVisible(true), 1800);
     return () => window.clearTimeout(t);
   }, [displayMode]);
@@ -76,19 +76,23 @@ export function HomescreenInstallTip() {
         </div>
 
         {isApple ? (
-          <ol className="mt-3 space-y-1.5 font-mono text-[11px] leading-relaxed text-muted-foreground/80">
-            <li>
-              1. Tap <span className="text-foreground/85">Share</span>{" "}
-              <span aria-hidden className="text-foreground/70">
-                ⎙
+          <ol className="mt-3 space-y-2 font-mono text-[11px] leading-relaxed text-muted-foreground/80">
+            <li className="flex items-center gap-2">
+              <span className="text-muted-foreground/50">1.</span>
+              <span className="inline-flex items-center gap-1.5">
+                Tap Share
+                <Share className="h-3.5 w-3.5 text-foreground/75" aria-hidden />
               </span>
             </li>
-            <li>
-              2. Scroll and choose{" "}
-              <span className="text-foreground/85">Add to Home Screen</span>
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground/50">2.</span>
+              <span>
+                Choose <span className="text-foreground/85">Add to Home Screen</span>
+              </span>
             </li>
-            <li>
-              3. Open the icon — status bar blends into the void
+            <li className="flex items-start gap-2">
+              <span className="text-muted-foreground/50">3.</span>
+              <span>Open the icon — status bar blends into the void</span>
             </li>
           </ol>
         ) : (
