@@ -1,4 +1,4 @@
-"""Crypto fear & greed sentiment engine."""
+"""Crypto fear & greed + per-ticker Reddit confirmation sentiment."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.config import settings
 from app.engines.evidence_engine.types import EvidenceItem
+from app.engines.sentiment_engine.reddit_social import analyze_reddit_social
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
@@ -16,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 _FNG_URL = "https://api.alternative.me/fng/"
 _FNG_CACHE: TTLCache[tuple[int, str] | None] = TTLCache(ttl_seconds=900.0)
+
+# Split SENTIMENT weight so Reddit cannot dominate; F&G stays primary.
+_FNG_WEIGHT_SHARE = 0.65
+_REDDIT_WEIGHT_SHARE = 0.35
 
 
 @dataclass
@@ -62,7 +68,7 @@ def fetch_fear_greed() -> tuple[int, str] | None:
 
 
 class SentimentEngine:
-    """Market-wide crypto Fear & Greed as a confirmation / conflict gauge."""
+    """Market-wide Fear & Greed plus optional per-ticker Reddit confirmation."""
 
     def analyze(self) -> SentimentResult:
         """Return current Fear & Greed assessment."""
@@ -85,15 +91,50 @@ class SentimentEngine:
         )
 
     def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:
-        """Return sentiment evidence (global)."""
-        del symbol, timeframe
-        result = self.analyze()
+        """Return sentiment evidence (global F&G + optional Reddit confirmation)."""
+        del timeframe
+        sentiment_weight = DEFAULT_WEIGHTS[ScoringCategory.SENTIMENT]
+        fng = self.analyze()
+
+        reddit_enabled = settings.reddit_social_enabled
+        # Cache-only on ranking path — never block cold rank_all on live Reddit.
+        reddit = (
+            analyze_reddit_social(symbol, allow_live=False)
+            if reddit_enabled
+            else None
+        )
+
+        if reddit is not None and reddit.available:
+            fng_w = sentiment_weight * _FNG_WEIGHT_SHARE
+            reddit_w = sentiment_weight * _REDDIT_WEIGHT_SHARE
+            return [
+                EvidenceItem(
+                    source="sentiment_engine",
+                    category=ScoringCategory.SENTIMENT.value,
+                    score=fng.score,
+                    weight=fng_w,
+                    description=fng.description,
+                ),
+                EvidenceItem(
+                    source="reddit_social",
+                    category=ScoringCategory.SENTIMENT.value,
+                    score=reddit.score,
+                    weight=reddit_w,
+                    description=reddit.description,
+                ),
+            ]
+
         return [
             EvidenceItem(
                 source="sentiment_engine",
                 category=ScoringCategory.SENTIMENT.value,
-                score=result.score,
-                weight=DEFAULT_WEIGHTS[ScoringCategory.SENTIMENT],
-                description=result.description,
+                score=fng.score,
+                weight=sentiment_weight,
+                description=fng.description
+                + (
+                    " · Reddit confirmation warming"
+                    if reddit_enabled
+                    else ""
+                ),
             )
         ]
