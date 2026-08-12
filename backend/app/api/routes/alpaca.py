@@ -1,15 +1,21 @@
-"""Alpaca read-only mirror endpoints (no order execution)."""
+"""Alpaca read-only mirror + free-tier IEX activity endpoints."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.adapters.brokers.alpaca import AlpacaMirrorSnapshot, fetch_alpaca_mirror
+from app.adapters.brokers.alpaca_market_data import (
+    AlpacaActivitySnapshot,
+    fetch_alpaca_activity,
+)
 from app.schemas.alpaca import (
     AlpacaAccountSchema,
+    AlpacaActivityRowSchema,
+    AlpacaActivitySchema,
     AlpacaFillSchema,
     AlpacaMirrorSchema,
     AlpacaPositionSchema,
@@ -71,6 +77,30 @@ def _mirror_schema(snap: AlpacaMirrorSnapshot) -> AlpacaMirrorSchema:
     )
 
 
+def _activity_schema(snap: AlpacaActivitySnapshot) -> AlpacaActivitySchema:
+    return AlpacaActivitySchema(
+        configured=snap.configured,
+        feed=snap.feed,
+        data_base_url=snap.data_base_url,
+        as_of=snap.as_of,
+        cached=snap.cached,
+        error=snap.error,
+        symbols_requested=list(snap.symbols_requested),
+        rows=[
+            AlpacaActivityRowSchema(
+                symbol=r.symbol,
+                last_price=r.last_price,
+                daily_volume=r.daily_volume,
+                change_pct=r.change_pct,
+                daily_bar_close=r.daily_bar_close,
+                prev_close=r.prev_close,
+                trade_time=r.trade_time,
+            )
+            for r in snap.rows
+        ],
+    )
+
+
 @router.get("/mirror", response_model=AlpacaMirrorSchema)
 async def alpaca_mirror() -> AlpacaMirrorSchema:
     """Mirror Alpaca positions + recent fills (read-only, short TTL cache).
@@ -80,3 +110,26 @@ async def alpaca_mirror() -> AlpacaMirrorSchema:
     """
     snap = await asyncio.to_thread(fetch_alpaca_mirror)
     return _mirror_schema(snap)
+
+
+@router.get("/activity", response_model=AlpacaActivitySchema)
+async def alpaca_activity(
+    symbols: str | None = Query(
+        default=None,
+        description=(
+            "Comma-separated equity/ETF symbols. "
+            "Omit to scan tracked stocks+ETFs (crypto excluded). "
+            "Always uses free IEX feed — never SIP."
+        ),
+    ),
+) -> AlpacaActivitySchema:
+    """Free-tier Alpaca IEX stock snapshots (last/change/volume).
+
+    Soft-fails when market data is unavailable. Does not affect ranking.
+    Yahoo remains the primary OHLCV source.
+    """
+    parsed: list[str] | None = None
+    if symbols and symbols.strip():
+        parsed = [part.strip() for part in symbols.split(",") if part.strip()]
+    snap = await asyncio.to_thread(fetch_alpaca_activity, parsed)
+    return _activity_schema(snap)

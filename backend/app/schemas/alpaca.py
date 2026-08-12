@@ -51,3 +51,28 @@ class AlpacaMirrorSchema(BaseModel):
     account: AlpacaAccountSchema | None = None
     positions: list[AlpacaPositionSchema] = Field(default_factory=list)
     recent_fills: list[AlpacaFillSchema] = Field(default_factory=list)
+
+
+class AlpacaActivityRowSchema(BaseModel):
+    """One symbol of free-tier IEX activity (not full tape)."""
+
+    symbol: str
+    last_price: float | None = None
+    daily_volume: float | None = None
+    change_pct: float | None = None
+    daily_bar_close: float | None = None
+    prev_close: float | None = None
+    trade_time: datetime | None = None
+
+
+class AlpacaActivitySchema(BaseModel):
+    """Alpaca Basic / IEX snapshots — feed is always iex (never SIP)."""
+
+    configured: bool
+    feed: str = "iex"
+    data_base_url: str = ""
+    as_of: datetime
+    cached: bool = False
+    error: str | None = None
+    symbols_requested: list[str] = Field(default_factory=list)
+    rows: list[AlpacaActivityRowSchema] = Field(default_factory=list)
