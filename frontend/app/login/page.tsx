@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { LoginEnginePreview } from "@/components/login-engine-preview";
 import { PasswordInput } from "@/components/password-input";
 import { SiteHeader } from "@/components/site-header";
 import type { WalletChain } from "@/lib/ethereum-wallet";
+import { safeNextPath } from "@/lib/safe-next";
 
 const WALLET_OPTIONS: { chain: WalletChain; label: string; hint: string }[] = [
   { chain: "ethereum", label: "Ethereum", hint: "Phantom" },
@@ -16,8 +17,11 @@ const WALLET_OPTIONS: { chain: WalletChain; label: string; hint: string }[] = [
   { chain: "sui", label: "Sui", hint: "Phantom" },
 ];
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams?.get("next"), "/");
+  const unlockHref = `/unlock?next=${encodeURIComponent(nextPath)}`;
   const { login, loginWithWallet, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,9 +31,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/unlock");
+      router.replace(unlockHref);
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, unlockHref]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -37,7 +41,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      router.push("/unlock");
+      router.push(unlockHref);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {
@@ -50,7 +54,7 @@ export default function LoginPage() {
     setWalletBusy(chain);
     try {
       await loginWithWallet(chain);
-      router.push("/unlock");
+      router.push(unlockHref);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Wallet sign-in failed");
     } finally {
@@ -153,5 +157,19 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center">
+          <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+        </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

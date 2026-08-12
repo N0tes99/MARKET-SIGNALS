@@ -16,9 +16,9 @@ export function OpportunitiesFeed() {
     <section className="mb-8 border-b border-white/[0.05] pb-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 className="label-caps">Opportunities</h2>
+          <h2 className="label-caps">Crypto setups</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            setup ideas · watch candidates · not grade scores
+            watch candidates · not ranked grades
           </p>
         </div>
         {isFetching && !isLoading ? (

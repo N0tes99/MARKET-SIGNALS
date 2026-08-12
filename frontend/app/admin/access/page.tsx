@@ -9,14 +9,22 @@ import { SiteHeader } from "@/components/site-header";
 import {
   createAccessGrant,
   fetchAccessGrants,
+  fetchWaitlistUsers,
   revokeAccessGrant,
   type AccessGrant,
+  type WaitlistUser,
 } from "@/services/api";
+
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default function AdminAccessPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [grants, setGrants] = useState<AccessGrant[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistUser[]>([]);
   const [username, setUsername] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [notes, setNotes] = useState("");
@@ -24,8 +32,9 @@ export default function AdminAccessPage() {
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
-    const rows = await fetchAccessGrants();
+    const [rows, waiting] = await Promise.all([fetchAccessGrants(), fetchWaitlistUsers()]);
     setGrants(rows);
+    setWaitlist(waiting);
   }, []);
 
   useEffect(() => {
@@ -38,6 +47,12 @@ export default function AdminAccessPage() {
       setError(err instanceof Error ? err.message : "Failed to load grants"),
     );
   }, [loading, user, router, reload]);
+
+  function setPresetDays(days: number) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    setExpiresAt(toLocalInput(d));
+  }
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -75,8 +90,10 @@ export default function AdminAccessPage() {
         <p className="label-caps">Admin</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Who can unlock</h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
-          Grant access by username and expiry. After you grant, they sign in, set up
-          authenticator, then reach the dashboard.{" "}
+          Grant by username. After you grant, they sign in and set up a{" "}
+          <span className="text-foreground/85">personal</span> authenticator (shown once),
+          then unlock with that app&apos;s 6-digit code about every 12 hours. Tell them to
+          hit Refresh on the waitlist — it now sends them to unlock.{" "}
           <Link href="/admin/requests" className="underline-offset-2 hover:underline">
             Ticker requests
           </Link>
@@ -86,7 +103,41 @@ export default function AdminAccessPage() {
           </Link>
         </p>
 
-        <form onSubmit={onCreate} className="surface mt-8 grid gap-3 p-5 sm:grid-cols-2">
+        {waitlist.length > 0 ? (
+          <div className="surface mt-8 p-5">
+            <p className="label-caps text-muted-foreground/55">Waiting ({waitlist.length})</p>
+            <ul className="mt-3 divide-y divide-white/[0.05]">
+              {waitlist.map((w) => (
+                <li key={w.id} className="flex flex-wrap items-baseline justify-between gap-3 py-2.5">
+                  <div>
+                    <p className="font-mono text-sm text-foreground/90">@{w.username}</p>
+                    <p className="font-mono text-[10px] text-muted-foreground/50">
+                      {w.email}
+                      {w.email_verified ? "" : " · email unverified"} · joined{" "}
+                      {new Date(w.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => {
+                      setUsername(w.username);
+                      if (!expiresAt) setPresetDays(30);
+                    }}
+                  >
+                    Fill grant
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="mt-8 font-mono text-[11px] text-muted-foreground/45">
+            Waitlist empty — no users without an active grant.
+          </p>
+        )}
+
+        <form onSubmit={onCreate} className="surface mt-6 grid gap-3 p-5 sm:grid-cols-2">
           <label className="block sm:col-span-1">
             <span className="label-caps text-muted-foreground/55">Username</span>
             <input
@@ -105,6 +156,22 @@ export default function AdminAccessPage() {
               className="mt-2 w-full border border-white/[0.08] bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-white/[0.18]"
               required
             />
+            <div className="mt-2 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:underline"
+                onClick={() => setPresetDays(7)}
+              >
+                7 days
+              </button>
+              <button
+                type="button"
+                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:underline"
+                onClick={() => setPresetDays(30)}
+              >
+                30 days
+              </button>
+            </div>
           </label>
           <label className="block sm:col-span-2">
             <span className="label-caps text-muted-foreground/55">Notes</span>
@@ -115,7 +182,14 @@ export default function AdminAccessPage() {
               placeholder="friend trial · 30d"
             />
           </label>
-          {error ? <p className="font-mono text-[11px] text-bearish/80 sm:col-span-2">{error}</p> : null}
+          {error ? (
+            <p className="font-mono text-[11px] text-bearish/80 sm:col-span-2">
+              {error}{" "}
+              <Link href="/unlock" className="underline-offset-2 hover:underline">
+                Unlock
+              </Link>
+            </p>
+          ) : null}
           <button
             type="submit"
             disabled={busy}

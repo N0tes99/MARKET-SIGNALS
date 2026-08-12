@@ -59,7 +59,7 @@ export default function SocialPage() {
             <Link href="/login" className="text-foreground underline-offset-4 hover:underline">
               Sign in
             </Link>{" "}
-            to post. Anyone can read the feed.
+            to read and post. Social is invite-only with the rest of the product.
           </p>
         ) : null}
 

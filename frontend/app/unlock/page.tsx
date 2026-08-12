@@ -17,7 +17,7 @@ function UnlockForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams?.get("next") || "/";
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +182,14 @@ function UnlockForm() {
               <Link href="/pending" className="underline-offset-2 hover:underline">
                 waitlist status
               </Link>
+              {" · "}
+              <button
+                type="button"
+                className="underline-offset-2 hover:underline"
+                onClick={() => void logout().then(() => router.push("/login"))}
+              >
+                Sign out
+              </button>
             </p>
           </form>
         )}

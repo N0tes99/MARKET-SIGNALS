@@ -548,10 +548,11 @@ class PaperAgent:
             reverse=True,
         )[:20]
 
+        now = datetime.now(UTC)
         return PaperAgentSummary(
             agent_name=AGENT_NAME,
             starting_cash=self._starting_cash,
-            as_of=datetime.now(UTC),
+            as_of=now,
             last_tick_at=self._last_tick_at,
             optimistic=self._ledger("optimistic", trades),
             honest=self._ledger("honest", trades),
@@ -559,6 +560,8 @@ class PaperAgent:
             recent_closed=history_sorted,
             tick_notes=list(tick_notes or []),
             maturity=self.maturity(),
+            opens_today=self._opens_on_utc_day(now),
+            daily_open_cap=MAX_NEW_OPENS_PER_DAY,
         )
 
     def _ledger(self, mode: str, trades: list[PaperTrade]) -> PaperLedgerSnapshot:

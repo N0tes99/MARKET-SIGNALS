@@ -29,8 +29,8 @@ function VerifyEmailInner() {
         await verifyEmail(token);
         if (!cancelled) {
           setStatus("ok");
-          setMessage("Email confirmed. You can post and favorite assets now.");
-          setTimeout(() => router.replace("/social"), 1200);
+          setMessage("Email confirmed. Sign in, then wait for an admin grant before unlock.");
+          setTimeout(() => router.replace("/pending"), 1200);
         }
       } catch (err) {
         if (!cancelled) {

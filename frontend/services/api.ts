@@ -164,14 +164,44 @@ const DEFAULT_FETCH_TIMEOUT_MS = 55_000;
 /** Cookie auth through same-origin proxy or CORS-enabled local API. */
 const FETCH_CREDENTIALS: RequestCredentials = "include";
 
-async function readErrorDetail(response: Response): Promise<string> {
+async function readErrorJson(
+  response: Response,
+): Promise<{ detail?: unknown; code?: string } | null> {
   try {
-    const data = (await response.json()) as { detail?: unknown };
-    if (typeof data.detail === "string") return data.detail;
+    return (await response.json()) as { detail?: unknown; code?: string };
   } catch {
-    /* ignore */
+    return null;
   }
+}
+
+async function readErrorDetail(response: Response): Promise<string> {
+  const data = await readErrorJson(response);
+  if (typeof data?.detail === "string") return data.detail;
   return `${response.status} ${response.statusText}`;
+}
+
+const GATE_SKIP_PATHS = [
+  "/login",
+  "/register",
+  "/unlock",
+  "/pending",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+];
+
+function maybeRedirectGate(code: string | undefined): void {
+  if (typeof window === "undefined" || !code) return;
+  const path = window.location.pathname;
+  if (GATE_SKIP_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) return;
+  const next = encodeURIComponent(`${path}${window.location.search}`);
+  if (code === "MFA_REQUIRED") {
+    window.location.replace(`/unlock?next=${next}`);
+    return;
+  }
+  if (code === "LOGIN_REQUIRED") {
+    window.location.replace(`/login?next=${next}`);
+  }
 }
 
 async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<T> {
@@ -185,12 +215,15 @@ async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): 
     });
 
     if (!response.ok) {
+      const payload = await readErrorJson(response);
+      maybeRedirectGate(payload?.code);
       if (response.status === 502 || response.status === 504) {
         throw new Error(
           `API timed out (${response.status}). The backend may still be warming up — retry in a minute.`,
         );
       }
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      const detail = typeof payload?.detail === "string" ? payload.detail : null;
+      throw new Error(detail ?? `API error: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;
@@ -347,6 +380,8 @@ export interface PaperSummary {
   recent_closed: PaperTrade[];
   tick_notes: string[];
   maturity?: PaperMaturity | null;
+  opens_today?: number;
+  daily_open_cap?: number;
 }
 
 export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
@@ -798,6 +833,14 @@ export interface AccessGrant {
   active: boolean;
 }
 
+export interface WaitlistUser {
+  id: string;
+  username: string;
+  email: string;
+  created_at: string;
+  email_verified: boolean;
+}
+
 export async function fetchGateStatus(): Promise<GateStatus> {
   const response = await fetch(apiUrl("/api/v1/auth/gate/status"), {
     credentials: FETCH_CREDENTIALS,
@@ -855,6 +898,17 @@ export async function fetchAccessGrants(): Promise<AccessGrant[]> {
     throw new Error(await readErrorDetail(response));
   }
   return response.json() as Promise<AccessGrant[]>;
+}
+
+export async function fetchWaitlistUsers(): Promise<WaitlistUser[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/waitlist"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<WaitlistUser[]>;
 }
 
 export async function createAccessGrant(body: {

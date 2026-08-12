@@ -95,8 +95,8 @@ export default function RegisterPage() {
             ) : (
               <>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Join discussions on tracked assets. We&apos;ll email a confirmation
-                  link, then walk you through access and authenticator unlock.
+                  Invite-only dashboard. We&apos;ll email a confirmation link, then
+                  you wait for an admin grant and set up your personal authenticator.
                 </p>
 
                 <form onSubmit={onSubmit} className="surface mt-8 space-y-4 p-5">
