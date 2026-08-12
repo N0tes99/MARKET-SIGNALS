@@ -99,7 +99,10 @@ class Settings(BaseSettings):
 
     # Reddit social confirmation (public JSON). Disabled = F&G-only sentiment.
     reddit_social_enabled: bool = True
-    reddit_user_agent: str = "signal-engine/1.0 (research bot; +https://github.com/N0tes99/MARKET-SIGNALS)"
+    # Reddit format: <platform>:<app ID>:<version> (contact). Override via REDDIT_USER_AGENT.
+    reddit_user_agent: str = (
+        "web:signal-engine:v1.1.0 (research; +https://github.com/N0tes99/MARKET-SIGNALS)"
+    )
 
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"

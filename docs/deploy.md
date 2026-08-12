@@ -57,8 +57,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
 | `CRON_SECRET` | shared secret for `POST /api/v1/paper/cron-tick` (GitHub Actions keep-warm). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight) |
-| `REDDIT_USER_AGENT` | optional polite User-Agent for Reddit public JSON |
+| `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight). Set `false` if Render logs show repeated Reddit HTTP 403 (public JSON is often blocked on datacenter IPs; Sentiment still works via Fear & Greed) |
+| `REDDIT_USER_AGENT` | optional; Reddit-preferred format `platform:app:version (contact)`. Default is already set; a custom UA alone usually will not bypass Render/datacenter 403s |
 | `SITE_TOTP_SECRET` | base32 gate switch (empty = gate off). Per-user authenticator enrollment after grant. |
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |

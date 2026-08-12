@@ -22,6 +22,18 @@ _CACHE_TTL = 1_800.0  # 30 minutes
 _MIN_REQUEST_GAP = 1.25  # polite spacing between live Reddit calls
 _DISK_DIR = Path("/tmp/signal-engine/reddit")
 
+# Circuit breaker: after repeated block responses, stop live fetches for a while.
+# Datacenter egress (e.g. Render) often gets HTTP 403 on unauthenticated public JSON.
+_BLOCK_STATUSES = frozenset({403, 429, 503})
+_BLOCK_OPEN_THRESHOLD = 3
+_CIRCUIT_COOLDOWN_SEC = 1_800.0  # 30 minutes
+_BLOCK_LOG_COOLDOWN_SEC = 300.0  # warn at most once per 5 minutes
+
+# Reddit-preferred UA shape: <platform>:<app ID>:<version> (contact)
+_DEFAULT_USER_AGENT = (
+    "web:signal-engine:v1.1.0 (research; +https://github.com/N0tes99/MARKET-SIGNALS)"
+)
+
 _CRYPTO_SUBS = (
     "CryptoCurrency",
     "bitcoin",
@@ -79,6 +91,12 @@ _MEM_CACHE: TTLCache["RedditBuzzSnapshot | None"] = TTLCache(ttl_seconds=_CACHE_
 _RATE_LOCK = Lock()
 _LAST_REQUEST_AT = 0.0
 
+_CIRCUIT_LOCK = Lock()
+_CIRCUIT_OPEN_UNTIL = 0.0
+_CONSECUTIVE_BLOCKS = 0
+_LAST_BLOCK_LOG_AT = 0.0
+_SUPPRESSED_BLOCK_LOGS = 0
+
 
 @dataclass(frozen=True)
 class RedditPostHit:
@@ -95,7 +113,7 @@ class RedditBuzzSnapshot:
     query: str
     posts: tuple[RedditPostHit, ...]
     fetched_ok: bool
-    source: str  # live | memory | disk | empty
+    source: str  # live | memory | disk | empty | circuit_open
 
 
 def search_terms_for(symbol: str) -> list[str]:
@@ -126,7 +144,16 @@ def _user_agent() -> str:
     ua = settings.reddit_user_agent.strip()
     if ua:
         return ua
-    return "signal-engine/1.0 (market research; contact: local)"
+    return _DEFAULT_USER_AGENT
+
+
+def _request_headers() -> dict[str, str]:
+    """Headers Reddit expects for public JSON (unique UA + browser-ish Accept)."""
+    return {
+        "User-Agent": _user_agent(),
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
 
 def _throttle() -> None:
@@ -137,6 +164,68 @@ def _throttle() -> None:
         if wait > 0:
             time.sleep(wait)
         _LAST_REQUEST_AT = time.monotonic()
+
+
+def reset_circuit_state() -> None:
+    """Clear breaker state (tests / manual recovery)."""
+    global _CIRCUIT_OPEN_UNTIL, _CONSECUTIVE_BLOCKS, _LAST_BLOCK_LOG_AT, _SUPPRESSED_BLOCK_LOGS
+    with _CIRCUIT_LOCK:
+        _CIRCUIT_OPEN_UNTIL = 0.0
+        _CONSECUTIVE_BLOCKS = 0
+        _LAST_BLOCK_LOG_AT = 0.0
+        _SUPPRESSED_BLOCK_LOGS = 0
+
+
+def circuit_is_open() -> bool:
+    """True when live Reddit fetches are paused after repeated blocks."""
+    with _CIRCUIT_LOCK:
+        return time.monotonic() < _CIRCUIT_OPEN_UNTIL
+
+
+def _note_success() -> None:
+    global _CONSECUTIVE_BLOCKS
+    with _CIRCUIT_LOCK:
+        _CONSECUTIVE_BLOCKS = 0
+
+
+def _note_block(status: int, symbol: str) -> None:
+    """Record a block response; open circuit and rate-limit warnings."""
+    global _CIRCUIT_OPEN_UNTIL, _CONSECUTIVE_BLOCKS, _LAST_BLOCK_LOG_AT, _SUPPRESSED_BLOCK_LOGS
+    with _CIRCUIT_LOCK:
+        _CONSECUTIVE_BLOCKS += 1
+        now = time.monotonic()
+        opened = False
+        if _CONSECUTIVE_BLOCKS >= _BLOCK_OPEN_THRESHOLD:
+            _CIRCUIT_OPEN_UNTIL = now + _CIRCUIT_COOLDOWN_SEC
+            opened = True
+
+        if now - _LAST_BLOCK_LOG_AT < _BLOCK_LOG_COOLDOWN_SEC:
+            _SUPPRESSED_BLOCK_LOGS += 1
+            return
+
+        suppressed = _SUPPRESSED_BLOCK_LOGS
+        _SUPPRESSED_BLOCK_LOGS = 0
+        _LAST_BLOCK_LOG_AT = now
+
+    extra = f" (+{suppressed} similar suppressed)" if suppressed else ""
+    if opened:
+        logger.warning(
+            "Reddit search blocked (HTTP %s for %s)%s; pausing live fetches for %.0fs. "
+            "Datacenter IPs (e.g. Render) often get 403 on public JSON — sentiment "
+            "continues without Reddit. Set REDDIT_SOCIAL_ENABLED=false to disable, or "
+            "REDDIT_USER_AGENT to Reddit's platform:app:version format.",
+            status,
+            symbol,
+            extra,
+            _CIRCUIT_COOLDOWN_SEC,
+        )
+    else:
+        logger.warning(
+            "Reddit search soft-fail HTTP %s for %s%s",
+            status,
+            symbol,
+            extra,
+        )
 
 
 def _parse_listing(payload: object) -> list[RedditPostHit]:
@@ -221,11 +310,19 @@ def _snapshot_from_dict(raw: object) -> RedditBuzzSnapshot | None:
         return None
 
 
+def _empty_snap(sym: str, query: str = "", *, source: str = "empty") -> RedditBuzzSnapshot:
+    return RedditBuzzSnapshot(sym, query, (), False, source)
+
+
 def _fetch_live(symbol: str) -> RedditBuzzSnapshot:
     sym = symbol.upper().strip()
     terms = search_terms_for(sym)
     # Primary query: first alias OR $SYMBOL
     query = " OR ".join(f'"{t}"' if " " in t else t for t in terms[:3])
+
+    if circuit_is_open():
+        return _empty_snap(sym, query, source="circuit_open")
+
     params: dict[str, str | int] = {
         "q": query,
         "sort": "new",
@@ -238,21 +335,21 @@ def _fetch_live(symbol: str) -> RedditBuzzSnapshot:
     url = f"{_SEARCH_BASE}/r/{subs}/search.json" if subs else f"{_SEARCH_BASE}/search.json"
 
     _throttle()
-    headers = {"User-Agent": _user_agent()}
     try:
-        with httpx.Client(timeout=10.0, headers=headers, follow_redirects=True) as client:
+        with httpx.Client(timeout=10.0, headers=_request_headers(), follow_redirects=True) as client:
             resp = client.get(url, params=params)
-            if resp.status_code in {403, 429, 503}:
-                logger.warning("Reddit search soft-fail HTTP %s for %s", resp.status_code, sym)
-                return RedditBuzzSnapshot(sym, query, (), False, "empty")
+            if resp.status_code in _BLOCK_STATUSES:
+                _note_block(resp.status_code, sym)
+                return _empty_snap(sym, query)
             resp.raise_for_status()
             hits = _parse_listing(resp.json())
+        _note_success()
         snap = RedditBuzzSnapshot(sym, query, tuple(hits), True, "live")
         disk_cache.write_json(_disk_path(sym), _snapshot_to_dict(snap))
         return snap
     except Exception:
         logger.warning("Reddit search failed for %s", sym, exc_info=True)
-        return RedditBuzzSnapshot(sym, query, (), False, "empty")
+        return _empty_snap(sym, query)
 
 
 def get_reddit_buzz(symbol: str, *, allow_live: bool = True) -> RedditBuzzSnapshot:
@@ -286,8 +383,10 @@ def get_reddit_buzz(symbol: str, *, allow_live: bool = True) -> RedditBuzzSnapsh
         )
 
     if not allow_live or not settings.reddit_social_enabled:
-        empty = RedditBuzzSnapshot(sym, "", (), False, "empty")
-        return empty
+        return _empty_snap(sym)
+
+    if circuit_is_open():
+        return _empty_snap(sym, source="circuit_open")
 
     snap = _fetch_live(sym)
     _MEM_CACHE.seed_stale(key, snap)
@@ -299,16 +398,38 @@ def prefetch_reddit_buzz(symbols: list[str]) -> dict[str, int | str]:
     if not settings.reddit_social_enabled:
         return {"status": "disabled", "warmed": 0}
 
+    if circuit_is_open():
+        return {
+            "status": "circuit_open",
+            "warmed": 0,
+            "errors": 0,
+            "symbols": len(symbols),
+        }
+
     warmed = 0
     errors = 0
-    for symbol in symbols:
+    skipped = 0
+    for i, symbol in enumerate(symbols):
+        if circuit_is_open():
+            skipped = len(symbols) - i
+            break
         try:
             snap = get_reddit_buzz(symbol, allow_live=True)
             if snap.fetched_ok:
                 warmed += 1
+            elif snap.source == "circuit_open":
+                skipped = len(symbols) - i
+                break
             elif not snap.posts:
                 errors += 1
         except Exception:
             errors += 1
             logger.exception("Reddit prefetch failed for %s", symbol)
-    return {"status": "ok", "warmed": warmed, "errors": errors, "symbols": len(symbols)}
+    status = "circuit_open" if skipped and warmed == 0 else "ok"
+    return {
+        "status": status,
+        "warmed": warmed,
+        "errors": errors,
+        "skipped": skipped,
+        "symbols": len(symbols),
+    }

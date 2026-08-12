@@ -127,6 +127,7 @@ def test_get_reddit_buzz_cache_only(monkeypatch) -> None:
 
     monkeypatch.setattr(rp.settings, "reddit_social_enabled", True)
     rp._MEM_CACHE.clear()
+    rp.reset_circuit_state()
 
     called = {"n": 0}
 
@@ -141,3 +142,80 @@ def test_get_reddit_buzz_cache_only(monkeypatch) -> None:
     snap = rp.get_reddit_buzz("ETH", allow_live=False)
     assert snap.source == "empty"
     assert called["n"] == 0
+
+
+def test_request_headers_include_accept(monkeypatch) -> None:
+    from app.market_data.providers import reddit_public as rp
+
+    monkeypatch.setattr(rp.settings, "reddit_user_agent", "")
+    headers = rp._request_headers()
+    assert headers["Accept"] == "application/json"
+    assert "Accept-Language" in headers
+    assert headers["User-Agent"].startswith("web:signal-engine:")
+
+
+def test_circuit_opens_after_repeated_403(monkeypatch) -> None:
+    from app.market_data.providers import reddit_public as rp
+
+    rp.reset_circuit_state()
+    monkeypatch.setattr(rp, "_throttle", lambda: None)
+    monkeypatch.setattr(rp.settings, "reddit_social_enabled", True)
+    monkeypatch.setattr(rp, "_BLOCK_LOG_COOLDOWN_SEC", 0.0)
+
+    class _Resp:
+        def __init__(self, code: int) -> None:
+            self.status_code = code
+
+        def raise_for_status(self) -> None:
+            raise AssertionError("should not raise for block status")
+
+        def json(self) -> dict:
+            return {}
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def get(self, url, params=None) -> _Resp:
+            return _Resp(403)
+
+    monkeypatch.setattr(rp.httpx, "Client", _Client)
+
+    for sym in ("SMH", "IBIT", "XLE"):
+        snap = rp._fetch_live(sym)
+        assert snap.fetched_ok is False
+        assert snap.source == "empty"
+
+    assert rp.circuit_is_open()
+    blocked = rp._fetch_live("AAPL")
+    assert blocked.source == "circuit_open"
+
+    result = rp.prefetch_reddit_buzz(["NVDA", "MSFT", "GOOGL"])
+    assert result["status"] == "circuit_open"
+    assert result["warmed"] == 0
+
+
+def test_block_warnings_are_rate_limited(monkeypatch, caplog) -> None:
+    import logging
+
+    from app.market_data.providers import reddit_public as rp
+
+    rp.reset_circuit_state()
+    monkeypatch.setattr(rp, "_BLOCK_OPEN_THRESHOLD", 99)
+    monkeypatch.setattr(rp, "_BLOCK_LOG_COOLDOWN_SEC", 60.0)
+
+    with caplog.at_level(logging.WARNING, logger=rp.logger.name):
+        rp._note_block(403, "SMH")
+        rp._note_block(403, "IBIT")
+        rp._note_block(403, "XLE")
+
+    soft = [r for r in caplog.records if "soft-fail HTTP 403" in r.getMessage()]
+    assert len(soft) == 1
+    assert "SMH" in soft[0].getMessage()
+    assert rp._SUPPRESSED_BLOCK_LOGS == 2
