@@ -50,7 +50,7 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
           setReady(true);
           return;
         }
-        if (status.next_step === "mfa") {
+        if (status.next_step === "mfa" || status.next_step === "enroll") {
           router.replace(`/unlock?next=${encodeURIComponent(pathname)}`);
           return;
         }

@@ -354,6 +354,19 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export interface PublicPreview {
+  as_of: string;
+  hot_picks: AssetSummary[];
+  optimistic: PaperLedger;
+  honest: PaperLedger;
+  paper_as_of: string | null;
+  last_tick_at: string | null;
+}
+
+export async function fetchPublicPreview(): Promise<PublicPreview> {
+  return apiFetch<PublicPreview>("/api/v1/public/preview", 30_000);
+}
+
 export async function resetPaperAgent(): Promise<PaperSummary> {
   const response = await fetch(apiUrl("/api/v1/paper/reset"), {
     method: "POST",
@@ -689,7 +702,8 @@ export interface GateStatus {
   granted: boolean;
   grant_expires_at: string | null;
   mfa_ok: boolean;
-  next_step: "open" | "login" | "pending" | "mfa" | "dashboard";
+  next_step: "open" | "login" | "pending" | "enroll" | "mfa" | "dashboard";
+  totp_enrolled?: boolean;
 }
 
 export interface AccessGrant {
@@ -731,6 +745,25 @@ export async function verifySiteGate(code: string): Promise<{
     throw new Error(await readErrorDetail(response));
   }
   return response.json();
+}
+
+export interface GateEnroll {
+  enrolled: boolean;
+  secret: string | null;
+  otpauth_uri: string | null;
+  issuer: string;
+  account: string;
+}
+
+export async function fetchGateEnroll(): Promise<GateEnroll> {
+  const response = await fetch(apiUrl("/api/v1/auth/gate/enroll"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<GateEnroll>;
 }
 
 export async function fetchAccessGrants(): Promise<AccessGrant[]> {

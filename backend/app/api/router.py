@@ -17,6 +17,7 @@ from app.api.routes import (
     learning,
     opportunities,
     paper,
+    public_preview,
     quotes,
     setups,
     social,
@@ -28,6 +29,7 @@ from app.core.site_gate import router as site_gate_router
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(public_preview.router, tags=["public"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(wallet_auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(site_gate_router, prefix="/auth", tags=["auth"])

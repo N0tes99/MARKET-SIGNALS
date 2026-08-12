@@ -16,6 +16,7 @@ function isPublicAsset(pathname: string): boolean {
   if (pathname.startsWith("/_next/")) return true;
   if (pathname.startsWith("/api/backend/api/v1/auth/")) return true;
   if (pathname.startsWith("/api/backend/api/v1/health")) return true;
+  if (pathname.startsWith("/api/backend/api/v1/public/")) return true;
   if (pathname === "/favicon.svg" || pathname === "/favicon.ico") return true;
   return false;
 }

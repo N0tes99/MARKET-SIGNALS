@@ -24,7 +24,7 @@ export default function PendingPage() {
       const s = await fetchGateStatus();
       if (cancelled) return;
       setStatus(s);
-      if (s.next_step === "mfa") {
+      if (s.next_step === "mfa" || s.next_step === "enroll") {
         router.replace("/unlock");
       } else if (s.next_step === "dashboard" || s.next_step === "open") {
         router.replace("/");
@@ -42,10 +42,28 @@ export default function PendingPage() {
         <p className="mt-6 label-caps text-muted-foreground/70">Waitlist</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Access pending</h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
-          Thanks {user?.username ? `@${user.username}` : ""}. Your account is created — an
-          admin still needs to grant access (and for how long) before the authenticator
-          unlock. Check back after you are approved.
+          Thanks {user?.username ? `@${user.username}` : ""}. Your account is ready —
+          access is still waiting on an admin grant.
         </p>
+        <div className="surface mt-6 space-y-3 p-4">
+          <p className="label-caps text-muted-foreground/60">What happens next</p>
+          <ol className="list-decimal space-y-2 pl-4 text-sm text-muted-foreground/80">
+            <li>An admin grants your username and sets how long access lasts.</li>
+            <li>
+              First unlock only: save your personal setup key in an authenticator
+              app (Google Authenticator, Authy, etc.). Don&apos;t discard it — the
+              same entry is how you get back in later.
+            </li>
+            <li>
+              Each time your session resets (about every 12 hours), open that app
+              and enter the current 6-digit code to unlock again.
+            </li>
+          </ol>
+          <p className="font-mono text-[10px] text-muted-foreground/45">
+            Use Refresh after you&apos;re approved — you&apos;ll be sent to unlock
+            automatically.
+          </p>
+        </div>
         <p className="mt-6 font-mono text-[10px] text-muted-foreground/45">
           Status: {status?.next_step ?? "checking…"}
           {status?.enabled === false ? " · gate off (dev)" : ""}

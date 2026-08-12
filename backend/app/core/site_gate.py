@@ -1,4 +1,8 @@
-"""Product access gate: login → access grant → shared TOTP → dashboard."""
+"""Product access gate: login → access grant → per-user TOTP → dashboard.
+
+Authenticator secret is shown once when the user is first allowed; after they
+confirm with a code, only the rotating 6-digit challenge is required.
+"""
 
 from __future__ import annotations
 
@@ -29,22 +33,37 @@ router = APIRouter()
 
 
 def gate_enabled() -> bool:
-    """True when shared authenticator secret is configured (prod lockdown)."""
+    """True when SITE_TOTP_SECRET is set (enables the gate; secrets are per-user)."""
     return bool(settings.site_totp_secret.strip())
 
 
-def _totp() -> pyotp.TOTP:
-    return pyotp.TOTP(settings.site_totp_secret.strip().replace(" ", ""))
+def _clean_code(code: str) -> str:
+    return "".join(ch for ch in code.strip() if ch.isdigit())
 
 
-def verify_totp_code(code: str) -> bool:
-    if not gate_enabled():
-        return True
-    cleaned = "".join(ch for ch in code.strip() if ch.isdigit())
+def verify_user_totp(user: User, code: str) -> bool:
+    secret = (user.totp_secret or "").strip().replace(" ", "")
+    if not secret:
+        return False
+    cleaned = _clean_code(code)
     if len(cleaned) != 6:
         return False
     try:
-        return bool(_totp().verify(cleaned, valid_window=1))
+        return bool(pyotp.TOTP(secret).verify(cleaned, valid_window=1))
+    except Exception:
+        return False
+
+
+def verify_totp_code(code: str) -> bool:
+    """Legacy helper for tests against the env site secret."""
+    if not gate_enabled():
+        return True
+    secret = settings.site_totp_secret.strip().replace(" ", "")
+    cleaned = _clean_code(code)
+    if len(cleaned) != 6:
+        return False
+    try:
+        return bool(pyotp.TOTP(secret).verify(cleaned, valid_window=1))
     except Exception:
         return False
 
@@ -104,6 +123,7 @@ def is_access_public_path(path: str) -> bool:
     public = {
         "/api/v1/health",
         "/api/v1/auth/gate/status",
+        "/api/v1/auth/gate/enroll",
         "/api/v1/auth/gate/verify",
         "/api/v1/auth/gate/logout",
         "/api/v1/auth/me",
@@ -116,6 +136,7 @@ def is_access_public_path(path: str) -> bool:
         "/api/v1/auth/reset-password",
         "/api/v1/auth/wallet/challenge",
         "/api/v1/auth/wallet/verify",
+        "/api/v1/public/preview",
     }
     if normalized in public:
         return True
@@ -145,7 +166,7 @@ async def active_grant_for_user(
 
 
 class AccessGateMiddleware(BaseHTTPMiddleware):
-    """When TOTP secret is set: data APIs need login + grant + MFA cookie."""
+    """When gate is on: data APIs need login + grant + MFA cookie."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> StarletteResponse:
         if request.method == "OPTIONS":
@@ -182,7 +203,8 @@ class GateStatusSchema(BaseModel):
     granted: bool = False
     grant_expires_at: datetime | None = None
     mfa_ok: bool = False
-    next_step: str = "open"  # open | login | pending | mfa | dashboard
+    totp_enrolled: bool = False
+    next_step: str = "open"  # open | login | pending | enroll | mfa | dashboard
 
 
 class GateVerifySchema(BaseModel):
@@ -193,6 +215,16 @@ class GateVerifyResponseSchema(BaseModel):
     ok: bool
     next_step: str
     grant_expires_at: datetime | None = None
+
+
+class GateEnrollSchema(BaseModel):
+    """One-time setup payload — secret is never returned after confirmation."""
+
+    enrolled: bool
+    secret: str | None = None
+    otpauth_uri: str | None = None
+    issuer: str
+    account: str
 
 
 class AccessGrantSchema(BaseModel):
@@ -213,17 +245,39 @@ class AccessGrantCreateSchema(BaseModel):
     notes: str = Field(default="", max_length=500)
 
 
-def _next_step(*, enabled: bool, user: User | None, granted: bool, mfa_ok: bool) -> str:
+def _user_has_access(user: User, granted: bool) -> bool:
+    return granted or settings.is_admin_username(user.username)
+
+
+def _next_step(
+    *,
+    enabled: bool,
+    user: User | None,
+    granted: bool,
+    mfa_ok: bool,
+) -> str:
     if not enabled:
         return "open"
     if user is None:
         return "login"
-    if settings.is_admin_username(user.username):
-        # Admins always pass grant check; still need MFA when gate on
-        return "dashboard" if mfa_ok else "mfa"
-    if not granted:
+    if not _user_has_access(user, granted):
         return "pending"
+    if not user.totp_enrolled:
+        return "enroll"
     return "dashboard" if mfa_ok else "mfa"
+
+
+def _ensure_pending_secret(user: User) -> str:
+    """Allocate a secret for first-time setup; keep until confirmed."""
+    existing = (user.totp_secret or "").strip().replace(" ", "")
+    if existing and user.totp_confirmed_at is None:
+        return existing
+    if user.totp_enrolled:
+        raise RuntimeError("enrolled user has no re-issuable secret")
+    secret = pyotp.random_base32()
+    user.totp_secret = secret
+    user.totp_confirmed_at = None
+    return secret
 
 
 @router.get("/gate/status", response_model=GateStatusSchema)
@@ -257,7 +311,53 @@ async def gate_status(
         granted=granted,
         grant_expires_at=grant_exp,
         mfa_ok=mfa_ok,
+        totp_enrolled=bool(user and user.totp_enrolled),
         next_step=_next_step(enabled=enabled, user=user, granted=granted, mfa_ok=mfa_ok),
+    )
+
+
+@router.get("/gate/enroll", response_model=GateEnrollSchema)
+async def gate_enroll(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> GateEnrollSchema:
+    """Return setup secret once — only while the user is not yet confirmed."""
+    if not gate_enabled():
+        return GateEnrollSchema(
+            enrolled=True,
+            secret=None,
+            otpauth_uri=None,
+            issuer=settings.site_totp_issuer,
+            account=user.username,
+        )
+
+    is_admin = settings.is_admin_username(user.username)
+    grant = None if is_admin else await active_grant_for_user(session, user.id)
+    if not is_admin and grant is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Access not granted yet — you are on the waitlist",
+        )
+
+    issuer = settings.site_totp_issuer.strip() or "Signal Engine"
+    if user.totp_enrolled:
+        return GateEnrollSchema(
+            enrolled=True,
+            secret=None,
+            otpauth_uri=None,
+            issuer=issuer,
+            account=user.username,
+        )
+
+    secret = _ensure_pending_secret(user)
+    await session.commit()
+    uri = pyotp.TOTP(secret).provisioning_uri(name=user.username, issuer_name=issuer)
+    return GateEnrollSchema(
+        enrolled=False,
+        secret=secret,
+        otpauth_uri=uri,
+        issuer=issuer,
+        account=user.username,
     )
 
 
@@ -268,7 +368,7 @@ async def gate_verify(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> GateVerifyResponseSchema:
-    """Logged-in user with access enters shared authenticator code."""
+    """Confirm first-time enrollment or unlock with the user's authenticator."""
     is_admin = settings.is_admin_username(user.username)
     grant = None if is_admin else await active_grant_for_user(session, user.id)
     if not is_admin and grant is None:
@@ -277,8 +377,16 @@ async def gate_verify(
             detail="Access not granted yet — you are on the waitlist",
         )
 
-    if gate_enabled() and not verify_totp_code(body.code):
-        raise HTTPException(status_code=401, detail="Invalid authenticator code")
+    if gate_enabled():
+        if not user.totp_enrolled:
+            _ensure_pending_secret(user)
+            if not verify_user_totp(user, body.code):
+                await session.commit()
+                raise HTTPException(status_code=401, detail="Invalid authenticator code")
+            user.totp_confirmed_at = datetime.now(UTC)
+            await session.commit()
+        elif not verify_user_totp(user, body.code):
+            raise HTTPException(status_code=401, detail="Invalid authenticator code")
 
     grant_exp = grant.expires_at if grant else None
     set_mfa_cookie(response, create_mfa_token(user_id=user.id, grant_expires_at=grant_exp))
