@@ -100,7 +100,7 @@ export function SiteHeader({
       <div className="container mx-auto flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-4 sm:py-7 md:py-8">
         <div className="min-w-0 overflow-visible">
           <SignalEngineLogo size="lg" href={false} />
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 pl-[3.25rem] sm:mt-3 sm:pl-[3.75rem]">
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 pl-[2.625rem] sm:mt-3 sm:pl-[3.75rem]">
             <p className="text-sm font-light tracking-wide text-muted-foreground/75 sm:text-base">
               {title}
             </p>

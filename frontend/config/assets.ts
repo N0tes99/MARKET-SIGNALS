@@ -148,9 +148,9 @@ export function heatmapWeight(symbol: string): number {
 }
 
 export const ASSET_SECTIONS: { label: string; class: AssetClass; symbols: readonly string[] }[] = [
-  { label: "Crypto", class: "crypto", symbols: CRYPTO_SYMBOLS },
-  { label: "ETFs", class: "etf", symbols: ETF_SYMBOLS },
   { label: "Stocks", class: "stock", symbols: STOCK_SYMBOLS },
+  { label: "ETFs", class: "etf", symbols: ETF_SYMBOLS },
+  { label: "Crypto", class: "crypto", symbols: CRYPTO_SYMBOLS },
 ];
 
 export function assetClassLabel(assetClass: AssetClass): string {

@@ -10,10 +10,10 @@ export default function HomePage() {
     <main className="min-h-screen">
       <DashboardHeader />
       <div className="container mx-auto px-3 pb-12 pt-1 sm:px-4 sm:pb-16 sm:pt-2">
+        <PaperAgentPanel />
+        <EquityOpportunitiesFeed />
         <AssetGrid />
         <OpportunitiesFeed />
-        <EquityOpportunitiesFeed />
-        <PaperAgentPanel />
         <AlpacaActivityPanel />
       </div>
     </main>

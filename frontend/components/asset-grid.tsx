@@ -131,7 +131,7 @@ export function AssetGrid() {
   const { data: assets, isLoading, isFetching, error } = useAssets();
   const { data: quotes, isLoading: quotesLoading } = useQuotes();
   const { layout, density, setLayout, setDensity, ready, narrow } = useDashboardView();
-  const [mobileSection, setMobileSection] = useState("top");
+  const [mobileSection, setMobileSection] = useState("Stocks");
 
   const quotesBySymbol = useMemo(() => {
     const map = new Map<string, AssetQuote>();
@@ -187,8 +187,8 @@ export function AssetGrid() {
   }
 
   const sectionTabs = [
-    { id: "top", label: "Top" },
     ...ASSET_SECTIONS.map((section) => ({ id: section.label, label: section.label })),
+    { id: "top", label: "Top" },
   ];
   const showTop = !narrow || mobileSection === "top";
   const visibleSections = narrow
@@ -241,25 +241,6 @@ export function AssetGrid() {
         </div>
       )}
 
-      {topPicks.length > 0 && showTop ? (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-            <h2 className="label-caps text-muted-foreground">Top picks</h2>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Ranked by confidence
-            </p>
-          </div>
-          <SectionBody
-            assets={topPicks}
-            quotesBySymbol={quotesBySymbol}
-            layout={layout}
-            density={density}
-            showRank
-            emphasizeFirst
-          />
-        </section>
-      ) : null}
-
       {visibleSections.map((section) => {
         const sectionAssets = [...section.symbols]
           .map(
@@ -281,6 +262,25 @@ export function AssetGrid() {
           </section>
         );
       })}
+
+      {topPicks.length > 0 && showTop ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
+            <h2 className="label-caps text-muted-foreground">Top picks</h2>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Ranked by confidence
+            </p>
+          </div>
+          <SectionBody
+            assets={topPicks}
+            quotesBySymbol={quotesBySymbol}
+            layout={layout}
+            density={density}
+            showRank
+            emphasizeFirst
+          />
+        </section>
+      ) : null}
 
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
         <p className="px-1 font-mono text-xs text-muted-foreground">
