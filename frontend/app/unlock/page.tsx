@@ -101,7 +101,7 @@ function UnlockForm() {
   const isEnroll = mode === "enroll" && enroll && !enroll.enrolled;
 
   return (
-    <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4">
+    <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
       <div className="w-full max-w-md">
         <SignalEngineLogo size="lg" href={false} />
         <p className="mt-6 label-caps text-muted-foreground/70">

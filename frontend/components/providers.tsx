@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { AuthProvider } from "@/components/auth-provider";
+import { HomescreenInstallTip } from "@/components/homescreen-install-tip";
+import { HomescreenProvider } from "@/components/homescreen-provider";
 import { ProductAccessGuard } from "@/components/product-access-guard";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -22,9 +24,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ProductAccessGuard>{children}</ProductAccessGuard>
-      </AuthProvider>
+      <HomescreenProvider>
+        <AuthProvider>
+          <ProductAccessGuard>{children}</ProductAccessGuard>
+          <HomescreenInstallTip />
+        </AuthProvider>
+      </HomescreenProvider>
     </QueryClientProvider>
   );
 }
