@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     binance_spot_url: str = "https://api.binance.com"
     binance_futures_url: str = "https://fapi.binance.com"
+    # Render/US is geo-blocked (HTTP 451). use_binance() also checks RENDER.
+    binance_enabled: bool = True
     kraken_api_url: str = "https://api.kraken.com"
     fred_api_key: str = ""
     # Coinglass (liquidations) — empty key skips fetch; funding/OI still work

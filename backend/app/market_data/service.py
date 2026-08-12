@@ -9,7 +9,7 @@ import pandas as pd
 from app.market_data.freshness import freshness_tracker
 from app.market_data.normalizer import validate_ohlcv
 from app.market_data.providers.base import MarketDataProvider
-from app.market_data.providers.binance import BinanceProvider
+from app.market_data.providers.binance import BinanceProvider, use_binance
 from app.market_data.providers.fallback import FallbackProvider
 from app.market_data.providers.kraken import KrakenProvider
 from app.market_data.providers.router import AssetRouterProvider
@@ -29,13 +29,13 @@ _WARM_WORKERS = 16
 def build_default_provider() -> MarketDataProvider:
     """Build provider router: crypto via Kraken→Binance, equities via Yahoo.
 
-    Render/US IPs usually get Binance 403/451. Trying Kraken first avoids a
-    wasted ~1–1.5s timeout on almost every cold crypto OHLCV call.
+    Render/US IPs get Binance 451 — skip it there. Kraken covers spot;
+    Bybit covers funding/OI. Local/EU can still append Binance.
     """
-    crypto = FallbackProvider(
-        [KrakenProvider(timeout=5.0), BinanceProvider(timeout=1.0)]
-    )
-    return AssetRouterProvider(crypto=crypto)
+    chain: list[MarketDataProvider] = [KrakenProvider(timeout=5.0)]
+    if use_binance():
+        chain.append(BinanceProvider(timeout=1.0))
+    return AssetRouterProvider(crypto=FallbackProvider(chain))
 
 
 def _ohlcv_observed_at(df: pd.DataFrame) -> datetime | None:
