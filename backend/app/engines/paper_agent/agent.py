@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from app.engines.learning_engine.engine import LearningEngine
 from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsScanner
@@ -18,7 +20,9 @@ from app.engines.paper_agent.broker import (
     should_close,
     unrealized_pnl,
 )
+from app.engines.paper_agent.confirm import confirm_open
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
+from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
     PaperAgentSummary,
@@ -29,12 +33,15 @@ from app.engines.paper_agent.types import (
 )
 from app.market_data.service import MarketDataService
 
+if TYPE_CHECKING:
+    from app.services.decision_pipeline import DecisionPipelineService
+
 logger = logging.getLogger(__name__)
 
 AGENT_NAME = "Signal Engine Paper Agent"
 STARTING_CASH = 15_000.0
-# Below scanner WATCH bar on purpose — paper takes best real setups, not only peak WATCH.
-MIN_CONFIDENCE = 50.0
+# Match Layer 2/3 WATCH bar — do not spend a daily slot on IGNORE-band 50–54.9.
+MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 3
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
@@ -54,6 +61,13 @@ def _dir(bias: str) -> PaperDirection | None:
     return None
 
 
+def us_cash_session_open(now: datetime) -> bool:
+    """True Mon–Fri in America/New_York. Weekend equity last prints are stale."""
+    aware = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    et = aware.astimezone(ZoneInfo("America/New_York"))
+    return et.weekday() < 5
+
+
 class PaperAgent:
     """Living paper bot: WATCH ideas → dual-ledger fills → public PnL."""
 
@@ -65,6 +79,8 @@ class PaperAgent:
         equity_scanner: EquityOptionsScanner,
         store: PaperTradeStore | None = None,
         learning: LearningEngine | None = None,
+        pipeline: DecisionPipelineService | None = None,
+        alerts=None,
         starting_cash: float = STARTING_CASH,
         size_usd: float = DEFAULT_SIZE_USD,
     ) -> None:
@@ -73,6 +89,8 @@ class PaperAgent:
         self._equity = equity_scanner
         self._store = store or PaperTradeStore()
         self._learning = learning
+        self._pipeline = pipeline
+        self._alerts = alerts
         self._starting_cash = starting_cash
         self._size_usd = size_usd
         self._last_tick_at: datetime | None = None
@@ -151,6 +169,8 @@ class PaperAgent:
                 direction = _dir(idea.direction_bias)
                 if direction is None:
                     continue
+                if float(idea.confidence) < MIN_CONFIDENCE:
+                    continue
                 fp = _fingerprint("crypto_setup", idea.symbol, idea.setup_type, direction)
                 if fp in active:
                     continue
@@ -169,19 +189,25 @@ class PaperAgent:
                 )
 
             # --- Equity Layer 3 ---
-            try:
-                equity_ideas = self._equity.scan_feed(
-                    watch_only=False,
-                    min_confidence=MIN_CONFIDENCE,
-                )
-            except Exception:
-                logger.exception("Paper agent equity feed failed")
+            if not us_cash_session_open(now):
+                notes.append("skip:equity_weekend")
                 equity_ideas = []
-                notes.append("equity_feed_error")
+            else:
+                try:
+                    equity_ideas = self._equity.scan_feed(
+                        watch_only=False,
+                        min_confidence=MIN_CONFIDENCE,
+                    )
+                except Exception:
+                    logger.exception("Paper agent equity feed failed")
+                    equity_ideas = []
+                    notes.append("equity_feed_error")
 
             for idea in equity_ideas:
                 direction = _dir(idea.direction_bias)
                 if direction is None:
+                    continue
+                if float(idea.confidence) < MIN_CONFIDENCE:
                     continue
                 fp = _fingerprint("equity_setup", idea.symbol, idea.setup_type, direction)
                 if fp in active:
@@ -215,6 +241,18 @@ class PaperAgent:
                 if _slots_left() <= 0:
                     hit_cap = True
                     break
+                skip, tp_pct, sl_pct, confirm_note = self._confirm_open(
+                    cand["symbol"], cand["direction"]
+                )
+                if skip:
+                    notes.append(f"{skip}:{cand['symbol']}")
+                    logger.info(
+                        "paper_skip confirm %s %s %s",
+                        cand["symbol"],
+                        cand["setup_type"],
+                        skip,
+                    )
+                    continue
                 trade = self._open_from_signal(
                     source=cand["source"],
                     symbol=cand["symbol"],
@@ -225,6 +263,9 @@ class PaperAgent:
                     opportunity_score=cand["opportunity_score"],
                     factors=cand["factors"],
                     now=now,
+                    take_profit_pct=tp_pct,
+                    stop_loss_pct=sl_pct,
+                    confirm_note=confirm_note,
                 )
                 if trade:
                     notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
@@ -263,6 +304,17 @@ class PaperAgent:
             set_meta("last_tick_at", now.isoformat())
         return notes
 
+    def _confirm_open(
+        self, symbol: str, direction: PaperDirection
+    ) -> tuple[str | None, float, float, str]:
+        px = last_price(self._market, symbol) or 0.0
+        return confirm_open(
+            symbol=symbol,
+            direction=direction,
+            pipeline=self._pipeline,
+            entry_price=px,
+        )
+
     def _open_from_signal(
         self,
         *,
@@ -275,6 +327,9 @@ class PaperAgent:
         opportunity_score: float,
         factors: list[str],
         now: datetime,
+        take_profit_pct: float = 6.0,
+        stop_loss_pct: float = 3.0,
+        confirm_note: str = "",
     ) -> PaperTrade | None:
         px = last_price(self._market, symbol)
         if px is None or px <= 0:
@@ -303,11 +358,17 @@ class PaperAgent:
             optimistic_entry_at=now,
             mark_price=px,
             factors=factors,
+            take_profit_pct=take_profit_pct,
+            stop_loss_pct=stop_loss_pct,
             notes=(
                 f"Notional ${size:,.0f}. Optimistic fill @ {opt_entry:.6g} "
-                f"(signal last {px:.6g} + slip). Honest fill awaits next 15m bar open."
+                f"(signal last {px:.6g} + slip). Honest fill awaits next 15m bar open. "
+                f"Exits ATR SL {stop_loss_pct:.1f}% / TP {take_profit_pct:.1f}%. "
+                f"{confirm_note}".strip()
             ),
         )
+        stamp = mint_stamp(trade.id)
+        trade.stamp = stamp.line
 
         # Try honest fill immediately if a later bar already exists (unlikely but fine)
         nxt = next_bar_open_after(self._market, symbol, now)
@@ -321,16 +382,43 @@ class PaperAgent:
 
         self._store.upsert(trade)
         self._remember_open(trade)
+        self._ping_discord("open", trade)
         logger.info(
-            "Paper open %s %s %s conf=%.1f opt=%.6g honest=%s",
+            "Paper open %s %s %s conf=%.1f opt=%.6g honest=%s stamp=%s",
             trade.symbol,
             trade.setup_type,
             trade.direction,
             trade.confidence,
             trade.optimistic_entry,
             f"{trade.honest_entry:.6g}" if trade.honest_entry else "pending",
+            stamp.serial,
         )
         return trade
+
+    def _ping_discord(self, kind: str, trade: PaperTrade) -> None:
+        if self._alerts is None:
+            return
+        try:
+            configured = getattr(self._alerts, "discord_configured", None)
+            if callable(configured) and not configured():
+                return
+            stamp = mint_stamp(trade.id)
+            content, embed = paper_discord_payload(kind, trade, stamp)
+            sender = getattr(self._alerts, "send_embed", None)
+            if not callable(sender):
+                return
+            ok = sender(
+                trade.symbol,
+                embed,
+                content=content,
+                username="Paper Desk",
+            )
+            if ok:
+                logger.info(
+                    "paper_discord %s %s %s", kind, trade.symbol, stamp.serial
+                )
+        except Exception:
+            logger.exception("paper_discord failed %s %s", kind, trade.symbol)
 
     def _remember_open(self, trade: PaperTrade) -> None:
         if self._learning is None or trade.signal_record_id:
@@ -413,6 +501,8 @@ class PaperAgent:
                 mark=mark,
                 opened_at=trade.optimistic_entry_at,
                 now=now,
+                take_profit_pct=trade.take_profit_pct,
+                stop_loss_pct=trade.stop_loss_pct,
             )
             if reason:
                 exit_px = _bps_slip(mark, trade.direction, entry=False)
@@ -444,6 +534,8 @@ class PaperAgent:
                 mark=mark,
                 opened_at=trade.honest_entry_at or trade.signal_at,
                 now=now,
+                take_profit_pct=trade.take_profit_pct,
+                stop_loss_pct=trade.stop_loss_pct,
             )
             if reason:
                 exit_px = _bps_slip(mark, trade.direction, entry=False)
@@ -496,6 +588,7 @@ class PaperAgent:
                 f"{trade.honest_pnl_usd:.2f}" if trade.honest_pnl_usd is not None else "-",
             )
             self._remember_close(trade)
+            self._ping_discord("close", trade)
         elif trade.status == "closing" and prev != "closing":
             notes.append(f"paper_closing:{trade.symbol}:{trade.close_reason or 'opt_done'}")
             logger.info(

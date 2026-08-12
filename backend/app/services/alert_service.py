@@ -316,12 +316,38 @@ class AlertService:
 
         return False
 
+    def send_embed(
+        self,
+        symbol: str,
+        embed: dict,
+        *,
+        content: str | None = None,
+        username: str = "Signal Engine",
+    ) -> bool:
+        """Post a custom embed (paper stamps, admin pings). Ignores alert_enabled."""
+        if not self.discord_configured():
+            return False
+        token = settings.alert_discord_bot_token.strip()
+        channel_id = settings.alert_discord_channel_id.strip()
+        webhook = settings.alert_discord_webhook_url.strip()
+        if token and channel_id:
+            if self._send_discord_bot(symbol, token, channel_id, embed, content=content):
+                return True
+            logger.warning("Discord bot failed for %s; trying webhook fallback", symbol)
+        if webhook:
+            return self._send_discord_webhook(
+                symbol, webhook, embed, content=content, username=username
+            )
+        return False
+
     def _send_discord_bot(
         self,
         symbol: str,
         token: str,
         channel_id: str,
         embed: dict,
+        *,
+        content: str | None = None,
     ) -> bool:
         """Send a channel message as our Discord application bot."""
         url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
@@ -329,7 +355,9 @@ class AlertService:
             "Authorization": f"Bot {token}",
             "Content-Type": "application/json",
         }
-        payload = {"embeds": [embed]}
+        payload: dict = {"embeds": [embed]}
+        if content:
+            payload["content"] = content
         try:
             with httpx.Client(timeout=8.0) as client:
                 response = client.post(url, headers=headers, json=payload)
@@ -339,9 +367,19 @@ class AlertService:
             logger.exception("Discord bot alert failed for %s", symbol)
             return False
 
-    def _send_discord_webhook(self, symbol: str, url: str, embed: dict) -> bool:
+    def _send_discord_webhook(
+        self,
+        symbol: str,
+        url: str,
+        embed: dict,
+        *,
+        content: str | None = None,
+        username: str = "Signal Engine",
+    ) -> bool:
         """Fallback: post embed to a Discord webhook URL."""
-        payload = {"username": "Signal Engine", "embeds": [embed]}
+        payload: dict = {"username": username, "embeds": [embed]}
+        if content:
+            payload["content"] = content
         try:
             with httpx.Client(timeout=8.0) as client:
                 response = client.post(url, json=payload)

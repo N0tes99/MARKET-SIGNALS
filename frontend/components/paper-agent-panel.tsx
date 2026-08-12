@@ -135,6 +135,11 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
             {money(trade.size_usd)}
           </span>
           <span className="font-mono text-[10px] text-muted-foreground/40">{trade.status}</span>
+          {trade.take_profit_pct != null && trade.stop_loss_pct != null ? (
+            <span className="font-mono text-[10px] text-muted-foreground/40">
+              TP +{trade.take_profit_pct.toFixed(1)}% / SL −{trade.stop_loss_pct.toFixed(1)}%
+            </span>
+          ) : null}
           {trade.close_reason ? (
             <span className="font-mono text-[10px] text-muted-foreground/40">
               {trade.close_reason}
@@ -150,6 +155,9 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
           })}
         </span>
       </div>
+      {trade.stamp ? (
+        <p className="mt-1.5 font-mono text-[11px] text-amber-200/70">{trade.stamp}</p>
+      ) : null}
       <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/70">
         opt {trade.optimistic_entry.toFixed(4)}
         {trade.optimistic_pnl_usd != null ? (
@@ -328,17 +336,20 @@ export function PaperAgentPanel() {
             notional · max{" "}
             {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} concurrent ·{" "}
             {Math.max(0, (data.daily_open_cap ?? 3) - (data.opens_today ?? 0))} of{" "}
-            {data.daily_open_cap ?? 3} daily opens left · TP +6% / SL −3% · max hold 3d
+            {data.daily_open_cap ?? 3} daily opens left · ATR TP/SL from RiskEngine · max hold 3d
+            · WATCH 55 + grade B + F&G + R:R · no US cash Sat/Sun ET
             {" · last tick "}
             <span className={lastTickMeta(data.last_tick_at).stale ? "text-muted-foreground/70" : ""}>
               {lastTickMeta(data.last_tick_at).text}
             </span>
           </p>
-          {data.tick_notes?.some((n) => n.startsWith("skip:daily_cap") || n === "discover:skipped") ? (
+          {data.tick_notes?.some(
+            (n) => n.startsWith("skip:") || n === "discover:skipped",
+          ) ? (
             <p className="mt-1 font-mono text-[10px] text-muted-foreground/40">
               {data.tick_notes
-                .filter((n) => n.startsWith("skip:daily_cap") || n === "discover:skipped")
-                .slice(0, 2)
+                .filter((n) => n.startsWith("skip:") || n === "discover:skipped")
+                .slice(0, 4)
                 .join(" · ")}
             </p>
           ) : null}

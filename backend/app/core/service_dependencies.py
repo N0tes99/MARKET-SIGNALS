@@ -129,6 +129,8 @@ def get_paper_agent():
         equity_scanner=get_equity_options_scanner(),
         store=build_paper_store(),
         learning=get_learning_engine(),
+        pipeline=get_decision_pipeline(),
+        alerts=get_alert_service(),
     )
 
 
