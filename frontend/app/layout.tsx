@@ -33,8 +33,8 @@ const rank = Syne({
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#070706" },
-    { media: "(prefers-color-scheme: light)", color: "#070706" },
+    { media: "(prefers-color-scheme: dark)", color: "#06090c" },
+    { media: "(prefers-color-scheme: light)", color: "#06090c" },
   ],
   colorScheme: "dark",
   width: "device-width",
