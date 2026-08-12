@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type DashboardLayout = "grid" | "list" | "chips";
+export type DashboardLayout = "grid" | "list" | "heat";
 export type DashboardDensity = "s" | "m";
 
 const LAYOUT_KEY = "se.dashboard.layout";
@@ -16,7 +16,8 @@ function isMobileViewport(): boolean {
 function readLayout(): DashboardLayout {
   if (typeof window === "undefined") return "grid";
   const stored = window.localStorage.getItem(LAYOUT_KEY);
-  if (stored === "grid" || stored === "list" || stored === "chips") return stored;
+  if (stored === "chips" || stored === "heat") return "heat";
+  if (stored === "grid" || stored === "list") return stored;
   return isMobileViewport() ? "list" : "grid";
 }
 
