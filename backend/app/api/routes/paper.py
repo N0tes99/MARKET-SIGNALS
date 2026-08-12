@@ -7,8 +7,11 @@ import logging
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
+import secrets
 
+from app.config import settings
 from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.agent import PaperAgent
@@ -28,6 +31,28 @@ router = APIRouter()
 _TICK_LOCK = Lock()
 _LAST_AUTO_TICK: datetime | None = None
 _AUTO_TICK_SECONDS = 90.0
+_LAST_CRON_TICK: datetime | None = None
+_CRON_TICK_MIN_SECONDS = 60.0
+
+
+class PaperCronTickSchema(BaseModel):
+    ok: bool
+    tick_notes: list[str] = Field(default_factory=list)
+    last_tick_at: datetime | None = None
+    open_positions: int = 0
+    opens_logged: int = 0
+
+
+def _require_cron_secret(x_cron_secret: str | None) -> None:
+    expected = settings.cron_secret.strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="CRON_SECRET is not configured on this API",
+        )
+    provided = (x_cron_secret or "").strip()
+    if not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail="Invalid cron secret")
 
 
 def _trade_schema(t: PaperTrade) -> PaperTradeSchema:
@@ -121,6 +146,48 @@ async def paper_tick(
     """Force one paper-agent tick (public; still soft-fails internally)."""
     notes = await asyncio.to_thread(agent.tick)
     return await asyncio.to_thread(_summary_schema, agent, notes)
+
+
+@router.post("/cron-tick", response_model=PaperCronTickSchema)
+async def paper_cron_tick(
+    agent: PaperAgent = Depends(get_paper_agent),
+    x_cron_secret: str | None = Header(default=None, alias="X-Cron-Secret"),
+) -> PaperCronTickSchema:
+    """Scheduled keep-warm tick — bypasses MFA; requires CRON_SECRET header."""
+    global _LAST_CRON_TICK, _LAST_AUTO_TICK
+    _require_cron_secret(x_cron_secret)
+    now = datetime.now(UTC)
+    with _TICK_LOCK:
+        if _LAST_CRON_TICK is not None and now - _LAST_CRON_TICK < timedelta(
+            seconds=_CRON_TICK_MIN_SECONDS
+        ):
+            summary = await asyncio.to_thread(_summary_schema, agent, ["cron:throttled"])
+            return PaperCronTickSchema(
+                ok=True,
+                tick_notes=list(summary.tick_notes),
+                last_tick_at=summary.last_tick_at,
+                open_positions=summary.optimistic.open_positions,
+                opens_logged=0,
+            )
+        _LAST_CRON_TICK = now
+        _LAST_AUTO_TICK = now
+
+    notes = await asyncio.to_thread(agent.tick)
+    summary = await asyncio.to_thread(_summary_schema, agent, notes)
+    opens = sum(1 for n in notes if n.startswith("open:"))
+    logger.info(
+        "paper_cron_tick opens=%d notes=%s last_tick=%s",
+        opens,
+        notes[:12],
+        summary.last_tick_at,
+    )
+    return PaperCronTickSchema(
+        ok=True,
+        tick_notes=list(summary.tick_notes),
+        last_tick_at=summary.last_tick_at,
+        open_positions=summary.optimistic.open_positions,
+        opens_logged=opens,
+    )
 
 
 @router.post("/reset", response_model=PaperSummarySchema)

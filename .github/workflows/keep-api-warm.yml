@@ -123,3 +123,78 @@ jobs:
             echo "OK (HTTP ${HTTP_CODE})"
           fi
           exit 0
+
+  ping-paper:
+    # Advance the paper bot on a schedule so it can open when setups exist
+    # even without a human on the dashboard (Render free has no Celery beat).
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Tick paper agent
+        continue-on-error: true
+        env:
+          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+          API_PAPER_CRON_URL: ${{ vars.API_PAPER_CRON_URL }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          normalize_path() {
+            local raw="$1"
+            local append="$2"
+            local trimmed="${raw%/}"
+            local rest="${trimmed#*://}"
+            if [[ "$rest" != */* ]]; then
+              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
+              echo "${trimmed}${append}"
+            else
+              echo "$trimmed"
+            fi
+          }
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::warning::CRON_SECRET not set — skipping paper cron-tick"
+            exit 0
+          fi
+
+          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
+          URL=$(normalize_path "${API_PAPER_CRON_URL:-}" "/api/v1/paper/cron-tick")
+          if [ -z "${API_PAPER_CRON_URL:-}" ]; then
+            # Derive from health host when var unset
+            BASE="${HEALTH_URL%/api/v1/health}"
+            URL="${BASE}/api/v1/paper/cron-tick"
+          fi
+
+          echo "Waking API via health (${HEALTH_URL})"
+          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
+            || echo "::warning::Health wake ping failed (continuing to paper tick)"
+          sleep 5
+
+          AUTH_ARGS=()
+          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
+          fi
+
+          echo "POST ${URL} (max 180s)"
+          HTTP_CODE=$(curl -sS -o /tmp/paper_body -w "%{http_code}" --max-time 180 \
+            -X POST \
+            -H "X-Cron-Secret: ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            "${AUTH_ARGS[@]}" \
+            "$URL" || true)
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::warning::Paper cron-tick HTTP ${HTTP_CODE} — check CRON_SECRET + Basic Auth secrets"
+          elif [ "$HTTP_CODE" = "503" ]; then
+            echo "::warning::Paper cron-tick 503 — set CRON_SECRET on Render to match GitHub secret"
+          elif [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Paper cron-tick failed (HTTP ${HTTP_CODE})"
+            head -c 300 /tmp/paper_body || true
+            echo
+          else
+            echo "OK (HTTP ${HTTP_CODE})"
+            head -c 400 /tmp/paper_body || true
+            echo
+          fi
+          exit 0

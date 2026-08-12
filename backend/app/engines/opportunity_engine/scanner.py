@@ -45,7 +45,7 @@ _OI_CROWD_PCT = 3.0
 # liq_flush: imbalance + meaningful size
 _LIQ_LONG_SHARE_HIGH = 0.62
 _LIQ_LONG_SHARE_LOW = 0.38
-_LIQ_MIN_TOTAL_USD = 5_000_000.0
+_LIQ_MIN_TOTAL_USD = 2_500_000.0
 
 # basis_rich: mark vs spot (annualized not required for MVP)
 _BASIS_RICH_PCT = 0.15  # |mark-spot|/spot * 100

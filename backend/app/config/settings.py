@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     auth_username: str = "signal"
     auth_password: str = ""
 
+    # Keep-warm / scheduled paper ticks (header X-Cron-Secret). Empty = cron-tick off.
+    cron_secret: str = ""
+
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"
     site_totp_secret: str = ""

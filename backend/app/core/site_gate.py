@@ -137,6 +137,7 @@ def is_access_public_path(path: str) -> bool:
         "/api/v1/auth/wallet/challenge",
         "/api/v1/auth/wallet/verify",
         "/api/v1/public/preview",
+        "/api/v1/paper/cron-tick",
     }
     if normalized in public:
         return True

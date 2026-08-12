@@ -24,5 +24,9 @@ celery_app.conf.update(
             "schedule": 300.0,
             "args": ("1h",),
         },
+        "tick-paper-agent": {
+            "task": "app.tasks.warm_cache.tick_paper_agent",
+            "schedule": 300.0,
+        },
     },
 )
