@@ -118,6 +118,14 @@ def get_equity_options_scanner():
 
 
 @lru_cache
+def get_runner_scanner():
+    """Singleton Surface 4 Runner Detection scanner."""
+    from app.engines.runner_engine import RunnerScanner
+
+    return RunnerScanner()
+
+
+@lru_cache
 def get_paper_agent():
     """Singleton public paper-trading agent (Postgres-backed when available)."""
     from app.engines.paper_agent import PaperAgent

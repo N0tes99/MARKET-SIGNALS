@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Planned** (architecture-first). Do not implement until this plan is accepted.
+> Status: **Phase 1 stub implemented** (API + model live; dimension providers still placeholders).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
