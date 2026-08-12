@@ -13,7 +13,7 @@ export function EquityOpportunitiesFeed() {
   const setups = data?.setups ?? [];
 
   return (
-    <section className="mb-8 border-b border-white/[0.05] pb-8">
+    <section className="mb-6 border-b border-white/[0.05] pb-6 sm:mb-8 sm:pb-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h2 className="label-caps">Equity options</h2>

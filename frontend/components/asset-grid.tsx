@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { AssetCard } from "@/components/asset-card";
 import { AssetHeatmap } from "@/components/asset-heatmap";
@@ -106,8 +106,8 @@ function SectionBody({
       className={cn(
         "motion-view-pane motion-stagger grid gap-3",
         density === "s"
-          ? "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
-          : "sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4",
+          ? "grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
+          : "grid-cols-2 lg:grid-cols-4 xl:grid-cols-4",
       )}
     >
       {assets.map((asset, index) => (
@@ -130,7 +130,8 @@ function SectionBody({
 export function AssetGrid() {
   const { data: assets, isLoading, isFetching, error } = useAssets();
   const { data: quotes, isLoading: quotesLoading } = useQuotes();
-  const { layout, density, setLayout, setDensity, ready } = useDashboardView();
+  const { layout, density, setLayout, setDensity, ready, narrow } = useDashboardView();
+  const [mobileSection, setMobileSection] = useState("Stocks");
 
   const quotesBySymbol = useMemo(() => {
     const map = new Map<string, AssetQuote>();
@@ -185,8 +186,18 @@ export function AssetGrid() {
     );
   }
 
+  const sectionTabs = [
+    ...ASSET_SECTIONS.map((section) => ({ id: section.label, label: section.label })),
+    { id: "top", label: "Top" },
+  ];
+  const showTop = !narrow || mobileSection === "top";
+  const visibleSections = narrow
+    ? ASSET_SECTIONS.filter((section) => section.label === mobileSection)
+    : ASSET_SECTIONS;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5 sm:space-y-8">
+      <div className="sticky top-0 z-30 -mx-3 border-b border-white/[0.06] bg-background/90 px-3 py-2 backdrop-blur-xl sm:static sm:z-auto sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
       {ready ? (
         <DashboardViewControls
           layout={layout}
@@ -197,6 +208,22 @@ export function AssetGrid() {
       ) : (
         <div className="h-10 border-b border-white/[0.06]" />
       )}
+      {narrow ? (
+        <div className="mt-2 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
+          {sectionTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMobileSection(tab.id)}
+              data-active={mobileSection === tab.id}
+              className="seg-control-btn shrink-0 rounded-md border border-white/[0.06] data-[active=true]:border-white/20"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      </div>
 
       {(isLoading || isFetching) && (
         <div className="status-line px-1 py-1">
@@ -214,26 +241,7 @@ export function AssetGrid() {
         </div>
       )}
 
-      {topPicks.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
-            <h2 className="label-caps text-muted-foreground">Top picks</h2>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Ranked by confidence
-            </p>
-          </div>
-          <SectionBody
-            assets={topPicks}
-            quotesBySymbol={quotesBySymbol}
-            layout={layout}
-            density={density}
-            showRank
-            emphasizeFirst
-          />
-        </section>
-      ) : null}
-
-      {ASSET_SECTIONS.map((section) => {
+      {visibleSections.map((section) => {
         const sectionAssets = [...section.symbols]
           .map(
             (symbol) =>
@@ -254,6 +262,25 @@ export function AssetGrid() {
           </section>
         );
       })}
+
+      {topPicks.length > 0 && showTop ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
+            <h2 className="label-caps text-muted-foreground">Top picks</h2>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Ranked by confidence
+            </p>
+          </div>
+          <SectionBody
+            assets={topPicks}
+            quotesBySymbol={quotesBySymbol}
+            layout={layout}
+            density={density}
+            showRank
+            emphasizeFirst
+          />
+        </section>
+      ) : null}
 
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
         <p className="px-1 font-mono text-xs text-muted-foreground">

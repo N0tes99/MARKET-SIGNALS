@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { heatmapWeight } from "@/config/assets";
 import type { DashboardDensity } from "@/hooks/use-dashboard-view";
@@ -47,9 +47,27 @@ export function AssetHeatmap({
   quotesBySymbol: Map<string, AssetQuote>;
   density: DashboardDensity;
 }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 360, h: 200 });
+
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const sync = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width > 0 && height > 0) setBox({ w: width, h: height });
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const aspect = box.w / box.h;
   const cells = useMemo(() => {
     const laid = layoutTreemap(
       assets.map((asset) => ({ id: asset.symbol, value: heatmapWeight(asset.symbol) })),
+      aspect,
     );
     const bySymbol = new Map(assets.map((asset) => [asset.symbol, asset]));
     return laid.map((cell) => {
@@ -58,22 +76,29 @@ export function AssetHeatmap({
       const delta = asset ? heatDelta(asset, quote) : null;
       return { ...cell, asset, quote, delta };
     });
-  }, [assets, quotesBySymbol]);
+  }, [aspect, assets, quotesBySymbol]);
 
   const tall = density === "m";
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div
-        className="relative w-full overflow-hidden rounded-sm border border-white/[0.08] bg-[#0a0c10]"
-        style={{ height: tall ? 380 : 240 }}
+        ref={boxRef}
+        className={cn(
+          "relative w-full overflow-hidden rounded-sm border border-white/[0.08] bg-[#0a0c10]",
+          "h-[12.5rem]",
+          "sm:h-[220px]",
+          tall && "sm:h-[360px]",
+        )}
       >
         {cells.map((cell) => {
           if (!cell.asset) return null;
-          const area = cell.w * cell.h;
-          const showDelta = area > 70 && cell.delta != null;
-          const showGrade = area > 45;
-          const compact = area < 90;
+          const pxW = (cell.w / 100) * box.w;
+          const pxH = (cell.h / 100) * box.h;
+          const showTicker = pxW >= 26 && pxH >= 11;
+          const showGrade = pxW >= 34 && pxH >= 22;
+          const showDelta = pxW >= 48 && pxH >= 30 && cell.delta != null;
+          const compact = pxW < 56 || pxH < 36;
           return (
             <Link
               key={cell.id}
@@ -82,8 +107,8 @@ export function AssetHeatmap({
                 cell.delta != null ? ` · ${formatDelta(cell.delta)}` : ""
               }`}
               className={cn(
-                "absolute box-border flex flex-col justify-end overflow-hidden border border-[#0a0c10] p-1.5 transition-[filter] hover:z-10 hover:brightness-125",
-                compact ? "p-1" : "p-2",
+                "absolute box-border flex flex-col items-center justify-center overflow-hidden border border-[#0a0c10] text-center transition-[filter] hover:z-10 hover:brightness-125",
+                compact ? "px-0.5 py-px" : "p-1 sm:p-1.5",
               )}
               style={{
                 left: `${cell.x}%`,
@@ -93,16 +118,18 @@ export function AssetHeatmap({
                 backgroundColor: heatFill(cell.delta),
               }}
             >
-              <p
-                className={cn(
-                  "font-mono font-medium leading-none tracking-wide text-foreground/95",
-                  compact ? "text-[10px]" : "text-xs sm:text-sm",
-                )}
-              >
-                {cell.asset.symbol}
-              </p>
+              {showTicker ? (
+                <p
+                  className={cn(
+                    "font-mono font-semibold leading-none tracking-wide text-foreground/95",
+                    compact ? "text-[11px] sm:text-[10px]" : "text-[12px] sm:text-xs",
+                  )}
+                >
+                  {cell.asset.symbol}
+                </p>
+              ) : null}
               {showGrade ? (
-                <p className="mt-0.5 font-mono text-[10px] leading-none text-foreground/70">
+                <p className="mt-0.5 font-mono text-[10px] leading-none text-foreground/65 sm:text-[10px]">
                   {cell.asset.trade_grade}
                   {showDelta ? ` · ${formatDelta(cell.delta ?? 0)}` : ""}
                 </p>

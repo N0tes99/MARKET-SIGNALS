@@ -3,18 +3,24 @@
 export type TreemapItem = { id: string; value: number };
 export type TreemapCell = TreemapItem & { x: number; y: number; w: number; h: number };
 
-export function layoutTreemap(
-  items: TreemapItem[],
-  x = 0,
-  y = 0,
-  w = 100,
-  h = 100,
-): TreemapCell[] {
+/**
+ * Layout in a rectangle matching `aspect` (width / height), then normalize to 0–100%.
+ * Passing the real container aspect keeps cells closer to square once stretched on screen.
+ */
+export function layoutTreemap(items: TreemapItem[], aspect = 1): TreemapCell[] {
   const usable = items
     .map((item) => ({ ...item, value: Math.max(item.value, 0.35) }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value);
-  return split(usable, x, y, w, h);
+  const w = 100 * Math.max(0.4, Math.min(aspect, 5));
+  const h = 100;
+  return split(usable, 0, 0, w, h).map((cell) => ({
+    ...cell,
+    x: (cell.x / w) * 100,
+    y: (cell.y / h) * 100,
+    w: (cell.w / w) * 100,
+    h: (cell.h / h) * 100,
+  }));
 }
 
 function split(items: TreemapItem[], x: number, y: number, w: number, h: number): TreemapCell[] {

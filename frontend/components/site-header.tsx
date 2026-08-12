@@ -31,7 +31,7 @@ function BuiltByNotes() {
 function MainNav() {
   const { user } = useAuth();
   return (
-    <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <nav className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-4 sm:gap-y-2">
       <Link
         href="/social"
         className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
@@ -97,22 +97,22 @@ export function SiteHeader({
 
   return (
     <header className="border-b border-white/[0.05] bg-card/18 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
-      <div className="container mx-auto flex items-end justify-between gap-4 px-4 py-7 sm:py-8">
+      <div className="container mx-auto flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-4 sm:py-7 md:py-8">
         <div className="min-w-0 overflow-visible">
           <SignalEngineLogo size="lg" href={false} />
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 pl-[3.25rem] sm:pl-[3.75rem]">
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 pl-[2.625rem] sm:mt-3 sm:pl-[3.75rem]">
             <p className="text-sm font-light tracking-wide text-muted-foreground/75 sm:text-base">
               {title}
             </p>
             <BuiltByNotes />
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2.5 pb-0.5">
+        <div className="flex min-w-0 flex-col items-start gap-2 sm:shrink-0 sm:items-end sm:pb-0.5">
           <MainNav />
-          {trailing}
-          {subtitle ? (
-            <div className="max-w-[16rem] text-right opacity-80">{subtitle}</div>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {trailing}
+            {subtitle ? <div className="opacity-80 sm:max-w-[16rem] sm:text-right">{subtitle}</div> : null}
+          </div>
         </div>
       </div>
     </header>

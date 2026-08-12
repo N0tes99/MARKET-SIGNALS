@@ -72,7 +72,7 @@ export function AssetListRow({
     <div
       className={cn(
         "flex items-center gap-3 border-b border-white/[0.06] transition-[background-color] duration-200 hover:bg-white/[0.03]",
-        compact ? "py-2" : "py-3",
+        compact ? "min-h-11 py-2.5 sm:min-h-0 sm:py-2" : "min-h-12 py-3",
       )}
     >
       {rank != null ? (

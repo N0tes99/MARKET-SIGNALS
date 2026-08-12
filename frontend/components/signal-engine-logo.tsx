@@ -58,7 +58,7 @@ export function SignalEngineLogo({
     <SignalMark
       className={cn(
         "self-center overflow-visible",
-        large ? "h-10 w-10 sm:h-11 sm:w-11" : "h-5 w-5",
+        large ? "h-8 w-8 sm:h-11 sm:w-11" : "h-5 w-5",
       )}
     />
   );
@@ -66,18 +66,20 @@ export function SignalEngineLogo({
   const word = (
     <span
       className={cn(
-        "inline-flex flex-wrap items-baseline gap-x-2 whitespace-nowrap font-brand font-semibold tracking-tight text-foreground",
+        "flex min-w-0 flex-col items-start font-brand font-semibold tracking-tight text-foreground sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-2",
         // Space Grotesk — geometric title; Syne stays for ranks
         large
-          ? "pb-[0.12em] pt-[0.04em] text-3xl leading-[1.2] sm:text-4xl"
-          : "pb-[0.08em] text-sm leading-[1.2]",
+          ? "pb-[0.08em] pt-[0.04em] text-[1.7rem] leading-none sm:text-3xl sm:leading-[1.15] md:text-4xl"
+          : "pb-[0.08em] text-sm leading-none",
       )}
     >
-      Signal Engine
+      <span className="whitespace-nowrap">Signal Engine</span>
       <span
         className={cn(
           "font-mono font-normal uppercase tracking-widest text-muted-foreground/45",
-          large ? "text-[10px] sm:text-[11px]" : "text-[8px]",
+          large
+            ? "sr-only text-[10px] sm:not-sr-only sm:inline sm:text-[11px]"
+            : "sr-only text-[8px] sm:not-sr-only sm:inline",
         )}
       >
         (Not Financial Advice)
@@ -86,8 +88,8 @@ export function SignalEngineLogo({
   );
 
   const rowClass = cn(
-    "inline-flex items-center overflow-visible text-foreground",
-    large ? "gap-3.5" : "gap-2",
+    "flex min-w-0 items-center overflow-visible text-foreground",
+    large ? "gap-2.5 sm:gap-3.5" : "gap-2",
     className,
   );
 
@@ -103,7 +105,7 @@ export function SignalEngineLogo({
     return (
       <Link
         href={href}
-        className="group block rounded-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-white/25"
+        className="group block min-w-0 rounded-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-white/25"
       >
         {heading}
       </Link>
