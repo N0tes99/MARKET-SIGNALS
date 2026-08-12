@@ -92,6 +92,13 @@ class RunnerScanner:
             len(results),
             datetime.now(UTC).isoformat(),
         )
+        try:
+            from app.core.service_dependencies import get_alert_service
+            from app.engines.runner_engine.radar_alerts import note_scan
+
+            note_scan(results, get_alert_service())
+        except Exception:
+            logger.exception("Radar transition dispatch failed")
         return results
 
     def lists(

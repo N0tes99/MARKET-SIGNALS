@@ -74,7 +74,7 @@ def _pick_side(screen: TapeScreen) -> DirectionBias | None:
 
 
 class OptionsTapeScanner:
-    """Volume-first aggressive options hunter. Does not feed the paper bot."""
+    """Volume-first aggressive options hunter. Hot hunts can feed paper after confirm."""
 
     def __init__(
         self,

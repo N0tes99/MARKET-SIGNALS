@@ -81,12 +81,14 @@ class PaperAgent:
         learning: LearningEngine | None = None,
         pipeline: DecisionPipelineService | None = None,
         alerts=None,
+        tape_scanner=None,
         starting_cash: float = STARTING_CASH,
         size_usd: float = DEFAULT_SIZE_USD,
     ) -> None:
         self._market = market_data
         self._crypto = crypto_scanner
         self._equity = equity_scanner
+        self._tape = tape_scanner
         self._store = store or PaperTradeStore()
         self._learning = learning
         self._pipeline = pipeline
@@ -227,6 +229,49 @@ class PaperAgent:
                     }
                 )
 
+            # --- Tape hunts (hot only, same confirm + daily cap) ---
+            if self._tape is None or not us_cash_session_open(now):
+                tape_hunts = []
+            else:
+                try:
+                    board = self._tape.scan_board()
+                    tape_hunts = [
+                        h
+                        for h in (*board.longs, *board.shorts)
+                        if getattr(h, "heat", "") == "hot"
+                    ]
+                except Exception:
+                    logger.exception("Paper agent tape feed failed")
+                    tape_hunts = []
+                    notes.append("tape_feed_error")
+
+            for hunt in tape_hunts:
+                direction = _dir(getattr(hunt, "direction", ""))
+                if direction is None:
+                    continue
+                score = float(hunt.hunt_score)
+                if score < MIN_CONFIDENCE:
+                    continue
+                fp = _fingerprint("tape_hunt", hunt.symbol, "tape_hunt", direction)
+                if fp in active:
+                    continue
+                rel = float(getattr(hunt, "relative_volume", 0.0) or 0.0)
+                extra = f"tape hunt {score:.0f} · rel vol {rel:.2f}x"
+                candidates.append(
+                    {
+                        "source": "tape_hunt",
+                        "symbol": hunt.symbol,
+                        "setup_type": "tape_hunt",
+                        "direction": direction,
+                        "fingerprint": fp,
+                        "confidence": score,
+                        "opportunity_score": score,
+                        "factors": [extra, *list(getattr(hunt, "factors", [])[:3])],
+                        "score": score,
+                        "extra_note": extra,
+                    }
+                )
+
             candidates.sort(key=lambda c: c["score"], reverse=True)
             opens_today = self._opens_on_utc_day(now)
             daily_left = max(0, MAX_NEW_OPENS_PER_DAY - opens_today)
@@ -265,7 +310,9 @@ class PaperAgent:
                     now=now,
                     take_profit_pct=tp_pct,
                     stop_loss_pct=sl_pct,
-                    confirm_note=confirm_note,
+                    confirm_note=" ".join(
+                        p for p in (confirm_note, cand.get("extra_note", "")) if p
+                    ),
                 )
                 if trade:
                     notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")

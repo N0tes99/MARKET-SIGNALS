@@ -291,6 +291,9 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
     assert feed.status_code == 200
     body = feed.json()
     assert body["symbols_scanned"] == 2
+    assert "fundamentals_filled" in body
+    assert "fundamentals_missing" in body
+    assert body["fundamentals_filled"] + body["fundamentals_missing"] == 2
     assert len(body["candidates"]) == 2
     first = body["candidates"][0]
     assert first["phase"] == RUNNER_PHASE
@@ -312,6 +315,7 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
     assert lists.status_code == 200
     assert lists.json()["ignition"] == []
     assert lists.json()["running"] == []
+    assert "fundamentals_filled" in lists.json()
 
     app.dependency_overrides.pop(get_runner_scanner, None)
 

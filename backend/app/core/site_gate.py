@@ -271,6 +271,54 @@ class WalletAccessSchema(BaseModel):
     grant_expires_at: datetime | None = None
 
 
+class AccessHealthSchema(BaseModel):
+    """Admin-only env dark-state — booleans, no secrets."""
+
+    reddit: bool
+    fred: bool
+    gemini: bool
+    discord: bool
+    alert_enabled: bool
+    cron_secret: bool
+    strip: str
+
+
+def access_health() -> AccessHealthSchema:
+    """Booleans + one-line strip for the Access admin page."""
+    from app.services.alert_service import AlertService
+
+    reddit = bool(settings.reddit_client_id.strip() and settings.reddit_client_secret.strip())
+    fred = bool(settings.fred_api_key.strip())
+    gemini = bool(settings.gemini_api_key.strip())
+    discord = AlertService.discord_configured()
+    alert_on = bool(settings.alert_enabled)
+    cron = bool(settings.cron_secret.strip())
+    if discord and alert_on:
+        discord_label = "on"
+    elif discord:
+        discord_label = "off"
+    else:
+        discord_label = "dark"
+    strip = " · ".join(
+        (
+            f"reddit {'set' if reddit else 'dark'}",
+            f"fred {'set' if fred else 'dark'}",
+            f"gemini {'set' if gemini else 'dark'}",
+            f"discord {discord_label}",
+            f"cron {'on' if cron else 'off'}",
+        )
+    )
+    return AccessHealthSchema(
+        reddit=reddit,
+        fred=fred,
+        gemini=gemini,
+        discord=discord,
+        alert_enabled=alert_on,
+        cron_secret=cron,
+        strip=strip,
+    )
+
+
 def _user_has_access(user: User, granted: bool) -> bool:
     return granted or settings.is_admin_username(user.username)
 
@@ -432,6 +480,14 @@ async def gate_logout(
 ) -> GateStatusSchema:
     clear_mfa_cookie(response)
     return await gate_status(request, user, session)
+
+
+@router.get("/access/health", response_model=AccessHealthSchema)
+async def access_env_health(
+    _admin: User = Depends(require_admin_user),
+) -> AccessHealthSchema:
+    """Which optional keys are present — no secret values."""
+    return access_health()
 
 
 @router.get("/access/waitlist", response_model=list[WaitlistUserSchema])

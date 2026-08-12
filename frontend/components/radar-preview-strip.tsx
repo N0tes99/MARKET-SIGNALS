@@ -49,6 +49,9 @@ export function RadarPreviewStrip() {
           </p>
         </div>
         <div className="flex flex-wrap gap-x-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+          <span>
+            yahoo {data?.fundamentals_filled ?? 0}/{data?.symbols_scanned ?? 0}
+          </span>
           <span>early {early.length}</span>
           <span className="text-amber-200/70">ignition {ignition.length}</span>
           <span className="text-bullish/70">running {running.length}</span>

@@ -14,6 +14,7 @@ from app.models.signal_record import SignalRecordModel
 from app.models.ticker_request import TickerRequestModel
 from app.models.user import User
 from app.models.wallet import WalletAccount, WalletAuthChallenge
+from app.models.weight_override import WeightOverrideModel
 
 __all__ = [
     "AccessGrantModel",
@@ -32,4 +33,5 @@ __all__ = [
     "User",
     "WalletAccount",
     "WalletAuthChallenge",
+    "WeightOverrideModel",
 ]

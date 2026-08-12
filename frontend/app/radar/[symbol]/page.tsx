@@ -52,7 +52,17 @@ export default function RadarDetailPage() {
                   {c.stage.replaceAll("_", " ")} · {c.watchlist}
                 </span>
               </div>
-              <p className="mt-3 font-mono text-xs text-muted-foreground">
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                stage {c.stage.replaceAll("_", " ")}
+                {c.signal_type === "runner_failure" ? (
+                  <span className="text-neutral"> · runner failure</span>
+                ) : (
+                  <> · {c.signal_type.replaceAll("_", " ")}</>
+                )}
+                {" · "}
+                {c.watchlist === "none" ? "off list" : c.watchlist}
+              </p>
+              <p className="mt-2 font-mono text-xs text-muted-foreground">
                 runner {c.scores.runner_score.toFixed(0)} · risk{" "}
                 {c.scores.risk_score.toFixed(0)} · conf {c.confidence.toFixed(0)} ·{" "}
                 {c.phase}

@@ -9,9 +9,12 @@ import { SiteHeader } from "@/components/site-header";
 import {
   createAccessGrant,
   fetchAccessGrants,
+  fetchAccessHealth,
   fetchWaitlistUsers,
   revokeAccessGrant,
+  sendAlertTest,
   type AccessGrant,
+  type AccessHealth,
   type WaitlistUser,
 } from "@/services/api";
 
@@ -30,11 +33,18 @@ export default function AdminAccessPage() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<AccessHealth | null>(null);
+  const [discordNote, setDiscordNote] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const [rows, waiting] = await Promise.all([fetchAccessGrants(), fetchWaitlistUsers()]);
+    const [rows, waiting, env] = await Promise.all([
+      fetchAccessGrants(),
+      fetchWaitlistUsers(),
+      fetchAccessHealth(),
+    ]);
     setGrants(rows);
     setWaitlist(waiting);
+    setHealth(env);
   }, []);
 
   useEffect(() => {
@@ -106,6 +116,38 @@ export default function AdminAccessPage() {
             Unlock
           </Link>
         </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+            {health?.strip ?? "env…"}
+          </p>
+          <button
+            type="button"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline disabled:opacity-40"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setDiscordNote(null);
+              void sendAlertTest("discord")
+                .then((r) =>
+                  setDiscordNote(
+                    r.discord === true ? "Discord test sent" : "Discord not configured",
+                  ),
+                )
+                .catch((err) =>
+                  setError(err instanceof Error ? err.message : "Discord test failed"),
+                )
+                .finally(() => setBusy(false));
+            }}
+          >
+            Test Discord
+          </button>
+          {discordNote ? (
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+              {discordNote}
+            </p>
+          ) : null}
+        </div>
 
         {waitlist.length > 0 ? (
           <div className="surface mt-8 p-5">

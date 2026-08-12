@@ -76,18 +76,11 @@ export default function RadarPage() {
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            phase {data?.candidates[0]?.phase ?? "3_yahoo"} · scanned{" "}
-            {data?.symbols_scanned ?? 0}
+            yahoo {data?.fundamentals_filled ?? 0}/{data?.symbols_scanned ?? 0} ·
+            early {candidates.filter((c) => c.watchlist === "early").length} ·
+            ignition {candidates.filter((c) => c.watchlist === "ignition").length}{" "}
+            · running {candidates.filter((c) => c.watchlist === "running").length}
           </p>
-          {BUCKETS.map((bucket) => (
-            <p
-              key={bucket.key}
-              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55"
-            >
-              {bucket.label}{" "}
-              {candidates.filter((c) => c.watchlist === bucket.key).length}
-            </p>
-          ))}
           {isFetching && !isLoading ? (
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
               refreshing
