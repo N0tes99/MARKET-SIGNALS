@@ -46,6 +46,18 @@ export default function manifest(): MetadataRoute.Manifest {
         description: "Rankings and paper agent",
       },
       {
+        name: "Radar",
+        short_name: "Radar",
+        url: "/radar",
+        description: "Early, ignition, and running lists",
+      },
+      {
+        name: "Tape",
+        short_name: "Tape",
+        url: "/tape",
+        description: "Two-sided options hunt",
+      },
+      {
         name: "Social",
         short_name: "Social",
         url: "/social",

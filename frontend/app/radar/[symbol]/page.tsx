@@ -52,7 +52,7 @@ export default function RadarDetailPage() {
                   {c.stage.replaceAll("_", " ")} · {c.watchlist}
                 </span>
               </div>
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
+              <p className="mt-3 break-words font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
                 stage {c.stage.replaceAll("_", " ")}
                 {c.signal_type === "runner_failure" ? (
                   <span className="text-neutral"> · runner failure</span>

@@ -129,7 +129,7 @@ export default function RadarPage() {
         ) : null}
 
         {!isLoading && !isError && candidates.length > 0 ? (
-          <div className="mt-10 overflow-x-auto">
+          <div className="mt-10 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[56rem] text-left text-sm">
               <thead>
                 <tr className="label-caps border-b border-white/[0.06] text-muted-foreground/70">
