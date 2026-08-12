@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     coinglass_base_url: str = "https://open-api-v4.coinglass.com"
     coinglass_exchange_list: str = "Binance,OKX,Bybit"
 
+    # Alpaca read-only mirror (positions / fills). Empty keys = unconfigured.
+    # Never used for order execution in v1.
+    alpaca_api_key: str = ""
+    alpaca_api_secret: str = ""
+    # Paper default; set https://api.alpaca.markets for live keys.
+    alpaca_base_url: str = "https://paper-api.alpaca.markets"
+
     # Product freshness gate (not TTL SWR): seconds since last successful
     # OHLCV/ticker fetch, and consecutive empty/error responses.
     market_data_stale_seconds: int = 900

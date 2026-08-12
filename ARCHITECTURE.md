@@ -698,7 +698,9 @@ class BrokerAdapter(Protocol):
 
 ### Status
 
-`NOT STARTED` — directory does not exist yet
+`PARTIAL` — directory created; Alpaca **read-only** mirror (`GET /api/v1/brokers/alpaca/mirror`)
+fetches account + positions + recent closed fills via official REST. No execution path.
+Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 
 ---
 
@@ -864,7 +866,7 @@ When adding a new system, follow this checklist:
 | M5 — AI & Dashboard | AI Analyst, live dashboard (WS client deferred) | **Complete** (partial: no FE WS client) |
 | M6 — Learning & Backtesting | Signal storage, backtesting, weight tuning | **Complete** |
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
-| M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; live brokers deferred) |
+| M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
 
 ---
