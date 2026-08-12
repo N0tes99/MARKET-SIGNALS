@@ -86,10 +86,34 @@ def alpaca_configured() -> bool:
 
 
 def _resolve_base_url() -> str:
+    """Trading API host only — never include /v2 (we append paths ourselves)."""
     override = (settings.alpaca_base_url or "").strip().rstrip("/")
-    if override:
-        return override
-    return _DEFAULT_PAPER_URL
+    if not override:
+        return _DEFAULT_PAPER_URL
+    # Common misconfig: paste ".../v2" or ".../v2/account" from docs → HTTP 404
+    lowered = override.lower()
+    for suffix in ("/v2/account", "/v2/positions", "/v2/orders", "/v2"):
+        if lowered.endswith(suffix):
+            override = override[: -len(suffix)].rstrip("/")
+            lowered = override.lower()
+            break
+    return override
+
+
+def _base_url_problem(base_url: str) -> str | None:
+    """Human hint when the host is clearly wrong for Trading API keys."""
+    lowered = base_url.lower()
+    if "broker-api" in lowered:
+        return (
+            "ALPACA_BASE_URL looks like Broker API — use "
+            f"{_DEFAULT_PAPER_URL} (paper) or {_DEFAULT_LIVE_URL} (live)"
+        )
+    if "data.alpaca" in lowered:
+        return (
+            "ALPACA_BASE_URL looks like Market Data API — use "
+            f"{_DEFAULT_PAPER_URL} (paper) or {_DEFAULT_LIVE_URL} (live)"
+        )
+    return None
 
 
 def _detect_mode(base_url: str) -> str:
@@ -209,6 +233,19 @@ def _fetch_mirror_uncached(*, fill_limit: int = 30) -> AlpacaMirrorSnapshot:
     headers = _auth_headers()
     as_of = datetime.now(UTC)
 
+    url_hint = _base_url_problem(base_url)
+    if url_hint:
+        return AlpacaMirrorSnapshot(
+            configured=True,
+            mode=mode,
+            base_url=base_url,
+            as_of=as_of,
+            error=url_hint,
+            account=None,
+            positions=[],
+            recent_fills=[],
+        )
+
     try:
         with httpx.Client(timeout=12.0, headers=headers) as client:
             account_resp = client.get(f"{base_url}/v2/account")
@@ -259,13 +296,26 @@ def _fetch_mirror_uncached(*, fill_limit: int = 30) -> AlpacaMirrorSnapshot:
         status = exc.response.status_code
         # Never log secrets; status + body snippet only.
         detail = (exc.response.text or "")[:200]
-        logger.warning("Alpaca mirror HTTP %s: %s", status, detail)
+        logger.warning(
+            "Alpaca mirror HTTP %s base=%s: %s", status, base_url, detail
+        )
+        hint = ""
+        if status == 404:
+            hint = (
+                f" — set ALPACA_BASE_URL to {_DEFAULT_PAPER_URL} "
+                "(no /v2 path) and use Trading API paper keys"
+            )
+        elif status in {401, 403}:
+            hint = (
+                " — Key ID/Secret must be Trading API keys for this "
+                "host (paper keys ↔ paper-api, live ↔ api.alpaca.markets)"
+            )
         return AlpacaMirrorSnapshot(
             configured=True,
             mode=mode,
             base_url=base_url,
             as_of=as_of,
-            error=f"Alpaca API error ({status})",
+            error=f"Alpaca API error ({status}){hint}",
             account=None,
             positions=[],
             recent_fills=[],
