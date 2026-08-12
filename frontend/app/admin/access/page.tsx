@@ -94,6 +94,10 @@ export default function AdminAccessPage() {
           <span className="text-foreground/85">personal</span> authenticator (shown once),
           then unlock with that app&apos;s 6-digit code about every 12 hours. Tell them to
           hit Refresh on the waitlist — it now sends them to unlock.{" "}
+          <Link href="/admin/wallets" className="underline-offset-2 hover:underline">
+            Wallets
+          </Link>
+          {" · "}
           <Link href="/admin/requests" className="underline-offset-2 hover:underline">
             Ticker requests
           </Link>

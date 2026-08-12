@@ -69,6 +69,12 @@ function MainNav() {
             Access
           </Link>
           <Link
+            href="/admin/wallets"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Wallets
+          </Link>
+          <Link
             href="/admin/requests"
             className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
           >
