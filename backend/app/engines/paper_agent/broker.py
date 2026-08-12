@@ -91,13 +91,17 @@ def should_close(
     mark: float,
     opened_at: datetime,
     now: datetime,
+    take_profit_pct: float = TAKE_PROFIT_PCT,
+    stop_loss_pct: float = STOP_LOSS_PCT,
 ) -> str | None:
-    """Exit rules for MVP paper agent."""
+    """Exit when return hits ATR (or fallback) TP/SL, or max hold."""
     _, ret = unrealized_pnl(direction=direction, entry=entry, mark=mark, size_usd=1.0)
-    if ret >= TAKE_PROFIT_PCT:
-        return f"take_profit_+{TAKE_PROFIT_PCT:.0f}%"
-    if ret <= -STOP_LOSS_PCT:
-        return f"stop_loss_-{STOP_LOSS_PCT:.0f}%"
+    tp = take_profit_pct if take_profit_pct > 0 else TAKE_PROFIT_PCT
+    sl = stop_loss_pct if stop_loss_pct > 0 else STOP_LOSS_PCT
+    if ret >= tp:
+        return f"take_profit_+{tp:.1f}%"
+    if ret <= -sl:
+        return f"stop_loss_-{sl:.1f}%"
     age_h = (now - opened_at).total_seconds() / 3600.0
     if age_h >= MAX_HOLD_HOURS:
         return f"max_hold_{MAX_HOLD_HOURS}h"

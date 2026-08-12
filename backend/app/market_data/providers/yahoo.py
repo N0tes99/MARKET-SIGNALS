@@ -1,6 +1,6 @@
 """Yahoo Finance market data provider for stocks and ETFs."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 import yfinance as yf

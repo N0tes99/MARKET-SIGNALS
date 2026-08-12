@@ -53,6 +53,9 @@ def _row_to_trade(row: PaperTradeModel) -> PaperTrade:
         factors=list(row.factors or []),
         notes=row.notes or "",
         signal_record_id=str(row.signal_record_id) if row.signal_record_id else None,
+        take_profit_pct=float(getattr(row, "take_profit_pct", 6.0) or 6.0),
+        stop_loss_pct=float(getattr(row, "stop_loss_pct", 3.0) or 3.0),
+        stamp=str(getattr(row, "stamp", "") or ""),
     )
 
 
@@ -85,6 +88,9 @@ def _trade_values(trade: PaperTrade) -> dict:
         "close_reason": trade.close_reason,
         "factors": list(trade.factors),
         "notes": trade.notes,
+        "take_profit_pct": trade.take_profit_pct,
+        "stop_loss_pct": trade.stop_loss_pct,
+        "stamp": trade.stamp,
         "signal_record_id": _to_uuid(trade.signal_record_id) if trade.signal_record_id else None,
         "updated_at": datetime.now(UTC),
     }

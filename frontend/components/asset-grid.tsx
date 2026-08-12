@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 
 import { AssetCard } from "@/components/asset-card";
-import { AssetChip, AssetListRow } from "@/components/asset-view-items";
+import { AssetHeatmap } from "@/components/asset-heatmap";
+import { AssetListRow } from "@/components/asset-view-items";
 import { DashboardViewControls } from "@/components/dashboard-view-controls";
 import { ASSET_SECTIONS, TRACKED_SYMBOLS, type AssetClass } from "@/config/assets";
 import { useAssets } from "@/hooks/use-assets";
@@ -62,7 +63,7 @@ function SectionBody({
 }: {
   assets: AssetSummary[];
   quotesBySymbol: Map<string, AssetQuote>;
-  layout: "list" | "chips" | "grid";
+  layout: "list" | "heat" | "grid";
   density: "s" | "m";
   showRank: boolean;
   emphasizeFirst?: boolean;
@@ -87,28 +88,14 @@ function SectionBody({
     );
   }
 
-  if (layout === "chips") {
+  if (layout === "heat") {
     return (
-      <div
-        key={layout}
-        className={cn(
-          "motion-view-pane motion-stagger flex flex-wrap",
-          density === "s" ? "gap-2" : "gap-3",
-        )}
-      >
-        {assets.map((asset, index) => (
-          <div
-            key={asset.symbol}
-            className={cn(emphasizeFirst && index === 0 && "rounded-full motion-rank-1")}
-          >
-            <AssetChip
-              asset={asset}
-              quote={quotesBySymbol.get(asset.symbol)}
-              density={density}
-              rank={showRank ? index + 1 : undefined}
-            />
-          </div>
-        ))}
+      <div key={layout} className="motion-view-pane">
+        <AssetHeatmap
+          assets={assets}
+          quotesBySymbol={quotesBySymbol}
+          density={density}
+        />
       </div>
     );
   }

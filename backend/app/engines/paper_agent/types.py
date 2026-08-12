@@ -48,6 +48,9 @@ class PaperTrade:
     factors: list[str] = field(default_factory=list)
     notes: str = ""
     signal_record_id: str | None = None
+    take_profit_pct: float = 6.0
+    stop_loss_pct: float = 3.0
+    stamp: str = ""
 
 
 @dataclass

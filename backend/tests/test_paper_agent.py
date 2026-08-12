@@ -257,7 +257,7 @@ def test_opt_close_appears_in_history(monkeypatch, caplog) -> None:
 
     calls = {"n": 0}
 
-    def _fake_should_close(*, direction, entry, mark, opened_at, now):
+    def _fake_should_close(*, direction, entry, mark, opened_at, now, **kwargs):
         # First call is optimistic; second would be honest — only close opt first tick.
         calls["n"] += 1
         if calls["n"] == 1:
@@ -283,7 +283,7 @@ def test_opt_close_appears_in_history(monkeypatch, caplog) -> None:
     assert "paper_closing" in caplog.text
 
     # Second tick: honest hits TP → fully closed, still in history
-    def _fake_should_close_honest(*, direction, entry, mark, opened_at, now):
+    def _fake_should_close_honest(*, direction, entry, mark, opened_at, now, **kwargs):
         return "take_profit"
 
     monkeypatch.setattr("app.engines.paper_agent.agent.should_close", _fake_should_close_honest)
@@ -433,6 +433,7 @@ def test_daily_open_cap_picks_best(monkeypatch) -> None:
     assert any("BBB" in n for n in opens)
     assert any("CCC" in n for n in opens)
     assert any("DDD" in n for n in opens)
+    assert not any("AAA" in n for n in opens)
     assert not any("EEE" in n for n in opens)
     assert "skip:daily_cap:3" in notes
 
@@ -718,3 +719,136 @@ def test_ledger_exit_without_pnl_uses_exit_not_live_mark() -> None:
     assert opt.losses == 1
     assert opt.total_pnl < 0
     assert abs(opt.realized_pnl - (-75.0)) < 0.01
+
+
+def test_should_close_uses_trade_atr_levels() -> None:
+    now = datetime.now(UTC)
+    assert (
+        should_close(
+            direction="long",
+            entry=100.0,
+            mark=103.0,
+            opened_at=now,
+            now=now,
+            take_profit_pct=8.0,
+            stop_loss_pct=4.0,
+        )
+        is None
+    )
+    assert should_close(
+        direction="long",
+        entry=100.0,
+        mark=108.2,
+        opened_at=now,
+        now=now,
+        take_profit_pct=8.0,
+        stop_loss_pct=4.0,
+    ) == "take_profit_+8.0%"
+    assert should_close(
+        direction="short",
+        entry=100.0,
+        mark=95.5,
+        opened_at=now,
+        now=now,
+        take_profit_pct=4.5,
+        stop_loss_pct=2.2,
+    ) == "take_profit_+4.5%"
+
+
+def test_watch_bar_skips_ignore_band(monkeypatch) -> None:
+    store = PaperTradeStore()
+    signal_at = datetime(2026, 8, 10, 15, 0, tzinfo=UTC)  # Monday
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="BTC",
+                    setup_type="funding_extreme",
+                    direction_bias="long",
+                    confidence=54.9,
+                    factors=["ignore-band"],
+                )
+            ]
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=65000.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+    )
+
+    class _DT:
+        @staticmethod
+        def now(tz=None):
+            return signal_at
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    notes = agent.tick()
+    assert not any(n.startswith("open:") for n in notes)
+    assert store.list_all() == []
+
+
+def test_weekend_skips_us_cash_equity(monkeypatch) -> None:
+    from app.engines.paper_agent.agent import us_cash_session_open
+
+    sunday = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
+    monday = datetime(2026, 8, 10, 15, 0, tzinfo=UTC)
+    assert us_cash_session_open(sunday) is False
+    assert us_cash_session_open(monday) is True
+
+    store = PaperTradeStore()
+    scanned = {"n": 0}
+
+    class _Crypto:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Equity:
+        def scan_feed(self, *args, **kwargs):
+            scanned["n"] += 1
+            return [
+                SimpleNamespace(
+                    symbol="NVDA",
+                    setup_type="daily_momentum",
+                    direction_bias="long",
+                    confidence=80.0,
+                    factors=["yahoo friday last"],
+                )
+            ]
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=180.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame()
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_Equity(),  # type: ignore[arg-type]
+        store=store,
+    )
+
+    class _DT:
+        @staticmethod
+        def now(tz=None):
+            return sunday
+
+    monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
+    notes = agent.tick()
+    assert "skip:equity_weekend" in notes
+    assert scanned["n"] == 0
+    assert store.list_all() == []

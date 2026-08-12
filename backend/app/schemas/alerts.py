@@ -50,4 +50,4 @@ class AlertDispatchSchema(BaseModel):
 class AlertTestRequest(BaseModel):
     """Optional channel override for test alerts."""
 
-    channel: str = Field(default="both", pattern="^(both|discord|email)$")
+    channel: str = Field(default="both", pattern="^(both|discord|email|paper)$")

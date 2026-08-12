@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_PAPER_URL = "https://paper-api.alpaca.markets"
 _DEFAULT_LIVE_URL = "https://api.alpaca.markets"
 _CACHE_TTL_SECONDS = 45.0
-_MIRROR_CACHE: TTLCache["AlpacaMirrorSnapshot"] = TTLCache(ttl_seconds=_CACHE_TTL_SECONDS)
+_MIRROR_CACHE: TTLCache[AlpacaMirrorSnapshot] = TTLCache(ttl_seconds=_CACHE_TTL_SECONDS)
 
 
 @dataclass(frozen=True)

@@ -68,7 +68,9 @@ def _app_domain() -> str:
     return host or "localhost"
 
 
-def _build_login_message(*, chain: str, address: str, nonce: str, chain_id: int, expires_at: datetime) -> str:
+def _build_login_message(
+    *, chain: str, address: str, nonce: str, chain_id: int, expires_at: datetime
+) -> str:
     domain = _app_domain()
     uri = settings.resolved_public_app_url().rstrip("/")
     issued = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

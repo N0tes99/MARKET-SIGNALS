@@ -12,7 +12,7 @@ interface DashboardViewControlsProps {
 
 const LAYOUTS: { id: DashboardLayout; label: string }[] = [
   { id: "list", label: "List" },
-  { id: "chips", label: "Chips" },
+  { id: "heat", label: "Heat" },
   { id: "grid", label: "Grid" },
 ];
 

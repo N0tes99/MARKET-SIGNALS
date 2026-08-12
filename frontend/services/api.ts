@@ -352,6 +352,9 @@ export interface PaperTrade {
   factors: string[];
   notes: string;
   signal_record_id?: string | null;
+  take_profit_pct?: number;
+  stop_loss_pct?: number;
+  stamp?: string;
 }
 
 export interface PaperMaturity {

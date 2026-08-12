@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -316,35 +317,96 @@ class AlertService:
 
         return False
 
+    def send_embed(
+        self,
+        symbol: str,
+        embed: dict,
+        *,
+        content: str | None = None,
+        username: str = "Signal Engine",
+        files: list[tuple[str, bytes]] | None = None,
+    ) -> bool:
+        """Post a custom embed (paper stamps, admin pings). Ignores alert_enabled."""
+        if not self.discord_configured():
+            return False
+        token = settings.alert_discord_bot_token.strip()
+        channel_id = settings.alert_discord_channel_id.strip()
+        webhook = settings.alert_discord_webhook_url.strip()
+        if token and channel_id:
+            if self._send_discord_bot(
+                symbol, token, channel_id, embed, content=content, files=files
+            ):
+                return True
+            logger.warning("Discord bot failed for %s; trying webhook fallback", symbol)
+        if webhook:
+            return self._send_discord_webhook(
+                symbol,
+                webhook,
+                embed,
+                content=content,
+                username=username,
+                files=files,
+            )
+        return False
+
     def _send_discord_bot(
         self,
         symbol: str,
         token: str,
         channel_id: str,
         embed: dict,
+        *,
+        content: str | None = None,
+        files: list[tuple[str, bytes]] | None = None,
     ) -> bool:
         """Send a channel message as our Discord application bot."""
         url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-        headers = {
-            "Authorization": f"Bot {token}",
-            "Content-Type": "application/json",
-        }
-        payload = {"embeds": [embed]}
+        payload: dict = {"embeds": [embed]}
+        if content:
+            payload["content"] = content
+        headers = {"Authorization": f"Bot {token}"}
         try:
-            with httpx.Client(timeout=8.0) as client:
-                response = client.post(url, headers=headers, json=payload)
+            with httpx.Client(timeout=15.0) as client:
+                if files:
+                    response = client.post(
+                        url,
+                        headers=headers,
+                        data={"payload_json": json.dumps(payload)},
+                        files=_discord_files(files),
+                    )
+                else:
+                    headers["Content-Type"] = "application/json"
+                    response = client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
             return True
         except Exception:
             logger.exception("Discord bot alert failed for %s", symbol)
             return False
 
-    def _send_discord_webhook(self, symbol: str, url: str, embed: dict) -> bool:
+    def _send_discord_webhook(
+        self,
+        symbol: str,
+        url: str,
+        embed: dict,
+        *,
+        content: str | None = None,
+        username: str = "Signal Engine",
+        files: list[tuple[str, bytes]] | None = None,
+    ) -> bool:
         """Fallback: post embed to a Discord webhook URL."""
-        payload = {"username": "Signal Engine", "embeds": [embed]}
+        payload: dict = {"username": username, "embeds": [embed]}
+        if content:
+            payload["content"] = content
         try:
-            with httpx.Client(timeout=8.0) as client:
-                response = client.post(url, json=payload)
+            with httpx.Client(timeout=15.0) as client:
+                if files:
+                    response = client.post(
+                        url,
+                        data={"payload_json": json.dumps(payload)},
+                        files=_discord_files(files),
+                    )
+                else:
+                    response = client.post(url, json=payload)
                 response.raise_for_status()
             return True
         except Exception:
@@ -482,8 +544,58 @@ class AlertService:
             events=fired,
         )
 
+    def send_paper_test(self) -> dict[str, bool | str]:
+        """Mint a paper-desk stamp and post it to Discord (new paper path)."""
+        from datetime import UTC, datetime
+
+        from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
+        from app.engines.paper_agent.types import PaperTrade
+
+        now = datetime.now(UTC)
+        trade = PaperTrade(
+            id="paper-test",
+            symbol="BTC",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="short",
+            fingerprint="paper-test",
+            signal_at=now,
+            confidence=72.0,
+            opportunity_score=72.0,
+            size_usd=2500.0,
+            status="open",
+            optimistic_entry=65000.0,
+            optimistic_entry_at=now,
+            take_profit_pct=8.0,
+            stop_loss_pct=4.0,
+        )
+        stamp = mint_stamp(trade.id)
+        trade.stamp = stamp.line
+        content, embed, png = paper_discord_payload("test", trade, stamp)
+        embed["footer"]["text"] = f"{stamp.office} · {stamp.serial} · paper desk TEST"
+        ok = (
+            self.send_embed(
+                trade.symbol,
+                embed,
+                content=content,
+                username="Paper Desk",
+                files=[("paper-stamp.png", png)],
+            )
+            if self.discord_configured()
+            else False
+        )
+        return {
+            "symbol": "BTC",
+            "discord": ok,
+            "discord_mode": self.status()["discord_mode"],
+            "stamp": stamp.line,
+            "configured": self.discord_configured(),
+        }
+
     def send_test(self, channel: str = "both") -> dict[str, bool | str]:
         """Send a test alert to configured channels."""
+        if channel == "paper":
+            return self.send_paper_test()
         event = AlertEvent(
             symbol="TEST",
             confidence=72.0,
@@ -507,3 +619,11 @@ class AlertService:
                 else False
             )
         return result
+
+def _discord_files(files: list[tuple[str, bytes]]) -> list[tuple[str, tuple[str, bytes, str]]]:
+    out: list[tuple[str, tuple[str, bytes, str]]] = []
+    for i, (name, blob) in enumerate(files):
+        mime = "image/png" if name.endswith(".png") else "application/octet-stream"
+        out.append((f"files[{i}]", (name, blob, mime)))
+    return out
+

@@ -139,7 +139,10 @@ async def create_ticker_request(
         )
     ).scalar_one()
     if int(day_count) >= _MAX_PER_DAY:
-        raise HTTPException(status_code=429, detail="Daily request limit reached — try again tomorrow")
+        raise HTTPException(
+            status_code=429,
+            detail="Daily request limit reached — try again tomorrow",
+        )
 
     row = TickerRequestModel(
         user_id=user.id,
