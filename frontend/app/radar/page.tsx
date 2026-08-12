@@ -16,14 +16,13 @@ export default function RadarPage() {
       <SiteHeader compact title="10X Radar" />
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Preview · structure only · fundamentals not scored. Seed names are a
-          benchmark set, not recommendations. Ignition and running lists stay
-          empty until fundamental data exists.
+          Yahoo tape + fundamentals. Missing fields stay as em dash — no fake
+          50s. Seed names are a benchmark set, not recommendations.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            phase {data?.candidates[0]?.phase ?? "2_structure"} · scanned{" "}
+            phase {data?.candidates[0]?.phase ?? "3_yahoo"} · scanned{" "}
             {data?.symbols_scanned ?? 0}
           </p>
           {isFetching && !isLoading ? (

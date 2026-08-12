@@ -126,6 +126,14 @@ def get_runner_scanner():
 
 
 @lru_cache
+def get_options_tape_scanner():
+    """Singleton aggressive options tape scanner."""
+    from app.engines.options_tape import OptionsTapeScanner
+
+    return OptionsTapeScanner(market_data=get_market_data_service())
+
+
+@lru_cache
 def get_paper_agent():
     """Singleton public paper-trading agent (Postgres-backed when available)."""
     from app.engines.paper_agent import PaperAgent

@@ -27,7 +27,7 @@ def _candidate_id(symbol: str) -> str:
 class RunnerEngine:
     """Evaluate one symbol into an explainable RunnerCandidate.
 
-    Phase 2 scores real structure / optional asymmetry. Does not write grades.
+    Scores tape plus Yahoo fundamentals/ownership/SI. Does not write grades.
     """
 
     def __init__(
@@ -63,9 +63,14 @@ class RunnerEngine:
             name: dim.data_quality for name, dim in dimensions.items()
         }
 
+        cap_note = (
+            ""
+            if fundamentals_available
+            else " (capped — fundamentals missing)"
+        )
         factors = [
-            f"Runner Score {scores.runner_score:.1f} (opportunity; structure-only cap)",
-            f"Risk Score {scores.risk_score:.1f} (separate; not suppressed)",
+            f"Runner Score {scores.runner_score:.1f}{cap_note}",
+            f"Risk Score {scores.risk_score:.1f}",
             *factors,
         ]
 

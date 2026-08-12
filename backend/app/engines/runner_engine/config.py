@@ -112,7 +112,7 @@ class RunnerConfig:
     structure_only_cap: float = 62.0
 
 
-RUNNER_PHASE = "2_structure"
+RUNNER_PHASE = "3_yahoo"
 
 
 def default_runner_config() -> RunnerConfig:
