@@ -747,6 +747,25 @@ export async function verifySiteGate(code: string): Promise<{
   return response.json();
 }
 
+export interface GateEnroll {
+  enrolled: boolean;
+  secret: string | null;
+  otpauth_uri: string | null;
+  issuer: string;
+  account: string;
+}
+
+export async function fetchGateEnroll(): Promise<GateEnroll> {
+  const response = await fetch(apiUrl("/api/v1/auth/gate/enroll"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<GateEnroll>;
+}
+
 export async function fetchAccessGrants(): Promise<AccessGrant[]> {
   const response = await fetch(apiUrl("/api/v1/auth/access/grants"), {
     credentials: FETCH_CREDENTIALS,
