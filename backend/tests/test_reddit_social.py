@@ -176,7 +176,7 @@ def test_circuit_opens_after_repeated_403(monkeypatch) -> None:
         def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def __enter__(self) -> "_Client":
+        def __enter__(self) -> _Client:
             return self
 
         def __exit__(self, *args) -> None:
