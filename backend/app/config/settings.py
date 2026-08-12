@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     alpaca_api_secret: str = ""
     # Paper default; set https://api.alpaca.markets for live keys.
     alpaca_base_url: str = "https://paper-api.alpaca.markets"
+    # Market Data API (IEX free tier only). Not the Trading API host.
+    alpaca_data_base_url: str = "https://data.alpaca.markets"
 
     # Product freshness gate (not TTL SWR): seconds since last successful
     # OHLCV/ticker fetch, and consecutive empty/error responses.

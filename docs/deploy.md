@@ -66,9 +66,10 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 | `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run without it |
-| `ALPACA_API_KEY` | optional — Alpaca read-only mirror of positions/fills (no order execution) |
+| `ALPACA_API_KEY` | optional — Alpaca read-only mirror of positions/fills (no order execution) + free IEX activity |
 | `ALPACA_API_SECRET` | optional — pair with `ALPACA_API_KEY`; leave both blank to show empty state |
 | `ALPACA_BASE_URL` | optional; default `https://paper-api.alpaca.markets` (paper). Use `https://api.alpaca.markets` for live keys |
+| `ALPACA_DATA_BASE_URL` | optional; default `https://data.alpaca.markets` — Market Data host for **IEX-only** free snapshots (`feed=iex`). Never request SIP / Algo Trader Plus. Yahoo remains primary OHLCV. |
 
 ### Optional alert / email-verify vars
 

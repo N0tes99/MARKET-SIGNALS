@@ -404,6 +404,36 @@ export async function fetchAlpacaMirror(): Promise<AlpacaMirror> {
   return apiFetch<AlpacaMirror>("/api/v1/brokers/alpaca/mirror", 30_000);
 }
 
+export interface AlpacaActivityRow {
+  symbol: string;
+  last_price: number | null;
+  daily_volume: number | null;
+  change_pct: number | null;
+  daily_bar_close: number | null;
+  prev_close: number | null;
+  trade_time: string | null;
+}
+
+export interface AlpacaActivity {
+  configured: boolean;
+  feed: string;
+  data_base_url: string;
+  as_of: string;
+  cached: boolean;
+  error: string | null;
+  symbols_requested: string[];
+  rows: AlpacaActivityRow[];
+}
+
+/** Free-tier IEX snapshots. Omit symbols to scan tracked stocks+ETFs. */
+export async function fetchAlpacaActivity(symbols?: string[]): Promise<AlpacaActivity> {
+  const qs =
+    symbols && symbols.length > 0
+      ? `?symbols=${encodeURIComponent(symbols.join(","))}`
+      : "";
+  return apiFetch<AlpacaActivity>(`/api/v1/brokers/alpaca/activity${qs}`, 30_000);
+}
+
 export interface PublicPreview {
   as_of: string;
   hot_picks: AssetSummary[];
