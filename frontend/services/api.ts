@@ -739,7 +739,7 @@ export async function fetchQuote(symbol: string): Promise<AssetQuote> {
 export async function fetchCandles(
   symbol: string,
   timeframe: string = "15m",
-  limit: number = 48,
+  limit: number = 96,
 ): Promise<CandleSeries> {
   const params = new URLSearchParams({
     timeframe,

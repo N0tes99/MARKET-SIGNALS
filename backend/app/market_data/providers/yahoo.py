@@ -1,6 +1,6 @@
 """Yahoo Finance market data provider for stocks and ETFs."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -18,14 +18,25 @@ _YF_INTERVAL_MAP: dict[str, str] = {
     "1d": "1d",
 }
 
+# Intraday Yahoo windows must survive weekends / after-hours or charts go empty.
 _YF_PERIOD_MAP: dict[str, str] = {
-    "1m": "7d",
+    "1m": "2d",
     "5m": "5d",
-    "15m": "1d",  # mini charts need ~48 bars; avoid multi-day Yahoo dumps
+    "15m": "5d",
     "1h": "60d",
     "4h": "60d",
     "1d": "2y",
 }
+
+_INTRADAY = frozenset({"1m", "5m", "15m"})
+
+
+def timestamp_to_utc(value: object) -> datetime:
+    """Normalize Yahoo timestamps to UTC (naive bars are US/Eastern session)."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("America/New_York", ambiguous=True, nonexistent="shift_forward")
+    return ts.tz_convert("UTC").to_pydatetime()
 
 
 class YahooFinanceProvider:
@@ -52,7 +63,12 @@ class YahooFinanceProvider:
 
         period = _YF_PERIOD_MAP.get(timeframe, "1y")
         ticker = yf.Ticker(normalized)
-        raw = ticker.history(period=period, interval=interval, auto_adjust=True)
+        raw = ticker.history(
+            period=period,
+            interval=interval,
+            auto_adjust=True,
+            prepost=timeframe in _INTRADAY,
+        )
 
         if raw.empty:
             msg = f"No Yahoo Finance data for {normalized}"
@@ -63,11 +79,7 @@ class YahooFinanceProvider:
 
         rows = [
             {
-                "timestamp": (
-                    row[ts_col].to_pydatetime().replace(tzinfo=UTC)
-                    if row[ts_col].tzinfo is None
-                    else row[ts_col].to_pydatetime()
-                ),
+                "timestamp": timestamp_to_utc(row[ts_col]),
                 "open": float(row["Open"]),
                 "high": float(row["High"]),
                 "low": float(row["Low"]),

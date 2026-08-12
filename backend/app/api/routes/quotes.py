@@ -14,7 +14,7 @@ from app.utils.ttl_cache import TTLCache
 
 router = APIRouter()
 
-_CANDLES_CACHE: TTLCache[CandleSeries] = TTLCache(ttl_seconds=120.0)
+_CANDLES_CACHE: TTLCache[CandleSeries] = TTLCache(ttl_seconds=30.0)
 
 
 @router.get("", response_model=list[AssetQuote])
@@ -30,9 +30,9 @@ async def get_candles(
     symbol: str,
     market_data: MarketDataService = Depends(get_market_data_service),
     timeframe: str = Query(default="15m"),
-    limit: int = Query(default=48, ge=8, le=200),
+    limit: int = Query(default=96, ge=8, le=200),
 ) -> CandleSeries:
-    """Return OHLCV bars for mini charts (default 15m)."""
+    """Return OHLCV bars for the asset chart (1m / 5m / 15m / …)."""
     normalized = symbol.upper()
     if not is_tracked(normalized):
         raise HTTPException(status_code=404, detail=f"Symbol '{normalized}' is not tracked")
