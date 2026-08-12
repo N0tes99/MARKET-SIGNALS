@@ -94,7 +94,12 @@ jobs:
           HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
           # Prefer vars.API_ASSETS_URL (full Render /api/v1/assets) so keep-warm
           # fills in-process caches without Netlify proxy timeouts.
+          # sync=true blocks until rank_all completes so memory+disk are populated.
           URL=$(normalize_path "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" "/api/v1/assets")
+          case "$URL" in
+            *\?*) URL="${URL}&sync=true" ;;
+            *) URL="${URL}?sync=true" ;;
+          esac
 
           echo "Waking API via health (${HEALTH_URL})"
           curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \

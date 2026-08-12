@@ -23,6 +23,7 @@ class TickerSnapshot:
     symbol: str
     price: float
     timestamp: datetime
+    market_cap: float | None = None
 
 
 @dataclass(frozen=True)

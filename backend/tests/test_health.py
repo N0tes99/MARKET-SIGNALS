@@ -25,11 +25,13 @@ async def test_health_check(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_list_assets(client: AsyncClient) -> None:
-    """Assets endpoint returns tracked dashboard assets."""
-    response = await client.get("/api/v1/assets")
+    """Assets endpoint returns tracked dashboard assets (sync fills ranks)."""
+    response = await client.get("/api/v1/assets?sync=true")
     assert response.status_code == 200
 
-    data = response.json()
+    payload = response.json()
+    assert payload["ranking_status"] in {"fresh", "stale", "warming"}
+    data = payload["assets"]
     assert len(data) == len(TRACKED_SYMBOLS)
     symbols = {item["symbol"] for item in data}
     assert symbols == TRACKED_SYMBOLS_SET

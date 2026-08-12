@@ -6,7 +6,12 @@ import pandas as pd
 import yfinance as yf
 
 from app.market_data.normalizer import STANDARD_COLUMNS
-from app.market_data.symbols import AssetClass, get_asset_class
+from app.market_data.symbols import (
+    AssetClass,
+    get_asset_class,
+    is_tracked,
+    looks_like_us_equity_ticker,
+)
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
 _YF_INTERVAL_MAP: dict[str, str] = {
@@ -43,15 +48,20 @@ class YahooFinanceProvider:
     """Fetch OHLCV and quotes for US stocks and ETFs via yfinance."""
 
     def _resolve_yahoo_symbol(self, symbol: str) -> str:
-        """Accept watchlist equities plus index tickers like ^VIX."""
-        normalized = symbol.upper()
+        """Accept watchlist equities, runner seed / ad-hoc US tickers, and ^VIX."""
+        normalized = symbol.upper().strip()
         if normalized.startswith("^"):
             return normalized
-        asset_class = get_asset_class(normalized)
-        if asset_class not in {AssetClass.STOCK, AssetClass.ETF}:
-            msg = f"Symbol '{normalized}' is not a stock or ETF"
-            raise ValueError(msg)
-        return normalized
+        if is_tracked(normalized):
+            asset_class = get_asset_class(normalized)
+            if asset_class not in {AssetClass.STOCK, AssetClass.ETF}:
+                msg = f"Symbol '{normalized}' is not a stock or ETF"
+                raise ValueError(msg)
+            return normalized
+        if looks_like_us_equity_ticker(normalized):
+            return normalized
+        msg = f"Symbol '{normalized}' is not a Yahoo equity ticker"
+        raise ValueError(msg)
 
     def get_ohlcv(self, symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
         """Return OHLCV history from Yahoo Finance."""
@@ -97,11 +107,21 @@ class YahooFinanceProvider:
         ticker = yf.Ticker(normalized)
         info = ticker.fast_info
         price = float(info.last_price)
+        market_cap: float | None = None
+        try:
+            raw_cap = getattr(info, "market_cap", None)
+            if raw_cap is not None:
+                cap = float(raw_cap)
+                if cap > 0:
+                    market_cap = cap
+        except (TypeError, ValueError):
+            market_cap = None
 
         return TickerSnapshot(
             symbol=normalized,
             price=price,
             timestamp=datetime.now(UTC),
+            market_cap=market_cap,
         )
 
     def get_derivatives(self, symbol: str) -> DerivativesSnapshot:

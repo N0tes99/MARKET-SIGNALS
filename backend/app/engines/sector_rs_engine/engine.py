@@ -40,6 +40,28 @@ _SECTOR_ETF: dict[str, str] = {
     "SNOW": "QQQ",
     "UBER": "QQQ",
     "RBLX": "QQQ",
+    # Surface 4 seed (not on Surface 1 watchlist)
+    "CRDO": "SMH",
+    "ALAB": "SMH",
+    "AAOI": "SMH",
+    "COHR": "SMH",
+    "LITE": "SMH",
+    "MXL": "SMH",
+    "AIP": "SMH",
+    "ICHR": "SMH",
+    "COHU": "SMH",
+    "UCTT": "SMH",
+    "INDI": "SMH",
+    "POET": "SMH",
+    "VRT": "SMH",
+    "CLS": "SMH",
+    "PWR": "SPY",
+    "CEG": "SPY",
+    "AMPX": "SPY",
+    "PLPC": "SPY",
+    "IREN": "IBIT",
+    "NBIS": "IBIT",
+    "CRWV": "IBIT",
 }
 
 
@@ -51,6 +73,14 @@ class SectorRSResult:
     relative_return_pct: float | None
     benchmark: str | None
     description: str
+
+
+def benchmarks_for_equity(symbol: str) -> tuple[str, ...]:
+    """RS benchmarks for a US equity (tracked or Surface 4 seed)."""
+    sector = _SECTOR_ETF.get(symbol.upper(), "SPY")
+    if sector == "SPY":
+        return ("SPY",)
+    return (sector, "SPY")
 
 
 def benchmarks_for(symbol: str, asset_class: AssetClass) -> tuple[str, ...]:

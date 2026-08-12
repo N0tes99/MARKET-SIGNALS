@@ -4,6 +4,7 @@ import { AssetGrid } from "@/components/asset-grid";
 import { EquityOpportunitiesFeed } from "@/components/equity-opportunities-feed";
 import { OpportunitiesFeed } from "@/components/opportunities-feed";
 import { PaperAgentPanel } from "@/components/paper-agent-panel";
+import { RadarPreviewStrip } from "@/components/radar-preview-strip";
 
 export default function HomePage() {
   return (
@@ -12,6 +13,7 @@ export default function HomePage() {
       <div className="container mx-auto px-3 pb-12 pt-1 sm:px-4 sm:pb-16 sm:pt-2">
         <PaperAgentPanel />
         <EquityOpportunitiesFeed />
+        <RadarPreviewStrip />
         <AssetGrid />
         <OpportunitiesFeed />
         <AlpacaActivityPanel />

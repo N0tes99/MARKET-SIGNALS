@@ -57,8 +57,10 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
 | `CRON_SECRET` | shared secret for `POST /api/v1/paper/cron-tick` (GitHub Actions keep-warm). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight). Set `false` if Render logs show repeated Reddit HTTP 403 (public JSON is often blocked on datacenter IPs; Sentiment still works via Fear & Greed) |
-| `REDDIT_USER_AGENT` | optional; Reddit-preferred format `platform:app:version (contact)`. Default is already set; a custom UA alone usually will not bypass Render/datacenter 403s |
+| `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight). Set `false` to skip Reddit entirely (Fear & Greed still runs) |
+| `REDDIT_CLIENT_ID` | **required for live Reddit on Render** — from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (script or web app). Public JSON is blocked on datacenter IPs |
+| `REDDIT_CLIENT_SECRET` | pair with `REDDIT_CLIENT_ID` (leave blank only for “installed app” type). Never commit this |
+| `REDDIT_USER_AGENT` | optional; Reddit-preferred format `platform:app:version (contact)`. Default is already set |
 | `SITE_TOTP_SECRET` | base32 gate switch (empty = gate off). Per-user authenticator enrollment after grant. |
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
@@ -70,6 +72,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `ALPACA_API_SECRET` | optional — pair with `ALPACA_API_KEY`; leave both blank to show empty state |
 | `ALPACA_BASE_URL` | optional; default `https://paper-api.alpaca.markets` (paper). Use `https://api.alpaca.markets` for live keys |
 | `ALPACA_DATA_BASE_URL` | optional; default `https://data.alpaca.markets` — Market Data host for **IEX-only** free snapshots (`feed=iex`). Never request SIP / Algo Trader Plus. Yahoo remains primary OHLCV. |
+| `OPENAI_API_KEY` | optional **paid** — `gpt-4o-mini` on `/assets/{symbol}/analysis`. Leave blank unless you accept bills |
+| `GEMINI_API_KEY` | optional **free quota** — Google AI Studio. Used when `OPENAI_API_KEY` is empty. Analysis still works locally with Fear & Greed + tape if both are blank |
 
 ### Optional alert / email-verify vars
 
@@ -162,8 +166,10 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 | Ping | Cadence | Purpose |
 |------|---------|---------|
 | `GET /api/v1/health` | ~every 10 min | Keep the API awake / reduce free-tier cold starts |
-| `GET /api/v1/assets` | ~every 7 min | Run scoring so Discord alerts can fire without site visitors |
+| `GET /api/v1/assets?sync=true` | ~every 7 min | Full `rank_all` so memory + disk dashboard cache stay warm |
 | `POST /api/v1/paper/cron-tick` | ~every 7 min | Advance paper bot discovery so it can open when setups exist |
+
+Browser dashboard calls `GET /api/v1/assets` **without** `sync` and receives a snapshot immediately (`ranking_status`: `fresh` / `stale` / `warming`). Cold misses refresh in the background so Netlify’s proxy does not wait on a full rank.
 
 Defaults use the Netlify proxy when variables are unset. Prefer **direct Render URLs with full paths**:
 
@@ -185,7 +191,7 @@ Do **not** set the variables to the bare hostname (`https://….onrender.com`) �
 
 If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 
-The assets job wakes health first, waits a few seconds, then hits `/assets` (120s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
+The assets job wakes health first, waits a few seconds, then hits `/assets?sync=true` (180s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
 
 ---
 

@@ -86,6 +86,23 @@ class TTLCache[T]:
             )
             return value
 
+    def meta(self, key: str) -> tuple[T | None, bool, bool, float | None]:
+        """Return (value, is_fresh, is_refreshing, age_seconds).
+
+        ``age_seconds`` is time since the entry was written (approx), or None
+        when the key is missing.
+        """
+        now = datetime.now(UTC)
+        with self._lock:
+            entry = self._entries.get(key)
+            refreshing = key in self._refreshing
+            if entry is None:
+                return None, False, refreshing, None
+            fresh = now < entry.expires_at
+            written_at = entry.expires_at - timedelta(seconds=self._ttl)
+            age = max(0.0, (now - written_at).total_seconds())
+            return entry.value, fresh, refreshing, age
+
     def get_stale_while_revalidate(self, key: str, factory: Callable[[], T]) -> T:
         """Return cached data immediately; refresh in background when stale.
 

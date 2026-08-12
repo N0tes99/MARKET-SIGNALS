@@ -33,10 +33,11 @@ async def test_get_asset_evidence_unknown_symbol(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_assets_use_evidence_confidence(client: AsyncClient) -> None:
     """Asset summaries reflect decision pipeline scores."""
-    response = await client.get("/api/v1/assets")
+    response = await client.get("/api/v1/assets?sync=true")
     assert response.status_code == 200
 
-    data = response.json()
+    payload = response.json()
+    data = payload["assets"]
     assert len(data) == len(TRACKED_SYMBOLS)
     assert all(item["confidence"] > 0 for item in data)
     assert all(item["trade_grade"] != "N/A" for item in data)

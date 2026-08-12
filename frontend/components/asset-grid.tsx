@@ -128,7 +128,9 @@ function SectionBody({
 }
 
 export function AssetGrid() {
-  const { data: assets, isLoading, isFetching, error } = useAssets();
+  const { data, isLoading, isFetching, error } = useAssets();
+  const assets = data?.assets;
+  const rankingStatus = data?.ranking_status;
   const { data: quotes, isLoading: quotesLoading } = useQuotes();
   const { layout, density, setLayout, setDensity, ready, narrow } = useDashboardView();
   const [mobileSection, setMobileSection] = useState("Stocks");
@@ -194,6 +196,18 @@ export function AssetGrid() {
   const visibleSections = narrow
     ? ASSET_SECTIONS.filter((section) => section.label === mobileSection)
     : ASSET_SECTIONS;
+  const statusLabel =
+    rankingStatus === "warming"
+      ? assets && assets.length > 0
+        ? "warming (cached ranks)…"
+        : "ranking…"
+      : rankingStatus === "stale"
+        ? "refreshing ranks…"
+        : isFetching
+          ? "refreshing…"
+          : isLoading
+            ? "ranking…"
+            : null;
 
   return (
     <div className="space-y-5 sm:space-y-8">
@@ -225,18 +239,19 @@ export function AssetGrid() {
       ) : null}
       </div>
 
-      {(isLoading || isFetching) && (
+      {(statusLabel || quotesLoading) && (
         <div className="status-line px-1 py-1">
           <span className="idle-dot" />
           <span>
-            {isLoading
-              ? "ranking…"
-              : "refreshing…"}
+            {statusLabel ?? "live"}
             {!quotesLoading && quotes
               ? ` · ${quotes.filter((q) => q.available).length} quotes`
               : quotesLoading
                 ? " · quotes…"
                 : ""}
+            {data?.cache_age_seconds != null && rankingStatus !== "warming"
+              ? ` · rank age ${Math.round(data.cache_age_seconds)}s`
+              : ""}
           </span>
         </div>
       )}
@@ -285,6 +300,7 @@ export function AssetGrid() {
       {assets && assets.length !== TRACKED_SYMBOLS.length && (
         <p className="px-1 font-mono text-xs text-muted-foreground">
           Showing {assets.length} of {TRACKED_SYMBOLS.length} tracked assets
+          {rankingStatus === "warming" ? " · full rank in progress" : ""}
         </p>
       )}
     </div>
