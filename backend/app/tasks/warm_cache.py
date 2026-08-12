@@ -33,3 +33,19 @@ def warm_market_and_decisions(timeframe: str = "1h") -> dict[str, int | str]:
         "decisions": len(decisions),
         "timeframe": timeframe,
     }
+
+
+@celery_app.task(name="app.tasks.warm_cache.tick_paper_agent")
+def tick_paper_agent() -> dict[str, int | str | list[str]]:
+    """Advance paper bot discovery/management without requiring a dashboard visit."""
+    from app.core.service_dependencies import get_paper_agent
+
+    agent = get_paper_agent()
+    notes = agent.tick()
+    opens = sum(1 for n in notes if n.startswith("open:"))
+    logger.info("Paper agent scheduled tick opens=%d notes=%s", opens, notes[:12])
+    return {
+        "status": "ok",
+        "opens": opens,
+        "notes": notes[:20],
+    }

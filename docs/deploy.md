@@ -56,7 +56,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
-| `SITE_TOTP_SECRET` | base32 shared authenticator secret (empty = gate off). Users must **login**, be **granted** access in `/admin/access`, then enter this app’s TOTP. Generate: `python -c "import pyotp; s=pyotp.random_base32(); print(s); print(pyotp.TOTP(s).provisioning_uri('site', issuer_name='Signal Engine'))"` |
+| `CRON_SECRET` | shared secret for `POST /api/v1/paper/cron-tick` (GitHub Actions keep-warm). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `SITE_TOTP_SECRET` | base32 gate switch (empty = gate off). Per-user authenticator enrollment after grant. |
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
 | `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access` (default `Admin`) |
@@ -150,12 +151,13 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 ## Keep API warm (GitHub Actions)
 
-[`.github/workflows/keep-api-warm.yml`](../.github/workflows/keep-api-warm.yml) runs two scheduled pings (must be on the **default branch** for Actions schedules to fire):
+[`.github/workflows/keep-api-warm.yml`](../.github/workflows/keep-api-warm.yml) runs scheduled pings (must be on the **default branch** for Actions schedules to fire):
 
 | Ping | Cadence | Purpose |
 |------|---------|---------|
-| `GET /api/v1/health` | ~every 12 min | Keep the API awake / reduce free-tier cold starts |
-| `GET /api/v1/assets` | ~every 30 min | Run scoring so Discord alerts can fire without site visitors |
+| `GET /api/v1/health` | ~every 10 min | Keep the API awake / reduce free-tier cold starts |
+| `GET /api/v1/assets` | ~every 7 min | Run scoring so Discord alerts can fire without site visitors |
+| `POST /api/v1/paper/cron-tick` | ~every 7 min | Advance paper bot discovery so it can open when setups exist |
 
 Defaults use the Netlify proxy when variables are unset. Prefer **direct Render URLs with full paths**:
 
@@ -163,13 +165,15 @@ Defaults use the Netlify proxy when variables are unset. Prefer **direct Render 
 |---------------|-------------|
 | `API_HEALTH_URL` | `https://market-signals-51f0.onrender.com/api/v1/health` |
 | `API_ASSETS_URL` | `https://market-signals-51f0.onrender.com/api/v1/assets` |
+| `API_PAPER_CRON_URL` | optional; defaults from health host → `/api/v1/paper/cron-tick` |
 
-`/assets` is Basic-Auth protected on Render. Add Actions **secrets** (not variables):
+`/assets` and `/paper/cron-tick` are Basic-Auth protected on Render. Add Actions **secrets** (not variables):
 
 | Secret | Value |
 |--------|--------|
 | `API_USERNAME` | same as Render `AUTH_USERNAME` |
 | `API_PASSWORD` | same as Render `AUTH_PASSWORD` |
+| `CRON_SECRET` | same as Render `CRON_SECRET` |
 
 Do **not** set the variables to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the variable is host-only, but prefer setting the full paths above so logs match intent.
 

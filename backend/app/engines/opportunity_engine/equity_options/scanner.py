@@ -105,8 +105,8 @@ def build_idea_from_momentum(
     if direction == "neutral":
         return None
 
-    bullish_ok = direction == "long" and snap.momentum_score >= 56
-    bearish_ok = direction == "short" and snap.momentum_score <= 44
+    bullish_ok = direction == "long" and snap.momentum_score >= 52
+    bearish_ok = direction == "short" and snap.momentum_score <= 48
     if not (bullish_ok or bearish_ok):
         return None
 

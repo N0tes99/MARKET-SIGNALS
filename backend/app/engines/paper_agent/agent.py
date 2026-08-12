@@ -37,7 +37,8 @@ STARTING_CASH = 15_000.0
 MIN_CONFIDENCE = 50.0
 MAX_NEW_OPENS_PER_DAY = 3
 # Idea discovery is heavier than managing opens — don't rescan every tick.
-_DISCOVER_INTERVAL_SECONDS = 180.0
+# 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
+_DISCOVER_INTERVAL_SECONDS = 90.0
 
 
 def _fingerprint(source: str, symbol: str, setup_type: str, direction: str) -> str:
