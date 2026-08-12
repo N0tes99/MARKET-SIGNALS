@@ -1178,3 +1178,81 @@ export async function removeFavorite(symbol: string): Promise<void> {
     throw new Error(await readErrorDetail(response));
   }
 }
+
+export interface TickerRequest {
+  id: string;
+  user_id: string;
+  username: string;
+  symbol: string;
+  message: string;
+  status: string;
+  admin_note: string;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export async function createTickerRequest(body: {
+  symbol: string;
+  message?: string;
+}): Promise<TickerRequest> {
+  const response = await fetch(apiUrl("/api/v1/ticker-requests"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol: body.symbol,
+      message: body.message ?? "",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<TickerRequest>;
+}
+
+export async function fetchMyTickerRequests(): Promise<TickerRequest[]> {
+  const response = await fetch(apiUrl("/api/v1/ticker-requests/mine"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<TickerRequest[]>;
+}
+
+export async function fetchAdminTickerRequests(
+  status?: string,
+): Promise<TickerRequest[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const response = await fetch(apiUrl(`/api/v1/ticker-requests/admin${qs}`), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<TickerRequest[]>;
+}
+
+export async function resolveTickerRequest(
+  requestId: string,
+  body: { status: "done" | "dismissed" | "open"; admin_note?: string },
+): Promise<TickerRequest> {
+  const response = await fetch(
+    apiUrl(`/api/v1/ticker-requests/admin/${requestId}/resolve`),
+    {
+      method: "POST",
+      credentials: FETCH_CREDENTIALS,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: body.status,
+        admin_note: body.admin_note ?? "",
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<TickerRequest>;
+}

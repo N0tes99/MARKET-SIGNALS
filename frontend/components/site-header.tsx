@@ -38,13 +38,29 @@ function MainNav() {
       >
         Social
       </Link>
-      {user?.is_admin ? (
+      {user ? (
         <Link
-          href="/admin/access"
+          href="/request-ticker"
           className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
         >
-          Access
+          Request
         </Link>
+      ) : null}
+      {user?.is_admin ? (
+        <>
+          <Link
+            href="/admin/access"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Access
+          </Link>
+          <Link
+            href="/admin/requests"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Requests
+          </Link>
+        </>
       ) : null}
       {user ? (
         <Link

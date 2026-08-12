@@ -11,6 +11,7 @@ from app.models.paper_trade import PaperAgentStateModel, PaperTradeModel
 from app.models.post import Post
 from app.models.post_like import PostLike
 from app.models.signal_record import SignalRecordModel
+from app.models.ticker_request import TickerRequestModel
 from app.models.user import User
 from app.models.wallet import WalletAccount, WalletAuthChallenge
 
@@ -27,6 +28,7 @@ __all__ = [
     "Post",
     "PostLike",
     "SignalRecordModel",
+    "TickerRequestModel",
     "User",
     "WalletAccount",
     "WalletAuthChallenge",
