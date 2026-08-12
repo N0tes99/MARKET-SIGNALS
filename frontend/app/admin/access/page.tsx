@@ -75,8 +75,12 @@ export default function AdminAccessPage() {
         <p className="label-caps">Admin</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Who can unlock</h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
-          Grant access by username and expiry. After you grant, they sign in, enter your
-          shared authenticator code, then reach the dashboard.{" "}
+          Grant access by username and expiry. After you grant, they sign in, set up
+          authenticator, then reach the dashboard.{" "}
+          <Link href="/admin/requests" className="underline-offset-2 hover:underline">
+            Ticker requests
+          </Link>
+          {" · "}
           <Link href="/unlock" className="underline-offset-2 hover:underline">
             Unlock
           </Link>
