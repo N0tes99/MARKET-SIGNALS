@@ -708,6 +708,8 @@ export interface RunnerFeedResponse {
   candidates: RunnerCandidate[];
   scanned_at: string;
   symbols_scanned: number;
+  fundamentals_filled?: number;
+  fundamentals_missing?: number;
   watchlist: RunnerWatchlist | null;
   min_runner_score: number;
   stage: RunnerStage | null;
@@ -719,6 +721,8 @@ export interface RunnerListsResponse {
   running: RunnerCandidate[];
   scanned_at: string;
   symbols_scanned: number;
+  fundamentals_filled?: number;
+  fundamentals_missing?: number;
 }
 
 export interface RunnerDetailResponse {
@@ -1037,6 +1041,42 @@ export async function fetchGateEnroll(): Promise<GateEnroll> {
     throw new Error(await readErrorDetail(response));
   }
   return response.json() as Promise<GateEnroll>;
+}
+
+export interface AccessHealth {
+  reddit: boolean;
+  fred: boolean;
+  gemini: boolean;
+  discord: boolean;
+  alert_enabled: boolean;
+  cron_secret: boolean;
+  strip: string;
+}
+
+export async function fetchAccessHealth(): Promise<AccessHealth> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/health"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AccessHealth>;
+}
+
+export async function sendAlertTest(
+  channel: "discord" | "email" | "both" | "paper" = "discord",
+): Promise<Record<string, unknown>> {
+  const response = await fetch(apiUrl("/api/v1/alerts/test"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channel }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<Record<string, unknown>>;
 }
 
 export async function fetchAccessGrants(): Promise<AccessGrant[]> {

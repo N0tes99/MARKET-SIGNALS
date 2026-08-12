@@ -74,6 +74,8 @@ class RunnerFeedResponse(BaseModel):
     candidates: list[RunnerCandidateSchema] = Field(default_factory=list)
     scanned_at: datetime
     symbols_scanned: int = 0
+    fundamentals_filled: int = 0
+    fundamentals_missing: int = 0
     watchlist: WatchlistBucket | None = None
     min_runner_score: float = 0.0
     stage: RunnerStage | None = None
@@ -94,6 +96,8 @@ class RunnerListsResponse(BaseModel):
     running: list[RunnerCandidateSchema] = Field(default_factory=list)
     scanned_at: datetime
     symbols_scanned: int = 0
+    fundamentals_filled: int = 0
+    fundamentals_missing: int = 0
 
 
 class RunnerConfigMetaResponse(BaseModel):

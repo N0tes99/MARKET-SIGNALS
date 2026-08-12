@@ -1,8 +1,24 @@
-"""Paper open confirmation: grade, Fear & Greed, risk/R:R."""
+"""Paper open confirmation: grade, Fear & Greed, earnings, risk/R:R."""
 
 from types import SimpleNamespace
 
-from app.engines.paper_agent.confirm import confirm_open, grade_meets_floor
+from app.engines.paper_agent.confirm import confirm_open, earnings_soon, grade_meets_floor
+
+
+def _ok_pipe():
+    class _Pipe:
+        def evaluate(self, symbol, timeframe="1h"):
+            return SimpleNamespace(
+                opportunity=SimpleNamespace(trade_grade="A"),
+                risk=SimpleNamespace(
+                    score=62.0,
+                    risk_reward_ratio=2.0,
+                    stop_loss=96.0,
+                    take_profit=108.0,
+                ),
+            )
+
+    return _Pipe()
 
 
 def test_grade_floor() -> None:
@@ -40,6 +56,46 @@ def test_confirm_skips_when_fng_missing(monkeypatch) -> None:
     assert skip == "skip:fng_unavailable"
 
 
+def test_confirm_equity_proceeds_when_fng_missing(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.earnings_soon",
+        lambda symbol, within_days=2.0: False,
+    )
+    skip, tp, sl, note = confirm_open(
+        symbol="AAPL",
+        direction="long",
+        pipeline=_ok_pipe(),
+        entry_price=100.0,
+    )
+    assert skip is None
+    assert abs(sl - 4.0) < 0.01
+    assert abs(tp - 8.0) < 0.01
+    assert "grade A" in note
+
+
+def test_confirm_equity_ignores_extreme_fng(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (82, "Extreme Greed"),
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.earnings_soon",
+        lambda symbol, within_days=2.0: False,
+    )
+    skip, _, _, note = confirm_open(
+        symbol="SPY",
+        direction="long",
+        pipeline=_ok_pipe(),
+        entry_price=100.0,
+    )
+    assert skip is None
+    assert "F&G 82" in note
+
+
 def test_confirm_blocks_long_in_extreme_greed(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.engines.paper_agent.confirm.fetch_fear_greed",
@@ -67,6 +123,44 @@ def test_confirm_blocks_short_in_extreme_fear(monkeypatch) -> None:
         entry_price=100.0,
     )
     assert skip == "skip:fng_fear"
+
+
+def test_confirm_skips_earnings_soon(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (45, "Neutral"),
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.earnings_soon",
+        lambda symbol, within_days=2.0: True,
+    )
+    skip, _, _, note = confirm_open(
+        symbol="NVDA",
+        direction="long",
+        pipeline=_ok_pipe(),
+        entry_price=100.0,
+    )
+    assert skip == "skip:earnings_soon"
+    assert "earnings" in note
+
+
+def test_earnings_soon_uses_calendar(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm._fetch_earnings_event",
+        lambda symbol, horizon_days=3: [("NVDA earnings", 1.2)],
+    )
+    assert earnings_soon("NVDA") is True
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm._fetch_earnings_event",
+        lambda symbol, horizon_days=3: [("NVDA earnings", 8.0)],
+    )
+    assert earnings_soon("NVDA") is False
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm._fetch_earnings_event",
+        lambda symbol, horizon_days=3: (_ for _ in ()).throw(RuntimeError("yahoo")),
+    )
+    assert earnings_soon("NVDA") is False
+    assert earnings_soon("BTC") is False
 
 
 def test_confirm_skips_grade_c(monkeypatch) -> None:
@@ -125,22 +219,10 @@ def test_confirm_uses_atr_exit_pcts(monkeypatch) -> None:
         lambda: (40, "Fear"),
     )
 
-    class _Pipe:
-        def evaluate(self, symbol, timeframe="1h"):
-            return SimpleNamespace(
-                opportunity=SimpleNamespace(trade_grade="A"),
-                risk=SimpleNamespace(
-                    score=62.0,
-                    risk_reward_ratio=2.0,
-                    stop_loss=96.0,
-                    take_profit=108.0,
-                ),
-            )
-
     skip, tp, sl, note = confirm_open(
         symbol="BTC",
         direction="long",
-        pipeline=_Pipe(),
+        pipeline=_ok_pipe(),
         entry_price=100.0,
     )
     assert skip is None

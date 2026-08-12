@@ -15,6 +15,9 @@ from app.core.site_gate import AccessGateMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown lifecycle."""
+    from app.scoring.weight_config import hydrate_weight_config
+
+    hydrate_weight_config()
     yield
 
 

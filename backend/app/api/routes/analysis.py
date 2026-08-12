@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.tracked import is_tracked
 from app.core.service_dependencies import get_ai_analyst, get_decision_pipeline
 from app.engines.ai_engine import AIAnalyst
+from app.engines.event_engine import EventEngine
 from app.schemas.ai import AIExplanationSchema
 from app.services.decision_pipeline import DecisionPipelineService
 
@@ -26,6 +27,11 @@ async def get_asset_analysis(
 
     decision = await asyncio.to_thread(pipeline.evaluate, normalized)
     explanation = await asyncio.to_thread(analyst.explain_decision, decision)
+    events = await asyncio.to_thread(
+        EventEngine().snapshot, normalized, include_earnings=True
+    )
+    if events.events:
+        explanation.factors = [events.description, *explanation.factors]
 
     return AIExplanationSchema(
         symbol=explanation.symbol,

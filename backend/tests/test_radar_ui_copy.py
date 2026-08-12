@@ -13,15 +13,20 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "Yahoo tape + fundamentals" in text
     assert "em dash" in text
     assert "No names on early, ignition, or running lists today." in text
+    assert "fundamentals_filled" in text
+    assert "yahoo" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
     text = _DETAIL.read_text(encoding="utf-8")
     assert "yahoo tape + fundamentals" in text
     assert "fundamentals not scored" not in text
+    assert "runner failure" in text
+    assert "stage" in text
 
 
 def test_home_strip_mentions_yahoo_fundamentals() -> None:
     text = _STRIP.read_text(encoding="utf-8")
     assert "yahoo tape + fundamentals" in text
     assert "fundamentals not scored" not in text
+    assert "fundamentals_filled" in text

@@ -147,6 +147,7 @@ def get_paper_agent():
         learning=get_learning_engine(),
         pipeline=get_decision_pipeline(),
         alerts=get_alert_service(),
+        tape_scanner=get_options_tape_scanner(),
     )
 
 

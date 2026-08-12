@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def _fundamentals_counts(candidates: list[RunnerCandidate]) -> tuple[int, int]:
+    filled = sum(1 for c in candidates if c.qualities.get("fundamental") != "missing")
+    return filled, max(0, len(candidates) - filled)
+
 WatchlistFilter = Literal["early", "ignition", "running"]
 StageFilter = Literal[
     "dormant",
@@ -101,10 +106,13 @@ async def list_runners(
         logger.exception("Runner feed scan failed")
         candidates = []
 
+    filled, missing = _fundamentals_counts(candidates)
     return RunnerFeedResponse(
         candidates=[_to_schema(c) for c in candidates],
         scanned_at=datetime.now(UTC),
         symbols_scanned=len(scanner.universe),
+        fundamentals_filled=filled,
+        fundamentals_missing=missing,
         watchlist=watchlist,
         min_runner_score=min_runner_score,
         stage=stage,
@@ -118,16 +126,21 @@ async def list_runner_watchlists(
     """Return EARLY / IGNITION / RUNNING buckets."""
     try:
         buckets = await asyncio.to_thread(scanner.lists)
+        all_scanned = await asyncio.to_thread(scanner.scan)
     except Exception:
         logger.exception("Runner watchlist scan failed")
         buckets = {"early": [], "ignition": [], "running": []}
+        all_scanned = []
 
+    filled, missing = _fundamentals_counts(all_scanned)
     return RunnerListsResponse(
         early=[_to_schema(c) for c in buckets["early"]],
         ignition=[_to_schema(c) for c in buckets["ignition"]],
         running=[_to_schema(c) for c in buckets["running"]],
         scanned_at=datetime.now(UTC),
         symbols_scanned=len(scanner.universe),
+        fundamentals_filled=filled,
+        fundamentals_missing=missing,
     )
 
 
