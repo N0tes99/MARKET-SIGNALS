@@ -236,8 +236,8 @@ async def test_runners_api_does_not_require_surface1_tracked(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_assets_list_excludes_untracked_runner_seed(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/assets")
+    response = await client.get("/api/v1/assets?sync=true")
     assert response.status_code == 200
-    symbols = {row["symbol"] for row in response.json()}
+    symbols = {row["symbol"] for row in response.json()["assets"]}
     assert "CRDO" not in symbols
     assert symbols == set(TRACKED_SYMBOLS)

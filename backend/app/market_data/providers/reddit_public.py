@@ -217,7 +217,9 @@ def _fetch_access_token() -> str | None:
 
     _throttle()
     try:
-        with httpx.Client(timeout=10.0, headers=_request_headers(), follow_redirects=True) as client:
+        with httpx.Client(
+            timeout=10.0, headers=_request_headers(), follow_redirects=True
+        ) as client:
             resp = client.post(
                 _TOKEN_URL,
                 auth=(client_id, secret),

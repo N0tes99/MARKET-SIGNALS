@@ -19,7 +19,7 @@ from app.core.service_dependencies import (
 from app.engines.learning_engine import LearningEngine
 from app.market_data.freshness import freshness_tracker
 from app.market_data.symbols import get_asset_class
-from app.schemas.assets import AssetSummary, AssetsDashboard, RankingStatus
+from app.schemas.assets import AssetsDashboard, AssetSummary, RankingStatus
 from app.services.alert_service import AlertService
 from app.services.decision_pipeline import DecisionPipelineService
 from app.utils.disk_cache import read_json, write_json

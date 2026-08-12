@@ -278,7 +278,9 @@ class AIAnalyst:
             if fng.score <= 40 and reddit.score >= 56:
                 conflicts.append("Fear & Greed is greedy while Reddit is fearful — crowd split")
             if fng.score >= 60 and reddit.score <= 42:
-                conflicts.append("Fear & Greed is fearful while Reddit is crowded-bullish — crowd split")
+                conflicts.append(
+                    "Fear & Greed is fearful while Reddit is crowded-bullish — crowd split"
+                )
 
         return conflicts
 

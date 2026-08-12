@@ -272,7 +272,7 @@ def test_oauth_search_uses_bearer_and_oauth_host(monkeypatch) -> None:
         def __init__(self, *args, **kwargs) -> None:
             seen["headers"] = kwargs.get("headers") or {}
 
-        def __enter__(self) -> "_Client":
+        def __enter__(self) -> _Client:
             return self
 
         def __exit__(self, *args) -> None:
