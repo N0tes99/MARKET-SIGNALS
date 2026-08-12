@@ -27,6 +27,7 @@ function Meta({
 
 export function OptionsTapeCard({ hunt }: { hunt: TapeHunt }) {
   const opt = hunt.selected_option;
+  const plan = hunt.execution_plan;
   const tracked = TRACKED.has(hunt.symbol);
   const bull = hunt.direction === "long";
 
@@ -35,16 +36,12 @@ export function OptionsTapeCard({ hunt }: { hunt: TapeHunt }) {
       <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            {tracked ? (
-              <Link
-                href={`/assets/${hunt.symbol}`}
-                className="font-mono text-sm tracking-wide underline-offset-2 hover:underline"
-              >
-                {hunt.symbol}
-              </Link>
-            ) : (
-              <span className="font-mono text-sm tracking-wide">{hunt.symbol}</span>
-            )}
+            <Link
+              href={tracked ? `/assets/${hunt.symbol}` : `/radar/${hunt.symbol}`}
+              className="font-mono text-sm tracking-wide underline-offset-2 hover:underline"
+            >
+              {hunt.symbol}
+            </Link>
             <span
               className={cn(
                 "font-mono text-[10px] uppercase tracking-widest",
@@ -56,6 +53,11 @@ export function OptionsTapeCard({ hunt }: { hunt: TapeHunt }) {
             {hunt.heat === "hot" ? (
               <span className="font-mono text-[10px] uppercase tracking-widest text-amber-200/80">
                 hot
+              </span>
+            ) : null}
+            {!tracked ? (
+              <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+                radar
               </span>
             ) : null}
           </div>
@@ -75,8 +77,12 @@ export function OptionsTapeCard({ hunt }: { hunt: TapeHunt }) {
           className={hunt.relative_volume >= 2 ? "text-amber-100/90" : undefined}
         />
         <Meta label="5D" value={`${hunt.ret_5d_pct >= 0 ? "+" : ""}${hunt.ret_5d_pct.toFixed(1)}%`} />
+        <Meta label="20D" value={`${hunt.ret_20d_pct >= 0 ? "+" : ""}${hunt.ret_20d_pct.toFixed(1)}%`} />
         <Meta label="P/C" value={hunt.put_call_vol.toFixed(2)} />
         <Meta label="Opt vol" value={hunt.option_volume.toLocaleString()} />
+        {hunt.unusual_vol_oi > 0 ? (
+          <Meta label="Vol/OI" value={hunt.unusual_vol_oi.toFixed(1)} />
+        ) : null}
       </div>
 
       {opt ? (
@@ -85,8 +91,21 @@ export function OptionsTapeCard({ hunt }: { hunt: TapeHunt }) {
         </p>
       ) : null}
 
-      {hunt.factors[0] ? (
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground/80">{hunt.factors[0]}</p>
+      {plan?.invalidation[0] ? (
+        <p className="mt-2 font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+          {plan.invalidation[0]}
+          {plan.max_risk_usd != null ? ` · max ~$${plan.max_risk_usd.toFixed(0)}` : ""}
+        </p>
+      ) : null}
+
+      {hunt.factors.slice(0, 2).map((factor) => (
+        <p key={factor} className="mt-2 text-xs leading-relaxed text-muted-foreground/80">
+          {factor}
+        </p>
+      ))}
+
+      {hunt.conflicts[0] ? (
+        <p className="mt-2 text-xs leading-relaxed text-amber-100/70">{hunt.conflicts[0]}</p>
       ) : null}
     </article>
   );

@@ -12,7 +12,7 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     text = _RADAR.read_text(encoding="utf-8")
     assert "Yahoo tape + fundamentals" in text
     assert "em dash" in text
-    assert "No names in early accumulation on tape today." in text
+    assert "No names on early, ignition, or running lists today." in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
