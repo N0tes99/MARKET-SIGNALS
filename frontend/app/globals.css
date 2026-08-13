@@ -57,8 +57,17 @@
     -webkit-backdrop-filter: blur(18px) saturate(1.1);
   }
 
+  /* Dense grids (dozens of cards): skip backdrop-filter — major paint cost */
+  .surface-dense {
+    @apply rounded-lg border border-white/[0.06] bg-card/70 shadow-[inset_0_1px_0_0_hsl(40_10%_100%/0.04)];
+  }
+
   .surface-interactive {
     @apply surface transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out;
+  }
+
+  .surface-dense-interactive {
+    @apply surface-dense transition-[background-color,border-color,box-shadow,transform] duration-300 ease-out;
   }
 
   .surface-interactive:hover {
@@ -68,8 +77,16 @@
       0 6px 20px -14px hsl(40 6% 0% / 0.45);
   }
 
+  .surface-dense-interactive:hover {
+    @apply border-white/[0.1] bg-card/80;
+    box-shadow:
+      inset 0 1px 0 0 hsl(40 10% 100% / 0.07),
+      0 6px 20px -14px hsl(40 6% 0% / 0.45);
+  }
+
   @media (hover: hover) {
-    .surface-interactive:hover {
+    .surface-interactive:hover,
+    .surface-dense-interactive:hover {
       transform: translateY(-0.5px);
     }
   }

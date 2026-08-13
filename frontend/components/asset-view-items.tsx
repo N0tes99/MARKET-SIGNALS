@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { memo } from "react";
 
 import type { DashboardDensity } from "@/hooks/use-dashboard-view";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,7 @@ function confidenceRing(confidence: number): string {
   return "ring-white/10";
 }
 
-export function AssetListRow({
+export const AssetListRow = memo(function AssetListRow({
   asset,
   quote,
   density,
@@ -126,9 +127,9 @@ export function AssetListRow({
       </Link>
     </div>
   );
-}
+});
 
-export function AssetChip({
+export const AssetChip = memo(function AssetChip({
   asset,
   quote,
   density,
@@ -188,4 +189,4 @@ export function AssetChip({
       </Link>
     </div>
   );
-}
+});

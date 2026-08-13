@@ -7,6 +7,7 @@ Place research findings, data source evaluations, and strategy notes here.
 | Plan | Status | Doc |
 |------|--------|-----|
 | Surface 4 — 10X Runner Detection Layer | Phase 2 preview | [10x-runner-detection-layer.md](./10x-runner-detection-layer.md) |
+| Dashboard smoothness | Applied (PR) | [dashboard-smoothness.md](./dashboard-smoothness.md) |
 
 ## Data Sources (To Evaluate)
 

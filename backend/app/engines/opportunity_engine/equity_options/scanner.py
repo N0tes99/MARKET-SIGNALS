@@ -209,7 +209,7 @@ class EquityOptionsScanner:
         """Scan a single symbol; empty for crypto or soft failures."""
         normalized = symbol.upper()
         try:
-            return _SCAN_CACHE.get_or_set(
+            return _SCAN_CACHE.get_stale_while_revalidate(
                 f"eqopt:{normalized}",
                 lambda: self._scan_uncached(normalized),
             )
@@ -263,7 +263,7 @@ class EquityOptionsScanner:
             return self._scan_many_uncached(universe)
 
         try:
-            ideas = _FEED_CACHE.get_or_set(cache_key, _build)
+            ideas = _FEED_CACHE.get_stale_while_revalidate(cache_key, _build)
         except Exception:
             logger.exception("Layer 3 feed scan failed")
             ideas = []

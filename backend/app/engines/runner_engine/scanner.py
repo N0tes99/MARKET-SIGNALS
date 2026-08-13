@@ -59,7 +59,9 @@ class RunnerScanner:
             return self._scan_universe(universe)
 
         candidates = (
-            self._cache.get_or_set(cache_key, _load) if use_cache else _load()
+            self._cache.get_stale_while_revalidate(cache_key, _load)
+            if use_cache
+            else _load()
         )
 
         filtered = [

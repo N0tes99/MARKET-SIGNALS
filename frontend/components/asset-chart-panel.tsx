@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { CandlestickChart } from "@/components/candlestick-chart";
-import { MiniSparkline } from "@/components/mini-sparkline";
 import { cn } from "@/lib/utils";
 import { fetchCandles } from "@/services/api";
+
+const MiniSparkline = dynamic(
+  () => import("@/components/mini-sparkline").then((m) => m.MiniSparkline),
+  { ssr: false, loading: () => null },
+);
 
 type ChartMode = "candle" | "line";
 type ChartTf = "1m" | "5m" | "15m";
 
 const TIMEFRAMES: { id: ChartTf; bars: number; refetchMs: number }[] = [
-  { id: "1m", bars: 120, refetchMs: 20_000 },
-  { id: "5m", bars: 96, refetchMs: 45_000 },
-  { id: "15m", bars: 96, refetchMs: 60_000 },
+  { id: "1m", bars: 120, refetchMs: 60_000 },
+  { id: "5m", bars: 96, refetchMs: 60_000 },
+  { id: "15m", bars: 96, refetchMs: 90_000 },
 ];
 
 export function AssetChartPanel({ symbol }: { symbol: string }) {
@@ -25,7 +30,7 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
   const candlesQuery = useQuery({
     queryKey: ["candles", symbol, spec.id, spec.bars],
     queryFn: () => fetchCandles(symbol, spec.id, spec.bars),
-    staleTime: Math.min(spec.refetchMs, 30_000),
+    staleTime: spec.refetchMs,
     refetchInterval: spec.refetchMs,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -33,7 +38,10 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
   });
 
   const candles = candlesQuery.data?.candles ?? [];
-  const points = candles.map((c) => ({ t: c.t, close: c.c }));
+  const points = useMemo(
+    () => candles.map((c) => ({ t: c.t, close: c.c })),
+    [candles],
+  );
 
   const first = points[0]?.close;
   const last = points[points.length - 1]?.close;
