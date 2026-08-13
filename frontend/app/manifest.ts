@@ -14,25 +14,25 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["finance", "business"],
     icons: [
       {
-        src: "/apple-touch-icon.png",
+        src: "/apple-touch-icon.png?v=mark",
         sizes: "180x180",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icon-192.png",
+        src: "/icon-192.png?v=mark",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icon-512.png",
+        src: "/icon-512.png?v=mark",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icon-maskable-512.png",
+        src: "/icon-maskable-512.png?v=mark",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
