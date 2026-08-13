@@ -9,7 +9,7 @@ import yfinance as yf
 
 from app.config import settings
 from app.engines.evidence_engine.types import EvidenceItem
-from app.market_data.symbols import AssetClass, get_asset_class
+from app.market_data.symbols import AssetClass, resolve_asset_class
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
@@ -181,7 +181,7 @@ class EventEngine:
 
     def _build_snapshot(self, symbol: str, *, include_earnings: bool = False) -> EventSnapshot:
         normalized = symbol.upper()
-        asset_class = get_asset_class(normalized)
+        asset_class = resolve_asset_class(normalized)
         events: list[tuple[str, float]] = []
 
         if self._fred_api_key:

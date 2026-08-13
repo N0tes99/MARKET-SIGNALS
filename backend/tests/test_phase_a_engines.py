@@ -44,3 +44,18 @@ def test_event_engine_crypto_fallback() -> None:
     engine = EventEngine(fred_api_key=None)
     items = engine.contribute_evidence("BTC")
     assert "Events:" in items[0].description
+
+
+def test_correlation_engine_untracked_us_ticker() -> None:
+    engine = CorrelationEngine(_md())
+    items = engine.contribute_evidence("CRDO")
+    assert len(items) == 1
+    assert items[0].category == ScoringCategory.CORRELATION.value
+    assert 0 <= items[0].score <= 100
+
+
+def test_event_engine_untracked_us_ticker() -> None:
+    engine = EventEngine(fred_api_key=None)
+    items = engine.contribute_evidence("CRDO")
+    assert items[0].category == ScoringCategory.EVENTS.value
+    assert 0 <= items[0].score <= 100

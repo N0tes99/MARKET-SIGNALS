@@ -21,6 +21,17 @@ function authHeader(): string | null {
   return `Basic ${token}`;
 }
 
+function proxyTimeoutMs(targetPath: string): number {
+  const normalized = targetPath.replace(/\/$/, "");
+  const longRunning = new Set([
+    "api/v1/assets",
+    "api/v1/runners",
+    "api/v1/runners/lists",
+    "api/v1/options-tape",
+  ]);
+  return longRunning.has(normalized) ? 100_000 : 50_000;
+}
+
 function forwardSetCookies(upstream: Response, responseHeaders: Headers): void {
   const getSetCookie = (
     upstream.headers as Headers & { getSetCookie?: () => string[] }
@@ -58,12 +69,10 @@ async function proxyRequest(
     headers.set("authorization", auth);
   }
 
-  // Cold /assets runs rank_all over ~60 symbols and often needs 50–90s.
-  // Default stays short so other routes fail fast; assets gets a longer budget
-  // so Netlify does not 504 mid-compute when keep-warm has not run yet.
-  const isAssetsList =
-    targetPath === "api/v1/assets" || targetPath === "api/v1/assets/";
-  const PROXY_TIMEOUT_MS = isAssetsList ? 100_000 : 50_000;
+  // Cold /assets, Radar, and Tape recompute often need 50–90s. Default stays
+  // short so other routes fail fast; these get a longer budget so Netlify
+  // does not 504 mid-compute when keep-warm has not run yet.
+  const PROXY_TIMEOUT_MS = proxyTimeoutMs(targetPath);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
 

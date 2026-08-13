@@ -172,6 +172,16 @@ def get_asset_class(symbol: str) -> AssetClass:
     return ASSET_CLASS_MAP[normalized]
 
 
+def resolve_asset_class(symbol: str) -> AssetClass | None:
+    """Watchlist class, or STOCK for an untracked US ticker. None if unknown."""
+    try:
+        return get_asset_class(symbol)
+    except ValueError:
+        if looks_like_us_equity_ticker(symbol):
+            return AssetClass.STOCK
+        return None
+
+
 def is_crypto(symbol: str) -> bool:
     """Return True if symbol is a cryptocurrency."""
     return get_asset_class(symbol) == AssetClass.CRYPTO

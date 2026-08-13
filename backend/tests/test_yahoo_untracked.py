@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from app.market_data.providers.yahoo import YahooFinanceProvider
-from app.market_data.symbols import get_asset_class, is_tracked, looks_like_us_equity_ticker
+from app.market_data.symbols import (
+    AssetClass,
+    get_asset_class,
+    is_tracked,
+    looks_like_us_equity_ticker,
+    resolve_asset_class,
+)
 
 
 def test_looks_like_us_equity_ticker() -> None:
@@ -21,6 +27,9 @@ def test_crdo_not_on_surface1() -> None:
     assert is_tracked("CRDO") is False
     with pytest.raises(ValueError, match="not tracked"):
         get_asset_class("CRDO")
+    assert resolve_asset_class("CRDO") == AssetClass.STOCK
+    assert resolve_asset_class("BTC") == AssetClass.CRYPTO
+    assert resolve_asset_class("TOOLONG") is None
 
 
 def test_yahoo_resolves_untracked_and_rejects_crypto() -> None:

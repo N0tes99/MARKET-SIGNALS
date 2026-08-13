@@ -5,12 +5,14 @@ import asyncio
 from fastapi import APIRouter, Depends
 
 from app.api.routes.assets import _ASSETS_LIST_CACHE, _load_asset_summaries
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import (
     get_alert_service,
     get_decision_pipeline,
     get_learning_engine,
 )
 from app.engines.learning_engine import LearningEngine
+from app.models.user import User
 from app.schemas.alerts import (
     AlertDispatchSchema,
     AlertEventSchema,
@@ -60,7 +62,8 @@ async def check_alerts(
 @router.post("/test")
 async def test_alert(
     body: AlertTestRequest,
+    _admin: User = Depends(require_admin_user),
     alerts: AlertService = Depends(get_alert_service),
 ) -> dict:
-    """Send a test alert to Discord and/or email."""
+    """Send a test alert to Discord and/or email (admin only)."""
     return await asyncio.to_thread(alerts.send_test, body.channel)
