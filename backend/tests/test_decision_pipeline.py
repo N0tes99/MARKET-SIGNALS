@@ -84,6 +84,15 @@ def _evidence(confidence: float = 75.0) -> EvidenceBundle:
     )
 
 
+def test_pipeline_evaluate_untracked_us_ticker() -> None:
+    """Tape names like CRDO must not crash confirm via get_asset_class."""
+    pipeline = _pipeline()
+    decision = pipeline.evaluate("CRDO")
+    assert decision.symbol == "CRDO"
+    assert decision.evidence.total_confidence >= 0
+    assert decision.opportunity.trade_grade
+
+
 def test_pipeline_produces_decision() -> None:
     """Pipeline returns a complete decision for mock data."""
     pipeline = _pipeline()

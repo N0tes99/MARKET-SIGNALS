@@ -8,6 +8,8 @@ _DETAIL = _ROOT / "frontend" / "app" / "radar" / "[symbol]" / "page.tsx"
 _STRIP = _ROOT / "frontend" / "components" / "radar-preview-strip.tsx"
 _HEADER = _ROOT / "frontend" / "components" / "site-header.tsx"
 _MANIFEST = _ROOT / "frontend" / "app" / "manifest.ts"
+_PROXY = _ROOT / "frontend" / "app" / "api" / "backend" / "[...path]" / "route.ts"
+_PWA_GEN = _ROOT / "frontend" / "scripts" / "gen_pwa_icons.py"
 
 
 def test_radar_page_mentions_yahoo_fundamentals() -> None:
@@ -38,6 +40,20 @@ def test_homescreen_shortcuts_include_radar_and_tape() -> None:
     text = _MANIFEST.read_text(encoding="utf-8")
     assert 'url: "/radar"' in text
     assert 'url: "/tape"' in text
+
+
+def test_proxy_gives_radar_and_tape_long_timeout() -> None:
+    text = _PROXY.read_text(encoding="utf-8")
+    assert "api/v1/runners" in text
+    assert "api/v1/runners/lists" in text
+    assert "api/v1/options-tape" in text
+    assert "100_000" in text
+
+
+def test_legacy_pwa_script_uses_signal_mark() -> None:
+    text = _PWA_GEN.read_text(encoding="utf-8")
+    assert "render_app_icons" in text
+    assert 'text = "SE"' not in text
 
 
 def test_home_strip_mentions_yahoo_fundamentals() -> None:

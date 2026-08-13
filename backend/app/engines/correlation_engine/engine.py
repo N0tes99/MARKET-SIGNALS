@@ -6,7 +6,7 @@ import pandas as pd
 
 from app.engines.evidence_engine.types import EvidenceItem
 from app.market_data.service import MarketDataService
-from app.market_data.symbols import AssetClass, get_asset_class
+from app.market_data.symbols import AssetClass, resolve_asset_class
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
 from app.utils.scoring_helpers import clamp_score
 
@@ -82,7 +82,9 @@ class CorrelationEngine:
     def analyze(self, symbol: str, timeframe: str = "1h") -> CorrelationResult | None:
         """Compute rolling correlations against benchmark symbols."""
         normalized = symbol.upper()
-        asset_class = get_asset_class(normalized)
+        asset_class = resolve_asset_class(normalized)
+        if asset_class is None:
+            return None
         benchmarks = _benchmarks_for(normalized, asset_class)
 
         # Default limit=200 matches trend/rank_all warm cache key.

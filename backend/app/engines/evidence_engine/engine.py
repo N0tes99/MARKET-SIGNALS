@@ -1,5 +1,7 @@
 """Evidence Engine — central evidence accumulation system."""
 
+import logging
+
 from app.engines.evidence_engine.collectors import build_collectors
 from app.engines.evidence_engine.protocol import EvidenceContributor
 from app.engines.evidence_engine.types import EvidenceBundle, EvidenceItem
@@ -8,6 +10,8 @@ from app.market_data.service import MarketDataService
 from app.scoring.calculator import calculate_total_confidence
 from app.scoring.weight_config import get_weight_config
 from app.scoring.weights import REGIME_WEIGHT_PROFILES
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceEngine:
@@ -42,7 +46,14 @@ class EvidenceEngine:
         items: list[EvidenceItem] = []
 
         for collector in self._collectors:
-            items.extend(collector.contribute_evidence(normalized_symbol, timeframe))
+            try:
+                items.extend(collector.contribute_evidence(normalized_symbol, timeframe))
+            except Exception:
+                logger.exception(
+                    "Evidence collector %s failed for %s",
+                    type(collector).__name__,
+                    normalized_symbol,
+                )
 
         regime = self._regime_engine.classify(normalized_symbol, timeframe)
         weight_config = get_weight_config()

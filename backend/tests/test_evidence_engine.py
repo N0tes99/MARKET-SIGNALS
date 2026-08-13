@@ -103,6 +103,35 @@ def test_custom_collector_injection() -> None:
     assert bundle.total_confidence == expected
 
 
+def test_accumulate_isolates_collector_failure() -> None:
+    """One broken collector must not abort the rest of the bundle."""
+
+    class Boom:
+        def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:
+            del symbol, timeframe
+            raise RuntimeError("collector exploded")
+
+    trend_weight = get_weight_config().get_weights()[ScoringCategory.TREND]
+    ok = EvidenceItem("ok", "Trend", 80.0, trend_weight, "ok")
+
+    class OkCollector:
+        def contribute_evidence(self, symbol: str, timeframe: str = "1h") -> list[EvidenceItem]:
+            del symbol, timeframe
+            return [ok]
+
+    engine = _mock_engine(collectors=[Boom(), OkCollector()])
+    bundle = engine.accumulate("CRDO")
+    assert [item.source for item in bundle.items] == ["ok"]
+
+
+def test_accumulate_untracked_us_ticker() -> None:
+    engine = _mock_engine()
+    bundle = engine.accumulate("CRDO")
+    assert bundle.symbol == "CRDO"
+    assert bundle.total_confidence >= 0
+    assert len(bundle.items) > 0
+
+
 def test_regime_auto_uses_profile_weights() -> None:
     """With regime_auto on, scoring uses the regime profile table."""
     assert get_weight_config().is_regime_auto() is True

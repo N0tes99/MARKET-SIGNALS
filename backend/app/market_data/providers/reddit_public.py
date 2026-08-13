@@ -11,7 +11,7 @@ from threading import Lock
 import httpx
 
 from app.config import settings
-from app.market_data.symbols import AssetClass, get_asset_class
+from app.market_data.symbols import AssetClass, resolve_asset_class
 from app.utils import disk_cache
 from app.utils.ttl_cache import TTLCache
 
@@ -137,7 +137,7 @@ def search_terms_for(symbol: str) -> list[str]:
 
 
 def _subreddit_filter(symbol: str) -> str | None:
-    asset = get_asset_class(symbol)
+    asset = resolve_asset_class(symbol)
     if asset == AssetClass.CRYPTO:
         return "+".join(_CRYPTO_SUBS)
     return "+".join(_EQUITY_SUBS)
