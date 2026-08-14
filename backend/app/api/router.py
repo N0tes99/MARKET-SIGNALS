@@ -19,6 +19,7 @@ from app.api.routes import (
     opportunities,
     options_tape,
     paper,
+    perps,
     public_preview,
     quotes,
     runners,
@@ -56,6 +57,7 @@ api_router.include_router(
 )
 api_router.include_router(runners.router, prefix="/runners", tags=["runners"])
 api_router.include_router(options_tape.router, prefix="/options-tape", tags=["options-tape"])
+api_router.include_router(perps.router, prefix="/perps", tags=["perps"])
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper"])

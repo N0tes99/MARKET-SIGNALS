@@ -28,6 +28,7 @@ function proxyTimeoutMs(targetPath: string): number {
     "api/v1/runners",
     "api/v1/runners/lists",
     "api/v1/options-tape",
+    "api/v1/perps/board",
   ]);
   return longRunning.has(normalized) ? 100_000 : 50_000;
 }

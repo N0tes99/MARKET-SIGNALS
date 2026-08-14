@@ -58,6 +58,12 @@ export default function manifest(): MetadataRoute.Manifest {
         description: "Two-sided options hunt",
       },
       {
+        name: "Perps",
+        short_name: "Perps",
+        url: "/perps",
+        description: "Crypto perp paper, funding, liquidations",
+      },
+      {
         name: "Social",
         short_name: "Social",
         url: "/social",

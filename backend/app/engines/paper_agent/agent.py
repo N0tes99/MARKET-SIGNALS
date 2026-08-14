@@ -21,6 +21,7 @@ from app.engines.paper_agent.broker import (
     unrealized_pnl,
 )
 from app.engines.paper_agent.confirm import confirm_open
+from app.engines.paper_agent.crypto_perp_v2 import scan_crypto_perp_v2
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
 from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
@@ -43,6 +44,7 @@ STARTING_CASH = 15_000.0
 # Match Layer 2/3 WATCH bar — do not spend a daily slot on IGNORE-band 50–54.9.
 MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 3
+MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0
@@ -130,10 +132,12 @@ class PaperAgent:
             return True
         return (now - self._last_discover_at).total_seconds() >= _DISCOVER_INTERVAL_SECONDS
 
-    def _opens_on_utc_day(self, now: datetime) -> int:
+    def _opens_on_utc_day(self, now: datetime, *, source: str | None = None) -> int:
         day = now.astimezone(UTC).date()
         n = 0
         for t in self._store.list_all():
+            if source is not None and t.source != source:
+                continue
             sat = t.signal_at
             if sat.tzinfo is None:
                 sat = sat.replace(tzinfo=UTC)
@@ -187,6 +191,37 @@ class PaperAgent:
                         "opportunity_score": float(idea.confidence),
                         "factors": list(idea.factors[:5]),
                         "score": float(idea.confidence),
+                    }
+                )
+
+            # --- Crypto perps v2 (momentum + Bybit funding + F&G + Reddit cache) ---
+            try:
+                v2_ideas = scan_crypto_perp_v2(
+                    self._market, min_confidence=MIN_CONFIDENCE
+                )
+            except Exception:
+                logger.exception("Paper agent crypto_perp_v2 feed failed")
+                v2_ideas = []
+                notes.append("crypto_perp_v2_feed_error")
+
+            for idea in v2_ideas:
+                fp = _fingerprint(
+                    "crypto_perp_v2", idea.symbol, idea.setup_type, idea.direction
+                )
+                if fp in active:
+                    continue
+                candidates.append(
+                    {
+                        "source": "crypto_perp_v2",
+                        "symbol": idea.symbol,
+                        "setup_type": idea.setup_type,
+                        "direction": idea.direction,
+                        "fingerprint": fp,
+                        "confidence": float(idea.confidence),
+                        "opportunity_score": float(idea.confidence),
+                        "factors": list(idea.factors[:5]),
+                        "score": float(idea.confidence),
+                        "extra_note": "perp v2 momentum",
                     }
                 )
 
@@ -275,6 +310,8 @@ class PaperAgent:
             candidates.sort(key=lambda c: c["score"], reverse=True)
             opens_today = self._opens_on_utc_day(now)
             daily_left = max(0, MAX_NEW_OPENS_PER_DAY - opens_today)
+            v2_opens_today = self._opens_on_utc_day(now, source="crypto_perp_v2")
+            v2_left = max(0, MAX_CRYPTO_PERP_V2_OPENS_PER_DAY - v2_opens_today)
             if daily_left <= 0 and candidates:
                 daily_cap_hit = True
                 notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
@@ -286,6 +323,9 @@ class PaperAgent:
                 if _slots_left() <= 0:
                     hit_cap = True
                     break
+                if cand["source"] == "crypto_perp_v2" and v2_left <= 0:
+                    notes.append(f"skip:crypto_perp_v2_cap:{cand['symbol']}")
+                    continue
                 skip, tp_pct, sl_pct, confirm_note = self._confirm_open(
                     cand["symbol"], cand["direction"]
                 )
@@ -318,6 +358,8 @@ class PaperAgent:
                     notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
                     active.add(cand["fingerprint"])
                     daily_left -= 1
+                    if cand["source"] == "crypto_perp_v2":
+                        v2_left -= 1
                     logger.info(
                         "paper_open id=%s symbol=%s setup=%s conf=%.1f score=%.1f daily_left=%d",
                         trade.id,
