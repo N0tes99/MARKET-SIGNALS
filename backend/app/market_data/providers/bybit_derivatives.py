@@ -15,6 +15,7 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _BYBIT_BASE = "https://api.bybit.com"
+_OKX_BASE = "https://www.okx.com"
 
 
 @dataclass
@@ -242,8 +243,76 @@ def fetch_bybit_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth | N
         return None
 
 
+def fetch_okx_depth(symbol: str, timeout: float = 3.0) -> DerivativesDepth | None:
+    """Fetch OKX USDT-SWAP funding — US-reachable when Bybit CloudFront blocks."""
+    inst = f"{symbol.upper()}-USDT-SWAP"
+    try:
+        client = shared_client(timeout=timeout, name="okx")
+        funding_payload = _http_get_json(
+            client,
+            f"{_OKX_BASE}/api/v5/public/funding-rate",
+            {"instId": inst},
+        )
+        if not isinstance(funding_payload, dict) or funding_payload.get("code") != "0":
+            return None
+        rows = funding_payload.get("data") or []
+        if not rows:
+            return None
+        funding_raw = rows[0].get("fundingRate")
+        if funding_raw in (None, ""):
+            return None
+
+        funding_hist: list[float] = []
+        hist_payload = _http_get_json(
+            client,
+            f"{_OKX_BASE}/api/v5/public/funding-rate-history",
+            {"instId": inst, "limit": "20"},
+        )
+        if isinstance(hist_payload, dict) and hist_payload.get("code") == "0":
+            # OKX returns newest first — reverse to oldest→newest like Bybit.
+            raw = hist_payload.get("data") or []
+            funding_hist = list(
+                reversed([float(row["fundingRate"]) for row in raw if row.get("fundingRate")])
+            )
+
+        oi: float | None = None
+        oi_payload = _http_get_json(
+            client,
+            f"{_OKX_BASE}/api/v5/public/open-interest",
+            {"instType": "SWAP", "instId": inst},
+        )
+        if isinstance(oi_payload, dict) and oi_payload.get("code") == "0":
+            oi_rows = oi_payload.get("data") or []
+            if oi_rows and oi_rows[0].get("oi") not in (None, ""):
+                oi = float(oi_rows[0]["oi"])
+
+        mark: float | None = None
+        mark_payload = _http_get_json(
+            client,
+            f"{_OKX_BASE}/api/v5/public/mark-price",
+            {"instType": "SWAP", "instId": inst},
+        )
+        if isinstance(mark_payload, dict) and mark_payload.get("code") == "0":
+            mark_rows = mark_payload.get("data") or []
+            if mark_rows and mark_rows[0].get("markPx") not in (None, ""):
+                mark = float(mark_rows[0]["markPx"])
+
+        return DerivativesDepth(
+            symbol=symbol.upper(),
+            funding_rate=float(funding_raw),
+            open_interest=oi,
+            mark_price=mark,
+            funding_history=funding_hist,
+            oi_history=[oi] if oi is not None else [],
+            source="okx",
+        )
+    except Exception:
+        logger.debug("OKX derivatives depth failed for %s", symbol, exc_info=True)
+        return None
+
+
 def fetch_derivatives_depth(symbol: str) -> DerivativesDepth | None:
-    """Bybit on geo-blocked hosts; Binance only when it can actually answer."""
+    """Binance (when allowed) → Bybit → OKX. OKX covers US / Render geo-blocks."""
     from app.market_data.providers.binance import use_binance
 
     key = symbol.upper()
@@ -253,7 +322,10 @@ def fetch_derivatives_depth(symbol: str) -> DerivativesDepth | None:
             depth = fetch_binance_depth(key)
             if depth is not None and depth.funding_rate is not None:
                 return depth
-        return fetch_bybit_depth(key)
+        bybit = fetch_bybit_depth(key)
+        if bybit is not None and bybit.funding_rate is not None:
+            return bybit
+        return fetch_okx_depth(key)
 
     return _DEPTH_CACHE.get_or_set(key, _load)
 

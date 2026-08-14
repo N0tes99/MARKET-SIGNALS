@@ -182,10 +182,15 @@ def build_perps_board(
 
         funding_filled = sum(1 for r in funding if r.available)
         liq_filled = sum(1 for r in liquidations if r.available)
+        sources = sorted(
+            {r.source for r in funding if r.available and (r.source or "").strip()}
+        )
+        funding_source = "+".join(sources) if sources else "okx|bybit"
         if not configured:
             liq_note = (
                 "Liquidation aggregates need COINGLASS_API_KEY on the API. "
-                "Coinglass deep-links stay available; funding board is free via Bybit."
+                "Coinglass deep-links stay available; funding board uses Bybit "
+                "when reachable, else OKX (US/Render-safe)."
             )
         elif liq_filled == 0:
             liq_note = "Coinglass is configured but no liquidation rows returned this scan."
@@ -200,7 +205,7 @@ def build_perps_board(
             ideas=_idea_rows(setup_scanner),
             liquidations_configured=configured,
             liquidations_note=liq_note,
-            funding_source="bybit",
+            funding_source=funding_source,
             symbols_scanned=len(universe),
             funding_filled=funding_filled,
             liquidations_filled=liq_filled,

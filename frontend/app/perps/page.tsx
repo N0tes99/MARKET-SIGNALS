@@ -187,14 +187,16 @@ export default function PerpsPage() {
       <SiteHeader compact title="Crypto perps" />
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Paper crypto activity only — Layer-2 setups and perp v2 momentum. Funding is
-          free Bybit linear data. Liquidation aggregates need a Coinglass key; without
-          it you still get deep-links. Not live exchange orders. Not financial advice.
+          Paper crypto activity only — Layer-2 setups and perp v2 momentum. Funding comes
+          from Bybit when reachable, otherwise OKX (US/Render-safe). Liquidation aggregates
+          need a Coinglass key; without it you still get deep-links. Not live exchange orders.
+          Not financial advice.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            bybit {board.data?.funding_filled ?? 0}/{board.data?.symbols_scanned ?? 0}
+            {board.data?.funding_source || "funding"}{" "}
+            {board.data?.funding_filled ?? 0}/{board.data?.symbols_scanned ?? 0}
             {" · "}
             liqs {board.data?.liquidations_filled ?? 0}
             {" · "}
