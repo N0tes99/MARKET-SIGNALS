@@ -27,6 +27,7 @@ function proxyTimeoutMs(targetPath: string): number {
     "api/v1/assets",
     "api/v1/runners",
     "api/v1/runners/lists",
+    "api/v1/runners/crypto",
     "api/v1/options-tape",
     "api/v1/perps/board",
   ]);

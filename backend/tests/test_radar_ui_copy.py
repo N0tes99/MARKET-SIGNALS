@@ -20,6 +20,10 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "fundamentals_filled" in text
     assert "yahoo" in text
     assert "md:block" in text
+    assert "equities" in text
+    assert "Watch" in text
+    assert "Crowded" in text
+    assert "perp-v2 universe" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
@@ -47,6 +51,7 @@ def test_proxy_gives_radar_and_tape_long_timeout() -> None:
     text = _PROXY.read_text(encoding="utf-8")
     assert "api/v1/runners" in text
     assert "api/v1/runners/lists" in text
+    assert "api/v1/runners/crypto" in text
     assert "api/v1/options-tape" in text
     assert "api/v1/perps/board" in text
     assert "100_000" in text
