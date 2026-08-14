@@ -2,13 +2,13 @@
 
 from datetime import UTC, datetime
 
-import httpx
 import pandas as pd
 
 from app.config import settings
 from app.market_data.normalizer import STANDARD_COLUMNS
 from app.market_data.symbols import to_kraken_pair
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
+from app.utils.http_client import shared_client
 
 KRAKEN_INTERVAL_MAP: dict[str, int] = {
     "1m": 1,
@@ -43,10 +43,10 @@ class KrakenProvider:
         url = f"{self._base_url}/0/public/OHLC"
         params = {"pair": pair, "interval": interval}
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.get(url, params=params)
-            response.raise_for_status()
-            payload = response.json()
+        client = shared_client(timeout=self._timeout, name="kraken")
+        response = client.get(url, params=params)
+        response.raise_for_status()
+        payload = response.json()
 
         if payload.get("error"):
             msg = f"Kraken API error: {payload['error']}"
@@ -75,10 +75,10 @@ class KrakenProvider:
         url = f"{self._base_url}/0/public/Ticker"
         params = {"pair": pair}
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.get(url, params=params)
-            response.raise_for_status()
-            payload = response.json()
+        client = shared_client(timeout=self._timeout, name="kraken")
+        response = client.get(url, params=params)
+        response.raise_for_status()
+        payload = response.json()
 
         result_key = next(iter(payload["result"]))
         price = float(payload["result"][result_key]["c"][0])

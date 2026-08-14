@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
-
 from app.config import settings
+from app.utils.http_client import shared_client
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -98,21 +97,21 @@ def fetch_aggregated_liquidations(
             "limit": limit,
         }
         try:
-            with httpx.Client(timeout=5.0) as client:
-                response = client.get(
-                    url,
-                    params=params,
-                    headers={"CG-API-KEY": key, "Accept": "application/json"},
+            client = shared_client(timeout=5.0, name="coinglass")
+            response = client.get(
+                url,
+                params=params,
+                headers={"CG-API-KEY": key, "Accept": "application/json"},
+            )
+            if response.status_code in {401, 403, 404, 429}:
+                logger.warning(
+                    "Coinglass liquidations HTTP %s for %s",
+                    response.status_code,
+                    normalized,
                 )
-                if response.status_code in {401, 403, 404, 429}:
-                    logger.warning(
-                        "Coinglass liquidations HTTP %s for %s",
-                        response.status_code,
-                        normalized,
-                    )
-                    return None
-                response.raise_for_status()
-                payload = response.json()
+                return None
+            response.raise_for_status()
+            payload = response.json()
         except Exception:
             logger.exception("Coinglass liquidations fetch failed for %s", normalized)
             return None

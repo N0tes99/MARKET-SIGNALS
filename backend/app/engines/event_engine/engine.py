@@ -4,13 +4,13 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-import httpx
 import yfinance as yf
 
 from app.config import settings
 from app.engines.evidence_engine.types import EvidenceItem
 from app.market_data.symbols import AssetClass, resolve_asset_class
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
+from app.utils.http_client import shared_client
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -100,29 +100,29 @@ def _fetch_fred_macro_events(api_key: str, horizon_days: int = 14) -> list[tuple
             "limit": 3,
         }
         try:
-            with httpx.Client(timeout=5.0) as client:
-                # Singular /release/dates filters by release_id.
-                # Plural /releases/dates returns the global calendar and ignores it.
-                response = client.get(
-                    "https://api.stlouisfed.org/fred/release/dates",
-                    params=params,
+            client = shared_client(timeout=5.0, name="fred")
+            # Singular /release/dates filters by release_id.
+            # Plural /releases/dates returns the global calendar and ignores it.
+            response = client.get(
+                "https://api.stlouisfed.org/fred/release/dates",
+                params=params,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    "FRED release dates for %s (id=%s) returned HTTP %s",
+                    label,
+                    release_id,
+                    response.status_code,
                 )
-                if response.status_code != 200:
-                    logger.warning(
-                        "FRED release dates for %s (id=%s) returned HTTP %s",
-                        label,
-                        release_id,
-                        response.status_code,
-                    )
+                continue
+            for row in response.json().get("release_dates", []):
+                event_time = _parse_datetime(row.get("date"))
+                if event_time is None:
                     continue
-                for row in response.json().get("release_dates", []):
-                    event_time = _parse_datetime(row.get("date"))
-                    if event_time is None:
-                        continue
-                    days = _days_until(event_time, now)
-                    if days <= horizon_days:
-                        found.append((label, days))
-                        break
+                days = _days_until(event_time, now)
+                if days <= horizon_days:
+                    found.append((label, days))
+                    break
         except Exception:
             logger.exception("Failed to fetch FRED release dates for %s", label)
 

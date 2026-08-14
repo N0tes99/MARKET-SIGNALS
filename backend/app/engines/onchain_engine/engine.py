@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
-
 from app.engines.evidence_engine.types import EvidenceItem
 from app.market_data.symbols import AssetClass, get_asset_class
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
+from app.utils.http_client import shared_client
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -118,10 +117,10 @@ def blend_activity_with_change(
 def _fetch_btc_fees() -> dict | None:
     def _load() -> dict | None:
         try:
-            with httpx.Client(timeout=3.0) as client:
-                response = client.get(_MEMPOOL_FEES)
-                response.raise_for_status()
-                return response.json()
+            client = shared_client(timeout=3.0, name="mempool")
+            response = client.get(_MEMPOOL_FEES)
+            response.raise_for_status()
+            return response.json()
         except Exception:
             logger.exception("mempool.space fees fetch failed")
             return None
@@ -132,10 +131,10 @@ def _fetch_btc_fees() -> dict | None:
 def _fetch_btc_difficulty() -> dict | None:
     def _load() -> dict | None:
         try:
-            with httpx.Client(timeout=3.0) as client:
-                response = client.get(_MEMPOOL_DIFFICULTY)
-                response.raise_for_status()
-                return response.json()
+            client = shared_client(timeout=3.0, name="mempool")
+            response = client.get(_MEMPOOL_DIFFICULTY)
+            response.raise_for_status()
+            return response.json()
         except Exception:
             logger.exception("mempool.space difficulty fetch failed")
             return None
@@ -153,19 +152,19 @@ def _fetch_coingecko_batch(ids: list[str]) -> dict[str, dict] | None:
 
     def _load() -> dict[str, dict] | None:
         try:
-            with httpx.Client(timeout=4.0) as client:
-                response = client.get(
-                    _COINGECKO_SIMPLE,
-                    params={
-                        "ids": ",".join(ids),
-                        "vs_currencies": "usd",
-                        "include_market_cap": "true",
-                        "include_24hr_vol": "true",
-                        "include_24hr_change": "true",
-                    },
-                )
-                response.raise_for_status()
-                return response.json()
+            client = shared_client(timeout=4.0, name="coingecko")
+            response = client.get(
+                _COINGECKO_SIMPLE,
+                params={
+                    "ids": ",".join(ids),
+                    "vs_currencies": "usd",
+                    "include_market_cap": "true",
+                    "include_24hr_vol": "true",
+                    "include_24hr_change": "true",
+                },
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception:
             logger.exception("CoinGecko activity fetch failed")
             return None
@@ -179,19 +178,19 @@ def warm_coingecko_activity() -> None:
 
     def _load() -> dict[str, dict] | None:
         try:
-            with httpx.Client(timeout=4.0) as client:
-                response = client.get(
-                    _COINGECKO_SIMPLE,
-                    params={
-                        "ids": ",".join(ids),
-                        "vs_currencies": "usd",
-                        "include_market_cap": "true",
-                        "include_24hr_vol": "true",
-                        "include_24hr_change": "true",
-                    },
-                )
-                response.raise_for_status()
-                return response.json()
+            client = shared_client(timeout=4.0, name="coingecko")
+            response = client.get(
+                _COINGECKO_SIMPLE,
+                params={
+                    "ids": ",".join(ids),
+                    "vs_currencies": "usd",
+                    "include_market_cap": "true",
+                    "include_24hr_vol": "true",
+                    "include_24hr_change": "true",
+                },
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception:
             logger.exception("CoinGecko watchlist warm failed")
             return None

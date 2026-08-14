@@ -3,11 +3,10 @@
 import logging
 from dataclasses import dataclass, field
 
-import httpx
-
 from app.config import settings
 from app.engines.evidence_engine.types import EvidenceItem
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
+from app.utils.http_client import shared_client
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -52,19 +51,19 @@ class MacroEngine:
         }
 
         try:
-            with httpx.Client(timeout=5.0) as client:
-                response = client.get(url, params=params)
-                if response.status_code != 200:
-                    # Soft-fail per series — do not poison the rest of the snapshot.
-                    logger.warning(
-                        "FRED series %s returned HTTP %s",
-                        series_id,
-                        response.status_code,
-                    )
-                    return None
-                observations = response.json().get("observations", [])
-                if observations and observations[0]["value"] != ".":
-                    return float(observations[0]["value"])
+            client = shared_client(timeout=5.0, name="fred")
+            response = client.get(url, params=params)
+            if response.status_code != 200:
+                # Soft-fail per series — do not poison the rest of the snapshot.
+                logger.warning(
+                    "FRED series %s returned HTTP %s",
+                    series_id,
+                    response.status_code,
+                )
+                return None
+            observations = response.json().get("observations", [])
+            if observations and observations[0]["value"] != ".":
+                return float(observations[0]["value"])
         except Exception:
             logger.exception("Failed to fetch FRED series %s", series_id)
 

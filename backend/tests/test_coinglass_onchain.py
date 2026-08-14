@@ -84,19 +84,13 @@ def test_fetch_liquidations_parses_payload(monkeypatch) -> None:
             }
 
     class _Client:
-        def __init__(self, *args, **kwargs) -> None:
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args) -> None:
-            return None
-
         def get(self, *args, **kwargs):
             return _Resp()
 
-    monkeypatch.setattr("app.market_data.providers.coinglass.httpx.Client", _Client)
+    monkeypatch.setattr(
+        "app.market_data.providers.coinglass.shared_client",
+        lambda **_kwargs: _Client(),
+    )
     snap = fetch_aggregated_liquidations("BTC", limit=2)
     assert snap is not None
     assert snap.long_usd == 3_000_000
