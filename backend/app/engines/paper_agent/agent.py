@@ -194,7 +194,7 @@ class PaperAgent:
                     }
                 )
 
-            # --- Crypto perps v2 (momentum + Bybit funding + F&G + Reddit cache) ---
+            # --- Crypto perps v2 (momentum + funding depth + F&G + Reddit cache) ---
             try:
                 v2_ideas = scan_crypto_perp_v2(
                     self._market, min_confidence=MIN_CONFIDENCE

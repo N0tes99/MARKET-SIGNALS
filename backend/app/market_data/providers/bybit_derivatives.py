@@ -1,4 +1,4 @@
-"""Deep derivatives snapshots — Bybit on Render; Binance only when reachable."""
+"""Deep derivatives snapshots — Binance (optional) → Bybit → OKX."""
 
 from __future__ import annotations
 

@@ -27,14 +27,18 @@ _WARM_WORKERS = 16
 
 
 def build_default_provider() -> MarketDataProvider:
-    """Build provider router: crypto via Kraken→Binance, equities via Yahoo.
+    """Build provider router: crypto via Kraken→Binance→depth, equities via Yahoo.
 
-    Render/US IPs get Binance 451 — skip it there. Kraken covers spot;
-    Bybit covers funding/OI. Local/EU can still append Binance.
+    Render/US IPs get Binance 451 — skip it there. Kraken covers spot.
+    Funding/OI come from Binance (when allowed), Bybit, then OKX (US/Render-safe).
+    Local/EU can still append Binance for spot + futures.
     """
+    from app.market_data.providers.depth_derivatives import DepthDerivativesProvider
+
     chain: list[MarketDataProvider] = [KrakenProvider(timeout=5.0)]
     if use_binance():
         chain.append(BinanceProvider(timeout=1.0))
+    chain.append(DepthDerivativesProvider())
     return AssetRouterProvider(crypto=FallbackProvider(chain))
 
 

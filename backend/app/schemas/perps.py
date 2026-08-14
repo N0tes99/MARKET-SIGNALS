@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class PerpsFundingRowSchema(BaseModel):
-    """Bybit linear funding / OI snapshot for one symbol."""
+    """Linear funding / OI snapshot for one symbol (Bybit or OKX)."""
 
     symbol: str
     funding_rate: float | None = None
@@ -57,7 +57,7 @@ class PerpsBoardSchema(BaseModel):
     ideas: list[PerpsIdeaRowSchema] = Field(default_factory=list)
     liquidations_configured: bool
     liquidations_note: str
-    funding_source: str = "bybit"
+    funding_source: str = "okx|bybit"
     symbols_scanned: int = 0
     funding_filled: int = 0
     liquidations_filled: int = 0

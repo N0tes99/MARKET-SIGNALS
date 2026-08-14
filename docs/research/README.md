@@ -13,7 +13,7 @@ Place research findings, data source evaluations, and strategy notes here.
 
 - Exchange APIs (Binance, Coinbase, etc.)
 - Macro data providers (FRED, Trading Economics)
-- Derivatives data (Coinglass liquidations) — optional paid; leave blank; free funding/OI remain
+- Derivatives data (Coinglass liquidations) — optional paid; leave blank; free funding/OI via Bybit→OKX remain
 - **Runner Detection:** fundamentals / estimate revisions, short interest, institutional ownership, catalyst news — vendor choice open (see runner plan §10)
 
 ## Scoring Methodology

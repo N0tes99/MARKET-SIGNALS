@@ -1,4 +1,4 @@
-"""Paper crypto-perps v2 — momentum + Bybit funding + F&G + Reddit cache."""
+"""Paper crypto-perps v2 — momentum + funding depth + F&G + Reddit cache."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def _funding_tilt(
     funding_bps: float | None,
     oi_delta: float | None,
 ) -> tuple[float, list[str], list[str]]:
-    """Return (rule_delta, factors, conflicts) for Bybit funding vs momentum."""
+    """Return (rule_delta, factors, conflicts) for funding vs momentum."""
     factors: list[str] = []
     conflicts: list[str] = []
     delta = 0.0

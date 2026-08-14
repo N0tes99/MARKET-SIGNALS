@@ -269,7 +269,8 @@ export default function PerpsPage() {
             Funding board
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground/70">
-            Bybit USDT linear perpetuals for the perp-v2 universe. Sorted by absolute funding.
+            USDT linear perpetuals for the perp-v2 universe (Bybit when reachable, else OKX).
+            Sorted by absolute funding.
           </p>
           {board.isLoading ? (
             <div className="surface mt-4 h-40 animate-pulse" />
@@ -326,7 +327,7 @@ export default function PerpsPage() {
                         <td className="py-2.5 pr-3">
                           {row.mark_price != null ? row.mark_price.toFixed(2) : "—"}
                         </td>
-                        <td className="py-2.5">{row.available ? row.source || "bybit" : row.note || "miss"}</td>
+                        <td className="py-2.5">{row.available ? row.source || "okx" : row.note || "miss"}</td>
                       </tr>
                     ))}
                   </tbody>

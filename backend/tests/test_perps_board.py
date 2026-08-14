@@ -134,4 +134,4 @@ async def test_perps_board_route(client: AsyncClient, monkeypatch) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["symbols_scanned"] == 1
-    assert data["funding_source"] == "bybit"
+    assert data["funding_source"] == "okx|bybit"

@@ -46,13 +46,17 @@ def test_render_skips_binance(monkeypatch) -> None:
     assert use_binance() is False
     crypto = build_default_provider()._crypto
     names = [type(p).__name__ for p in crypto._providers]
-    assert names == ["KrakenProvider"]
+    assert names == ["KrakenProvider", "DepthDerivativesProvider"]
 
 
 def test_binance_opt_in_on_render(monkeypatch) -> None:
     monkeypatch.setenv("RENDER", "true")
     monkeypatch.setenv("BINANCE_ENABLED", "true")
     assert use_binance() is True
+    crypto = build_default_provider()._crypto
+    names = [type(p).__name__ for p in crypto._providers]
+    assert "BinanceProvider" in names
+    assert names[-1] == "DepthDerivativesProvider"
 
 
 def test_depth_skips_binance_http_on_render(monkeypatch) -> None:
@@ -128,6 +132,28 @@ def test_depth_falls_back_to_okx_when_bybit_blocked(monkeypatch) -> None:
     assert out.funding_rate == pytest.approx(0.0002)
     assert calls["bybit"] == 1
     assert calls["okx"] == 1
+
+
+def test_depth_derivatives_provider_fills_kraken_blank(monkeypatch) -> None:
+    from app.market_data.providers.bybit_derivatives import DerivativesDepth
+    from app.market_data.providers.depth_derivatives import DepthDerivativesProvider
+    from app.market_data.providers.kraken import KrakenProvider
+
+    monkeypatch.setattr(
+        "app.market_data.providers.depth_derivatives.fetch_derivatives_depth",
+        lambda symbol: DerivativesDepth(
+            symbol=symbol,
+            funding_rate=0.0003,
+            open_interest=1_000.0,
+            mark_price=50.0,
+            source="okx",
+        ),
+    )
+    chain = FallbackProvider([KrakenProvider(timeout=1.0), DepthDerivativesProvider()])
+    snap = chain.get_derivatives("SOL")
+    assert snap.funding_rate == pytest.approx(0.0003)
+    assert snap.open_interest == pytest.approx(1_000.0)
+    assert snap.mark_price == pytest.approx(50.0)
 
 
 def test_derivatives_uses_first_populated() -> None:
