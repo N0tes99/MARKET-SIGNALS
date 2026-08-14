@@ -10,6 +10,7 @@ from app.config import settings
 from app.market_data.normalizer import STANDARD_COLUMNS
 from app.market_data.symbols import to_binance_interval, to_binance_symbol
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
+from app.utils.http_client import shared_client
 
 # Geo/auth blocks — fail fast so FallbackProvider can try Kraken.
 _SOFT_FAIL_STATUS = frozenset({403, 418, 451})
@@ -59,10 +60,10 @@ class BinanceProvider:
         url = f"{self._spot_base_url}/api/v3/klines"
         params = {"symbol": pair, "interval": interval, "limit": limit}
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.get(url, params=params)
-            _raise_for_binance(response)
-            raw = response.json()
+        client = shared_client(timeout=self._timeout, name="binance-spot")
+        response = client.get(url, params=params)
+        _raise_for_binance(response)
+        raw = response.json()
 
         rows = [
             {
@@ -84,10 +85,10 @@ class BinanceProvider:
         url = f"{self._spot_base_url}/api/v3/ticker/price"
         params = {"symbol": pair}
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.get(url, params=params)
-            _raise_for_binance(response)
-            data = response.json()
+        client = shared_client(timeout=self._timeout, name="binance-spot")
+        response = client.get(url, params=params)
+        _raise_for_binance(response)
+        data = response.json()
 
         return TickerSnapshot(
             symbol=symbol.upper(),
@@ -99,16 +100,16 @@ class BinanceProvider:
         """Fetch funding rate and open interest from Binance futures API."""
         pair = to_binance_symbol(symbol)
 
-        with httpx.Client(timeout=self._timeout) as client:
-            premium_url = f"{self._futures_base_url}/fapi/v1/premiumIndex"
-            premium_resp = client.get(premium_url, params={"symbol": pair})
-            _raise_for_binance(premium_resp)
-            premium = premium_resp.json()
+        client = shared_client(timeout=self._timeout, name="binance-futures")
+        premium_url = f"{self._futures_base_url}/fapi/v1/premiumIndex"
+        premium_resp = client.get(premium_url, params={"symbol": pair})
+        _raise_for_binance(premium_resp)
+        premium = premium_resp.json()
 
-            oi_url = f"{self._futures_base_url}/fapi/v1/openInterest"
-            oi_resp = client.get(oi_url, params={"symbol": pair})
-            _raise_for_binance(oi_resp)
-            oi = oi_resp.json()
+        oi_url = f"{self._futures_base_url}/fapi/v1/openInterest"
+        oi_resp = client.get(oi_url, params={"symbol": pair})
+        _raise_for_binance(oi_resp)
+        oi = oi_resp.json()
 
         return DerivativesSnapshot(
             symbol=symbol.upper(),

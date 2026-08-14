@@ -9,6 +9,7 @@ import httpx
 
 from app.config import settings
 from app.market_data.symbols import to_binance_symbol
+from app.utils.http_client import shared_client
 from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
@@ -133,40 +134,40 @@ def fetch_binance_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth |
 
     base = settings.binance_futures_url
     try:
-        with httpx.Client(timeout=timeout) as client:
-            premium_data = _http_get_json(
-                client,
-                f"{base}/fapi/v1/premiumIndex",
-                {"symbol": pair},
-            )
-            if not isinstance(premium_data, dict):
-                return None
+        client = shared_client(timeout=timeout, name="binance-futures-depth")
+        premium_data = _http_get_json(
+            client,
+            f"{base}/fapi/v1/premiumIndex",
+            {"symbol": pair},
+        )
+        if not isinstance(premium_data, dict):
+            return None
 
-            oi_data = _http_get_json(
-                client,
-                f"{base}/fapi/v1/openInterest",
-                {"symbol": pair},
-            )
-            if not isinstance(oi_data, dict):
-                return None
+        oi_data = _http_get_json(
+            client,
+            f"{base}/fapi/v1/openInterest",
+            {"symbol": pair},
+        )
+        if not isinstance(oi_data, dict):
+            return None
 
-            funding_hist: list[float] = []
-            fr = _http_get_json(
-                client,
-                f"{base}/fapi/v1/fundingRate",
-                {"symbol": pair, "limit": 20},
-            )
-            if isinstance(fr, list):
-                funding_hist = [float(row["fundingRate"]) for row in fr]
+        funding_hist: list[float] = []
+        fr = _http_get_json(
+            client,
+            f"{base}/fapi/v1/fundingRate",
+            {"symbol": pair, "limit": 20},
+        )
+        if isinstance(fr, list):
+            funding_hist = [float(row["fundingRate"]) for row in fr]
 
-            oi_hist: list[float] = []
-            oi_h = _http_get_json(
-                client,
-                f"{base}/futures/data/openInterestHist",
-                {"symbol": pair, "period": "1h", "limit": 24},
-            )
-            if isinstance(oi_h, list):
-                oi_hist = [float(row["sumOpenInterest"]) for row in oi_h]
+        oi_hist: list[float] = []
+        oi_h = _http_get_json(
+            client,
+            f"{base}/futures/data/openInterestHist",
+            {"symbol": pair, "period": "1h", "limit": 24},
+        )
+        if isinstance(oi_h, list):
+            oi_hist = [float(row["sumOpenInterest"]) for row in oi_h]
 
         return DerivativesDepth(
             symbol=symbol.upper(),
@@ -186,43 +187,43 @@ def fetch_bybit_depth(symbol: str, timeout: float = 2.0) -> DerivativesDepth | N
     """Fetch Bybit linear perpetuals snapshot + funding/OI history."""
     pair = f"{symbol.upper()}USDT"
     try:
-        with httpx.Client(timeout=timeout) as client:
-            payload = _http_get_json(
-                client,
-                f"{_BYBIT_BASE}/v5/market/tickers",
-                {"category": "linear", "symbol": pair},
-            )
-            if not isinstance(payload, dict):
-                return None
-            rows = payload.get("result", {}).get("list", [])
-            if not rows:
-                return None
-            tick = rows[0]
+        client = shared_client(timeout=timeout, name="bybit")
+        payload = _http_get_json(
+            client,
+            f"{_BYBIT_BASE}/v5/market/tickers",
+            {"category": "linear", "symbol": pair},
+        )
+        if not isinstance(payload, dict):
+            return None
+        rows = payload.get("result", {}).get("list", [])
+        if not rows:
+            return None
+        tick = rows[0]
 
-            funding_hist: list[float] = []
-            fr = _http_get_json(
-                client,
-                f"{_BYBIT_BASE}/v5/market/funding/history",
-                {"category": "linear", "symbol": pair, "limit": 20},
-            )
-            if isinstance(fr, dict):
-                raw = fr.get("result", {}).get("list", [])
-                funding_hist = list(reversed([float(row["fundingRate"]) for row in raw]))
+        funding_hist: list[float] = []
+        fr = _http_get_json(
+            client,
+            f"{_BYBIT_BASE}/v5/market/funding/history",
+            {"category": "linear", "symbol": pair, "limit": 20},
+        )
+        if isinstance(fr, dict):
+            raw = fr.get("result", {}).get("list", [])
+            funding_hist = list(reversed([float(row["fundingRate"]) for row in raw]))
 
-            oi_hist: list[float] = []
-            oi_h = _http_get_json(
-                client,
-                f"{_BYBIT_BASE}/v5/market/open-interest",
-                {
-                    "category": "linear",
-                    "symbol": pair,
-                    "intervalTime": "1h",
-                    "limit": 24,
-                },
-            )
-            if isinstance(oi_h, dict):
-                raw_oi = oi_h.get("result", {}).get("list", [])
-                oi_hist = list(reversed([float(row["openInterest"]) for row in raw_oi]))
+        oi_hist: list[float] = []
+        oi_h = _http_get_json(
+            client,
+            f"{_BYBIT_BASE}/v5/market/open-interest",
+            {
+                "category": "linear",
+                "symbol": pair,
+                "intervalTime": "1h",
+                "limit": 24,
+            },
+        )
+        if isinstance(oi_h, dict):
+            raw_oi = oi_h.get("result", {}).get("list", [])
+            oi_hist = list(reversed([float(row["openInterest"]) for row in raw_oi]))
 
         funding = tick.get("fundingRate")
         oi = tick.get("openInterest")
