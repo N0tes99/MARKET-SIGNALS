@@ -10,6 +10,7 @@ import pandas as pd
 from app.engines.paper_agent.agent import PaperAgent, _fingerprint
 from app.engines.paper_agent.crypto_perp_v2 import (
     SETUP_TYPE,
+    _OHLCV_LIMIT,
     scan_crypto_perp_v2,
     score_symbol,
 )
@@ -64,9 +65,15 @@ def _depth(*, funding: float = -0.0004, oi_hist: list[float] | None = None) -> D
     )
 
 
+def test_momentum_ohlcv_limit_meets_safe_get_min_rows() -> None:
+    # MarketDataService.safe_get_ohlcv validates min_rows=20 — requesting fewer
+    # silently yields no momentum and a dead scanner.
+    assert _OHLCV_LIMIT >= 20
+
+
 def test_score_symbol_long_with_supporting_funding(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.engines.paper_agent.crypto_perp_v2.fetch_bybit_depth",
+        "app.engines.paper_agent.crypto_perp_v2.fetch_derivatives_depth",
         lambda symbol, timeout=2.0: _depth(funding=-0.0005),
     )
     monkeypatch.setattr(
@@ -89,7 +96,7 @@ def test_score_symbol_long_with_supporting_funding(monkeypatch) -> None:
 
 def test_score_symbol_skips_flat_momentum(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.engines.paper_agent.crypto_perp_v2.fetch_bybit_depth",
+        "app.engines.paper_agent.crypto_perp_v2.fetch_derivatives_depth",
         lambda symbol, timeout=2.0: _depth(),
     )
     monkeypatch.setattr(
@@ -107,7 +114,7 @@ def test_score_symbol_skips_flat_momentum(monkeypatch) -> None:
 
 def test_scan_crypto_perp_v2_orders_by_confidence(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.engines.paper_agent.crypto_perp_v2.fetch_bybit_depth",
+        "app.engines.paper_agent.crypto_perp_v2.fetch_derivatives_depth",
         lambda symbol, timeout=2.0: _depth(funding=-0.0004),
     )
     monkeypatch.setattr(

@@ -25,7 +25,7 @@ def test_build_perps_board_funding_and_empty_liqs(monkeypatch) -> None:
         "",
     )
     monkeypatch.setattr(
-        "app.engines.paper_agent.perps_board.fetch_bybit_depth",
+        "app.engines.paper_agent.perps_board.fetch_derivatives_depth",
         lambda symbol, timeout=2.0: DerivativesDepth(
             symbol=symbol,
             funding_rate=0.0008 if symbol == "BTC" else -0.0002,
@@ -84,7 +84,7 @@ def test_build_perps_board_with_liquidations(monkeypatch) -> None:
         "test-key",
     )
     monkeypatch.setattr(
-        "app.engines.paper_agent.perps_board.fetch_bybit_depth",
+        "app.engines.paper_agent.perps_board.fetch_derivatives_depth",
         lambda symbol, timeout=2.0: DerivativesDepth(
             symbol=symbol,
             funding_rate=0.0001,
