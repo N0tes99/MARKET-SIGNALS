@@ -397,13 +397,13 @@
     transform: translateY(0);
   }
   22% {
-    opacity: 0.45;
+    opacity: 0.82;
   }
   24% {
     opacity: 1;
   }
   26% {
-    opacity: 0.35;
+    opacity: 0.78;
     transform: translateY(0.5px);
   }
   28% {
@@ -414,7 +414,7 @@
     opacity: 1;
   }
   58% {
-    opacity: 0.55;
+    opacity: 0.85;
   }
   62% {
     opacity: 1;
@@ -458,7 +458,7 @@
     opacity: 0;
   }
   100% {
-    opacity: 0.85;
+    opacity: 0.32;
   }
 }
 
@@ -468,10 +468,10 @@
     opacity: 0;
   }
   80% {
-    opacity: 0.85;
+    opacity: 0.55;
   }
   100% {
-    opacity: 0.45;
+    opacity: 0.28;
   }
 }
 

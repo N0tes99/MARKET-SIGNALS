@@ -10,7 +10,7 @@ Source demo: `logo_boot_holo.html` (boot draw → hologram idle).
 | Amber caret | Scan line rides up with the reveal | 0–28%, then fades |
 | Scanlines | Cyan horizontal bars fade in after draw | from ~32% |
 | Glow floor | Soft cyan ellipse under mark | from ~30% |
-| Flicker | Opacity / 1px jitter | after draw only |
+| Flicker | Soft opacity / 1px jitter (floor ~0.78 — brand stays readable) | after draw only |
 | Terminal line | `SIGNAL_ONLINE` (demo chrome only) | n/a for product |
 
 ## Product mapping
@@ -57,3 +57,4 @@ Respect `prefers-reduced-motion: reduce` → static mark, no caret/scanlines.
 2. Compact header stays readable; motion is subtle.
 3. Reduced-motion users see a static mark.
 4. No new network assets; no huge inline PNG in the React tree.
+5. Idle flicker never drops the mark below ~0.78 opacity; scanlines idle around ~0.32.
