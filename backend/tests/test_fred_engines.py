@@ -26,7 +26,7 @@ class _FakeResponse:
 
 
 class _FakeClient:
-    """httpx.Client stand-in that records requests."""
+    """HTTP client stand-in that records requests."""
 
     instances: list[_FakeClient] = []
 
@@ -34,12 +34,6 @@ class _FakeClient:
         del args, kwargs
         self.calls: list[tuple[str, dict]] = []
         _FakeClient.instances.append(self)
-
-    def __enter__(self) -> _FakeClient:
-        return self
-
-    def __exit__(self, *args) -> None:  # noqa: ANN002
-        del args
 
     def get(self, url: str, params: dict | None = None) -> _FakeResponse:
         params = params or {}
@@ -63,6 +57,10 @@ class _FakeClient:
         )
 
 
+def _patch_shared(monkeypatch: pytest.MonkeyPatch, module, client_cls=_FakeClient) -> None:
+    monkeypatch.setattr(module, "shared_client", lambda **_kwargs: client_cls())
+
+
 @pytest.fixture(autouse=True)
 def _clear_fred_caches() -> None:
     macro_mod._MACRO_CACHE.clear()
@@ -77,7 +75,7 @@ def _clear_fred_caches() -> None:
 
 
 def test_fred_macro_release_ids_and_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(event_mod.httpx, "Client", _FakeClient)
+    _patch_shared(monkeypatch, event_mod)
     events = _fetch_fred_macro_events("fake-key", horizon_days=14)
     labels = {label for label, _ in events}
     assert labels == {"CPI", "Employment Situation", "FOMC Press Release"}
@@ -104,14 +102,15 @@ def test_fred_macro_release_ids_and_endpoint(monkeypatch: pytest.MonkeyPatch) ->
 def test_event_engine_shared_fred_calendar_across_symbols(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(event_mod.httpx, "Client", _FakeClient)
+    _patch_shared(monkeypatch, event_mod)
     engine = EventEngine(fred_api_key="fake-key")
     btc = engine.snapshot("BTC")
     eth = engine.snapshot("ETH")
     assert "CPI" in btc.description
     assert btc.description == eth.description
     # Shared FRED calendar fetched once (3 releases), not per symbol.
-    assert len(_FakeClient.instances) == 3
+    total_calls = sum(len(client.calls) for client in _FakeClient.instances)
+    assert total_calls == 3
 
 
 def test_macro_one_bad_series_does_not_poison_snapshot(
@@ -134,7 +133,7 @@ def test_macro_one_bad_series_does_not_poison_snapshot(
                 return _FakeResponse(400, {"error_message": "bad series"})
             return _FakeResponse(200, {"observations": [{"value": raw}]})
 
-    monkeypatch.setattr(macro_mod.httpx, "Client", _PartialClient)
+    _patch_shared(monkeypatch, macro_mod, _PartialClient)
     snap = MacroEngine(fred_api_key="fake-key").snapshot()
     assert snap.dxy == 100.0
     assert snap.treasury_10y is None
@@ -153,7 +152,7 @@ def test_macro_degraded_message_when_key_present_but_all_fail(
             self.calls.append((url, params))
             return _FakeResponse(500, {"error_message": "down"})
 
-    monkeypatch.setattr(macro_mod.httpx, "Client", _FailClient)
+    _patch_shared(monkeypatch, macro_mod, _FailClient)
     snap = MacroEngine(fred_api_key="fake-key").snapshot()
     assert snap.score == 50.0
     assert "degraded" in snap.description.lower()
