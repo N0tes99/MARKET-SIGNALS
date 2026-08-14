@@ -73,6 +73,7 @@ def test_build_perps_board_funding_and_empty_liqs(monkeypatch) -> None:
     assert "COINGLASS" in board.liquidations_note.upper() or "Coinglass" in board.liquidations_note
     assert board.funding[0].symbol == "BTC"  # highest |bps|
     assert board.funding[0].funding_bps == pytest.approx(8.0)
+    assert board.funding_source == "bybit"
     assert len(board.ideas) == 1
     assert board.ideas[0].setup_type == "funding_extreme"
     assert all(row.coinglass_url for row in board.liquidations)
