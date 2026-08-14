@@ -290,6 +290,191 @@
   }
 }
 
+/* —— Logo boot / hologram (from logo_boot_holo.html sketch) —— */
+@layer components {
+  .logo-holo-stage {
+    --logo-holo: #5ff0d0;
+    --logo-scan: #f0b45f;
+    @apply relative inline-flex shrink-0 items-center justify-center overflow-visible;
+  }
+
+  .logo-holo-mark {
+    @apply relative z-[2] block h-full w-full;
+  }
+
+  /* Dashboard hero: one-shot draw, then idle flicker */
+  .logo-holo-stage[data-mode="boot"] .logo-holo-mark {
+    animation:
+      logo-drawreveal 1.55s cubic-bezier(0.5, 0, 0.2, 1) 1 forwards,
+      logo-holoflicker 5.6s ease-in-out 1.55s infinite;
+  }
+
+  /* Compact header: brief settle only */
+  .logo-holo-stage[data-mode="soft"] .logo-holo-mark {
+    animation: logo-softsettle 0.9s ease-out 1 forwards;
+  }
+
+  .logo-holo-caret {
+    @apply pointer-events-none absolute left-[6%] right-[6%] z-[3];
+    height: 2px;
+    background: var(--logo-scan);
+    box-shadow:
+      0 0 8px var(--logo-scan),
+      0 0 2px var(--logo-scan);
+    opacity: 0;
+  }
+
+  .logo-holo-stage[data-mode="boot"] .logo-holo-caret {
+    animation: logo-caretmove 1.55s cubic-bezier(0.5, 0, 0.2, 1) 1 forwards;
+  }
+
+  .logo-holo-lines {
+    @apply pointer-events-none absolute inset-0 z-[1] opacity-0;
+    background: repeating-linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--logo-holo) 10%, transparent) 0px,
+      color-mix(in srgb, var(--logo-holo) 10%, transparent) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  .logo-holo-stage[data-mode="boot"] .logo-holo-lines {
+    animation:
+      logo-hololineson 1.55s ease-in-out 1 forwards,
+      logo-holoslide 4s linear 1.2s infinite;
+  }
+
+  .logo-holo-floor {
+    @apply pointer-events-none absolute z-[1] opacity-0;
+    bottom: -14%;
+    left: 12%;
+    right: 12%;
+    height: 18%;
+    background: radial-gradient(
+      50% 100% at 50% 0%,
+      color-mix(in srgb, var(--logo-holo) 45%, transparent),
+      transparent 70%
+    );
+    filter: blur(2px);
+  }
+
+  .logo-holo-stage[data-mode="boot"] .logo-holo-floor {
+    animation: logo-floorpulse 1.55s ease-in-out 1 forwards;
+  }
+}
+
+@keyframes logo-drawreveal {
+  0% {
+    clip-path: inset(100% 0 0 0);
+    filter: brightness(1.55) drop-shadow(0 0 8px color-mix(in srgb, var(--logo-holo) 70%, transparent));
+  }
+  72% {
+    clip-path: inset(0% 0 0 0);
+    filter: brightness(1.55) drop-shadow(0 0 8px color-mix(in srgb, var(--logo-holo) 70%, transparent));
+  }
+  100% {
+    clip-path: inset(0% 0 0 0);
+    filter: brightness(1) drop-shadow(0 0 3px color-mix(in srgb, var(--logo-holo) 30%, transparent));
+  }
+}
+
+@keyframes logo-softsettle {
+  0% {
+    filter: brightness(1.35) drop-shadow(0 0 4px color-mix(in srgb, var(--logo-holo) 45%, transparent));
+    opacity: 0.85;
+  }
+  100% {
+    filter: none;
+    opacity: 1;
+  }
+}
+
+@keyframes logo-holoflicker {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  22% {
+    opacity: 0.45;
+  }
+  24% {
+    opacity: 1;
+  }
+  26% {
+    opacity: 0.35;
+    transform: translateY(0.5px);
+  }
+  28% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  55% {
+    opacity: 1;
+  }
+  58% {
+    opacity: 0.55;
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes logo-caretmove {
+  0% {
+    top: 100%;
+    opacity: 1;
+  }
+  72% {
+    top: 0%;
+    opacity: 1;
+  }
+  88% {
+    opacity: 0;
+    top: 0%;
+  }
+  100% {
+    opacity: 0;
+    top: 0%;
+  }
+}
+
+@keyframes logo-holoslide {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 40px;
+  }
+}
+
+@keyframes logo-hololineson {
+  0%,
+  68% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes logo-floorpulse {
+  0%,
+  65% {
+    opacity: 0;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0.45;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .void-horizon,
   .void-horizon-glow,
@@ -298,8 +483,26 @@
   .motion-fade-in,
   .motion-view-pane,
   .motion-rank-1,
-  .motion-stagger > * {
+  .motion-stagger > *,
+  .logo-holo-mark,
+  .logo-holo-caret,
+  .logo-holo-lines,
+  .logo-holo-floor {
     animation: none !important;
   }
+
+  .logo-holo-mark {
+    clip-path: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .logo-holo-caret,
+  .logo-holo-lines,
+  .logo-holo-floor {
+    display: none !important;
+  }
 }
+
 

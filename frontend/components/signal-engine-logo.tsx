@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -8,6 +9,13 @@ interface SignalEngineLogoProps {
   className?: string;
   /** Home link. Pass false when the parent already handles navigation. */
   href?: string | false;
+  /**
+   * Mark motion from logo_boot_holo sketch.
+   * - boot: one-shot draw + caret, then idle flicker (dashboard hero)
+   * - soft: brief settle (compact header)
+   * - none: static
+   */
+  animation?: "boot" | "soft" | "none";
 }
 
 /**
@@ -47,20 +55,52 @@ export function SignalMark({ className }: { className?: string }) {
   );
 }
 
+function SignalHoloStage({
+  mode,
+  className,
+  children,
+}: {
+  mode: "boot" | "soft" | "none";
+  className?: string;
+  children: ReactNode;
+}) {
+  if (mode === "none") {
+    return <span className={cn("inline-flex shrink-0", className)}>{children}</span>;
+  }
+
+  return (
+    <span className={cn("logo-holo-stage", className)} data-mode={mode}>
+      {mode === "boot" ? (
+        <>
+          <span className="logo-holo-lines" aria-hidden />
+          <span className="logo-holo-floor" aria-hidden />
+          <span className="logo-holo-caret" aria-hidden />
+        </>
+      ) : null}
+      <span className="logo-holo-mark">{children}</span>
+    </span>
+  );
+}
+
 export function SignalEngineLogo({
   size = "sm",
   className,
   href = "/",
+  animation,
 }: SignalEngineLogoProps) {
   const large = size === "lg";
+  const motion = animation ?? (large ? "boot" : "soft");
 
   const mark = (
-    <SignalMark
+    <SignalHoloStage
+      mode={motion}
       className={cn(
         "self-center overflow-visible",
         large ? "h-8 w-8 sm:h-11 sm:w-11" : "h-5 w-5",
       )}
-    />
+    >
+      <SignalMark className="h-full w-full" />
+    </SignalHoloStage>
   );
 
   const word = (
