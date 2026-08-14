@@ -796,6 +796,39 @@ export async function fetchRunnerDetail(symbol: string): Promise<RunnerDetailRes
   return apiFetch<RunnerDetailResponse>(`/api/v1/runners/${symbol}`, 90_000);
 }
 
+export type CryptoRadarBucket = "watch" | "crowded" | "running" | "none";
+
+export interface CryptoRadarCandidate {
+  id: string;
+  symbol: string;
+  bucket: CryptoRadarBucket;
+  score: number;
+  factors: string[];
+  conflicts: string[];
+  mom_12h_pct: number | null;
+  mom_20d_pct: number | null;
+  funding_bps: number | null;
+  oi_change_pct: number | null;
+  funding_source: string;
+  mark_price: number | null;
+  as_of: string;
+}
+
+export interface CryptoRadarFeedResponse {
+  candidates: CryptoRadarCandidate[];
+  watch: CryptoRadarCandidate[];
+  crowded: CryptoRadarCandidate[];
+  running: CryptoRadarCandidate[];
+  scanned_at: string;
+  symbols_scanned: number;
+  funding_filled: number;
+  universe: string[];
+}
+
+export async function fetchCryptoRadar(): Promise<CryptoRadarFeedResponse> {
+  return apiFetch<CryptoRadarFeedResponse>("/api/v1/runners/crypto", 120_000);
+}
+
 export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }

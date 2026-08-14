@@ -11,8 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_runner_scanner
 from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
+from app.engines.runner_engine.crypto_radar import (
+    CRYPTO_RADAR_UNIVERSE,
+    CryptoRadarCandidate,
+    crypto_radar_lists,
+)
 from app.engines.runner_engine.scanner import RunnerScanner
 from app.engines.runner_engine.types import RunnerCandidate
+from app.schemas.crypto_radar import CryptoRadarCandidateSchema, CryptoRadarFeedResponse
 from app.schemas.runners import (
     RunnerCandidateSchema,
     RunnerConfigMetaResponse,
@@ -81,6 +87,47 @@ def _to_schema(candidate: RunnerCandidate) -> RunnerCandidateSchema:
         relative_volume=candidate.tape.relative_volume,
         rs_benchmark=candidate.tape.rs_benchmark,
         rs_pct=candidate.tape.rs_pct,
+    )
+
+
+def _crypto_to_schema(candidate: CryptoRadarCandidate) -> CryptoRadarCandidateSchema:
+    return CryptoRadarCandidateSchema(
+        id=candidate.id,
+        symbol=candidate.symbol,
+        bucket=candidate.bucket,
+        score=candidate.score,
+        factors=list(candidate.factors),
+        conflicts=list(candidate.conflicts),
+        mom_12h_pct=candidate.mom_12h_pct,
+        mom_20d_pct=candidate.mom_20d_pct,
+        funding_bps=candidate.funding_bps,
+        oi_change_pct=candidate.oi_change_pct,
+        funding_source=candidate.funding_source,
+        mark_price=candidate.mark_price,
+        as_of=candidate.as_of,
+    )
+
+
+@router.get("/crypto", response_model=CryptoRadarFeedResponse)
+async def list_crypto_radar() -> CryptoRadarFeedResponse:
+    """Crypto movers track — Watch / Crowded / Running on the V2 universe."""
+    try:
+        buckets = await asyncio.to_thread(crypto_radar_lists)
+    except Exception:
+        logger.exception("Crypto radar scan failed")
+        buckets = {"watch": [], "crowded": [], "running": [], "all": []}
+
+    all_cands: list[CryptoRadarCandidate] = buckets.get("all", [])
+    funding_filled = sum(1 for c in all_cands if c.funding_bps is not None)
+    return CryptoRadarFeedResponse(
+        candidates=[_crypto_to_schema(c) for c in all_cands],
+        watch=[_crypto_to_schema(c) for c in buckets["watch"]],
+        crowded=[_crypto_to_schema(c) for c in buckets["crowded"]],
+        running=[_crypto_to_schema(c) for c in buckets["running"]],
+        scanned_at=datetime.now(UTC),
+        symbols_scanned=len(CRYPTO_RADAR_UNIVERSE),
+        funding_filled=funding_filled,
+        universe=list(CRYPTO_RADAR_UNIVERSE),
     )
 
 

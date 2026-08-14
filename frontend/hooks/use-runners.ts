@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchRunnerDetail, fetchRunnerLists, fetchRunnersFeed } from "@/services/api";
+import { fetchCryptoRadar, fetchRunnerDetail, fetchRunnerLists, fetchRunnersFeed } from "@/services/api";
 
 export function useRunnersFeed() {
   return useQuery({
@@ -18,6 +18,15 @@ export function useRunnerLists() {
     queryKey: ["runners-lists"],
     queryFn: fetchRunnerLists,
     staleTime: 120_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCryptoRadar() {
+  return useQuery({
+    queryKey: ["crypto-radar"],
+    queryFn: fetchCryptoRadar,
+    staleTime: 90_000,
     refetchOnWindowFocus: false,
   });
 }
