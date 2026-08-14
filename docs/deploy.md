@@ -67,7 +67,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access` (default `Admin`) |
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
-| `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run without it |
+| `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run via Bybit→OKX without it |
 | `ALPACA_API_KEY` | optional — Alpaca read-only mirror of positions/fills (no order execution) + free IEX activity |
 | `ALPACA_API_SECRET` | optional — pair with `ALPACA_API_KEY`; leave both blank to show empty state |
 | `ALPACA_BASE_URL` | optional; default `https://paper-api.alpaca.markets` (paper). Use `https://api.alpaca.markets` for live keys |

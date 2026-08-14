@@ -1,4 +1,4 @@
-"""Build the crypto perps activity board (Bybit funding + optional Coinglass)."""
+"""Build the crypto perps activity board (funding depth + optional Coinglass)."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def _funding_row(symbol: str) -> PerpsFundingRowSchema:
         open_interest=depth.open_interest,
         oi_change_pct=round(oi_delta, 2) if oi_delta is not None else None,
         mark_price=depth.mark_price,
-        source=depth.source or "bybit",
+        source=depth.source or "okx",
         available=True,
         note="",
     )
