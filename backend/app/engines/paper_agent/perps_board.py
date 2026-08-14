@@ -10,7 +10,7 @@ from app.config import settings
 from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent.crypto_perp_v2 import V2_UNIVERSE
 from app.market_data.providers.bybit_derivatives import (
-    fetch_bybit_depth,
+    fetch_derivatives_depth,
     funding_trend,
     oi_change_pct,
 )
@@ -39,13 +39,13 @@ def _coinglass_url(symbol: str) -> str:
 
 def _funding_row(symbol: str) -> PerpsFundingRowSchema:
     try:
-        depth = fetch_bybit_depth(symbol)
+        depth = fetch_derivatives_depth(symbol)
     except Exception:
-        logger.exception("Perps board Bybit depth failed for %s", symbol)
+        logger.exception("Perps board derivatives depth failed for %s", symbol)
         return PerpsFundingRowSchema(
             symbol=symbol,
             available=False,
-            note="Bybit depth failed",
+            note="Derivatives depth failed",
         )
 
     if depth is None or depth.funding_rate is None:

@@ -11,7 +11,7 @@ from app.engines.paper_agent.types import PaperDirection
 from app.engines.sentiment_engine.engine import fetch_fear_greed
 from app.engines.sentiment_engine.reddit_social import analyze_reddit_social
 from app.market_data.providers.bybit_derivatives import (
-    fetch_bybit_depth,
+    fetch_derivatives_depth,
     oi_change_pct,
 )
 from app.market_data.service import MarketDataService
@@ -39,6 +39,8 @@ V2_UNIVERSE: tuple[str, ...] = (
 )
 
 _MOMENTUM_BARS = 12  # ~12h on 1h candles
+# safe_get_ohlcv always validates min_rows=20 — never request fewer.
+_OHLCV_LIMIT = max(20, _MOMENTUM_BARS + 8)
 _MOMENTUM_MIN_PCT = 1.5
 _FUNDING_EXTREME_BPS = 8.0
 _FUNDING_SOFT_BPS = 3.0
@@ -57,7 +59,7 @@ class CryptoPerpV2Idea:
 
 
 def _momentum_pct(market: MarketDataService, symbol: str) -> float | None:
-    df = market.safe_get_ohlcv(symbol, "1h", limit=_MOMENTUM_BARS + 4)
+    df = market.safe_get_ohlcv(symbol, "1h", limit=_OHLCV_LIMIT)
     if df is None or len(df) < _MOMENTUM_BARS + 1:
         return None
     closes = df["close"]
@@ -87,7 +89,7 @@ def _funding_tilt(
     delta = 0.0
 
     if funding_bps is None:
-        conflicts.append("Bybit funding unavailable")
+        conflicts.append("Funding unavailable")
         return -4.0, factors, conflicts
 
     factors.append(f"Funding {funding_bps:+.2f} bps")
@@ -195,7 +197,7 @@ def score_symbol(
     conflicts: list[str] = []
     rule = 52.0 + min(abs(mom), 12.0) * 2.0  # ~55 at 1.5%, ~76 at 12%
 
-    depth = fetch_bybit_depth(normalized)
+    depth = fetch_derivatives_depth(normalized)
     funding_bps: float | None = None
     oi_delta: float | None = None
     if depth is not None and depth.funding_rate is not None:
