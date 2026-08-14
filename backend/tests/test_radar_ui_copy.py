@@ -40,6 +40,7 @@ def test_homescreen_shortcuts_include_radar_and_tape() -> None:
     text = _MANIFEST.read_text(encoding="utf-8")
     assert 'url: "/radar"' in text
     assert 'url: "/tape"' in text
+    assert 'url: "/perps"' in text
 
 
 def test_proxy_gives_radar_and_tape_long_timeout() -> None:
@@ -47,6 +48,7 @@ def test_proxy_gives_radar_and_tape_long_timeout() -> None:
     assert "api/v1/runners" in text
     assert "api/v1/runners/lists" in text
     assert "api/v1/options-tape" in text
+    assert "api/v1/perps/board" in text
     assert "100_000" in text
 
 

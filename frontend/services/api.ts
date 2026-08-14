@@ -401,6 +401,60 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export interface PerpsFundingRow {
+  symbol: string;
+  funding_rate: number | null;
+  funding_bps: number | null;
+  funding_trend_bps: number | null;
+  open_interest: number | null;
+  oi_change_pct: number | null;
+  mark_price: number | null;
+  source: string;
+  available: boolean;
+  note: string;
+}
+
+export interface PerpsLiquidationRow {
+  symbol: string;
+  long_usd: number | null;
+  short_usd: number | null;
+  total_usd: number | null;
+  long_share: number | null;
+  interval: string;
+  score: number | null;
+  description: string;
+  available: boolean;
+  coinglass_url: string | null;
+}
+
+export interface PerpsIdeaRow {
+  id: string;
+  symbol: string;
+  setup_type: string;
+  direction_bias: string;
+  confidence: number;
+  factors: string[];
+  trade_state_hint: string;
+}
+
+export interface PerpsBoard {
+  as_of: string;
+  universe: string[];
+  funding: PerpsFundingRow[];
+  liquidations: PerpsLiquidationRow[];
+  ideas: PerpsIdeaRow[];
+  liquidations_configured: boolean;
+  liquidations_note: string;
+  funding_source: string;
+  symbols_scanned: number;
+  funding_filled: number;
+  liquidations_filled: number;
+}
+
+export async function fetchPerpsBoard(): Promise<PerpsBoard> {
+  return apiFetch<PerpsBoard>("/api/v1/perps/board", 100_000);
+}
+
 export interface AlpacaAccount {
   equity: number;
   cash: number;

@@ -47,6 +47,12 @@ function MainNav() {
             Tape
           </Link>
           <Link
+            href="/perps"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Perps
+          </Link>
+          <Link
             href="/radar"
             className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
           >

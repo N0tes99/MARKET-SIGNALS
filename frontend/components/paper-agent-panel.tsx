@@ -118,6 +118,14 @@ function LedgerCard({ title, ledger, hint }: { title: string; ledger: PaperLedge
   );
 }
 
+function sourceLabel(source: string): string {
+  if (source === "crypto_perp_v2") return "perp v2";
+  if (source === "crypto_setup") return "crypto";
+  if (source === "equity_setup") return "equity";
+  if (source === "tape_hunt") return "tape";
+  return source;
+}
+
 function TradeRow({ trade }: { trade: PaperTrade }) {
   return (
     <li className="border-t border-white/[0.05] py-3 first:border-t-0 first:pt-0">
@@ -130,6 +138,9 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
             {trade.symbol}
           </Link>
           <span className="label-caps text-muted-foreground/55">{trade.setup_type}</span>
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
+            {sourceLabel(trade.source)}
+          </span>
           <span className="font-mono text-[10px] text-muted-foreground/45">{trade.direction}</span>
           <span className="font-mono text-[10px] text-muted-foreground/45">
             {money(trade.size_usd)}
