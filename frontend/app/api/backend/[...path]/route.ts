@@ -66,6 +66,15 @@ async function proxyRequest(
   if (cookie) {
     headers.set("cookie", cookie);
   }
+  const clientIp =
+    request.headers.get("x-nf-client-connection-ip") ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "";
+  if (clientIp) {
+    headers.set("x-forwarded-for", clientIp);
+    headers.set("x-real-ip", clientIp);
+  }
   const cronSecret = request.headers.get("x-cron-secret");
   if (cronSecret) {
     headers.set("x-cron-secret", cronSecret);

@@ -25,6 +25,7 @@ from starlette.responses import Response as StarletteResponse
 from app.config import settings
 from app.core.auth_deps import get_current_user, get_optional_user, require_admin_user
 from app.core.dependencies import get_db
+from app.core.rate_limit import limit_totp
 from app.core.security import JWT_ALGORITHM, SESSION_COOKIE_NAME, cookie_secure, decode_access_token
 from app.models.access_grant import AccessGrantModel
 from app.models.user import User
@@ -464,6 +465,7 @@ async def gate_verify(
     session: AsyncSession = Depends(get_db),
 ) -> GateVerifyResponseSchema:
     """Confirm first-time enrollment or unlock with the user's authenticator."""
+    limit_totp(str(user.id))
     is_admin = settings.is_admin_username(user.username)
     grant = None if is_admin else await active_grant_for_user(session, user.id)
     if not is_admin and grant is None:
