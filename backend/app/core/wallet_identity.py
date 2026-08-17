@@ -75,7 +75,8 @@ def random_wallet_username(address: str, *, taken: set[str] | None = None) -> st
     banned = banned_chars(address)
     words = [w for w in _WORDS if banned.isdisjoint(set(w))]
     alphabet = safe_alphabet(address)
-    if len(alphabet) < 3 and not words:
+    # Solana base58 often leaves 1–2 unused letters; repeating them is enough.
+    if not alphabet and not words:
         raise ValueError("not enough leftover letters for a wallet username")
 
     for _ in range(64):
@@ -85,7 +86,7 @@ def random_wallet_username(address: str, *, taken: set[str] | None = None) -> st
             if extra and len(name) + extra <= 8:
                 name += "".join(secrets.choice(alphabet) for _ in range(extra))
         else:
-            n = 5 if len(alphabet) >= 5 else max(3, len(alphabet))
+            n = 5 if len(alphabet) >= 5 else 3
             name = "".join(secrets.choice(alphabet) for _ in range(n))
         if name.lower() in used:
             continue
