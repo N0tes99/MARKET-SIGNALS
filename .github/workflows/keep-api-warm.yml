@@ -75,6 +75,8 @@ jobs:
           # Secrets (same as Render AUTH_USERNAME / AUTH_PASSWORD):
           API_USERNAME: ${{ secrets.API_USERNAME }}
           API_PASSWORD: ${{ secrets.API_PASSWORD }}
+          # Same CRON_SECRET as ping-paper / Render — required when the TOTP gate is on.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
           normalize_path() {
@@ -114,12 +116,20 @@ jobs:
             echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /assets will 401"
           fi
 
+          CRON_ARGS=()
+          if [ -n "${CRON_SECRET:-}" ]; then
+            CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
+          else
+            echo "::warning::CRON_SECRET not set — /assets keep-warm will 401 when the TOTP gate is on"
+          fi
+
           # Cold rank_all can exceed 2m on free Render — give it enough time so
           # memory + disk caches populate for the Netlify dashboard proxy.
           echo "Pinging ${URL} (max 180s; timeouts/502 are non-fatal)"
-          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 180 "${AUTH_ARGS[@]}" "$URL" || true)
+          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 180 \
+            "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$URL" || true)
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-            echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD secrets match Render AUTH_*"
+            echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET (X-Cron-Secret) match Render"
           elif [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Assets ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
             head -c 200 /tmp/assets_body || true

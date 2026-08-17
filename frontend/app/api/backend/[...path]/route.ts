@@ -66,6 +66,10 @@ async function proxyRequest(
   if (cookie) {
     headers.set("cookie", cookie);
   }
+  const cronSecret = request.headers.get("x-cron-secret");
+  if (cronSecret) {
+    headers.set("x-cron-secret", cronSecret);
+  }
   const auth = authHeader();
   if (auth) {
     headers.set("authorization", auth);

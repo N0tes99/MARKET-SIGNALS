@@ -6,6 +6,7 @@ confirm with a code, only the rotating 6-digit challenge is required.
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -138,8 +139,7 @@ def is_access_public_path(path: str) -> bool:
         "/api/v1/auth/wallet/challenge",
         "/api/v1/auth/wallet/verify",
         "/api/v1/public/preview",
-        # Machine keep-warm (GitHub Actions). Still gated by HTTP Basic Auth.
-        "/api/v1/assets",
+        # Machine keep-warm for paper ticks. Endpoint still requires X-Cron-Secret.
         "/api/v1/paper/cron-tick",
     }
     if normalized in public:
@@ -152,6 +152,23 @@ def is_access_public_path(path: str) -> bool:
         "/redoc",
         "/openapi.json",
     }
+
+
+def is_assets_list_path(path: str) -> bool:
+    """Exact dashboard list path used by keep-warm (not /assets/{symbol})."""
+    normalized = path.rstrip("/") or "/"
+    return normalized == "/api/v1/assets"
+
+
+def request_has_valid_cron_secret(request: Request) -> bool:
+    """True when CRON_SECRET is set and matches X-Cron-Secret."""
+    expected = settings.cron_secret.strip()
+    if not expected:
+        return False
+    provided = (request.headers.get("X-Cron-Secret") or "").strip()
+    if not provided:
+        return False
+    return secrets.compare_digest(provided, expected)
 
 
 async def active_grant_for_user(
@@ -179,6 +196,10 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
         if not gate_enabled() or is_access_public_path(request.url.path):
+            return await call_next(request)
+        # Keep-warm (GitHub Actions): valid cron secret may hit GET /assets
+        # without MFA. Logged-in dashboard sessions still use cookies below.
+        if is_assets_list_path(request.url.path) and request_has_valid_cron_secret(request):
             return await call_next(request)
 
         session_tok = request.cookies.get(SESSION_COOKIE_NAME)
