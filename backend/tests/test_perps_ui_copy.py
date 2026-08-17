@@ -33,3 +33,5 @@ def test_proxy_gives_perps_board_long_timeout() -> None:
     text = _PROXY.read_text(encoding="utf-8")
     assert "api/v1/perps/board" in text
     assert "100_000" in text
+    assert "x-forwarded-for" in text
+    assert "x-nf-client-connection-ip" in text

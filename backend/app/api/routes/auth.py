@@ -7,13 +7,14 @@ import logging
 import secrets
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.auth_deps import get_current_user, get_optional_user
 from app.core.dependencies import get_db
+from app.core.rate_limit import limit_forgot_password, limit_login, limit_register
 from app.core.security import (
     SESSION_COOKIE_NAME,
     cookie_secure,
@@ -103,10 +104,12 @@ def _verification_required() -> bool:
 @router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
 async def register(
     body: RegisterRequest,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_db),
 ) -> UserSchema:
     """Create an account; send verification email when required."""
+    limit_register(request)
     email = body.email.lower().strip()
     username = body.username.strip()
 
@@ -149,11 +152,13 @@ async def register(
 @router.post("/login", response_model=UserSchema)
 async def login(
     body: LoginRequest,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_db),
 ) -> UserSchema:
     """Authenticate and set the session cookie."""
     email = body.email.lower().strip()
+    limit_login(request, email)
     result = await session.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):
@@ -255,9 +260,11 @@ def _send_reset_email(user: User, raw_token: str) -> bool:
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
 async def forgot_password(
     body: ForgotPasswordRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> None:
     """Email a reset link when the address exists. Always 204 to avoid enumeration."""
+    limit_forgot_password(request)
     email = body.email.lower().strip()
     result = await session.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()

@@ -7,6 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.core.auth_deps import require_admin_user
+from app.core.rate_limit import reset_rate_limits
 from app.core.service_dependencies import (
     get_decision_pipeline,
     get_evidence_service,
@@ -22,6 +23,13 @@ from app.main import app
 from app.models.user import User
 from app.services.decision_pipeline import DecisionPipelineService
 from app.services.evidence_service import EvidenceService
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limits() -> None:
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
 
 
 @pytest.fixture

@@ -15,13 +15,14 @@ import nacl.signing
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from eth_utils import is_address, to_checksum_address
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.dependencies import get_db
+from app.core.rate_limit import limit_wallet
 from app.core.security import SESSION_COOKIE_NAME, cookie_secure, create_access_token, hash_password
 from app.core.wallet_identity import random_wallet_username, synthetic_wallet_email
 from app.models.user import User
@@ -324,9 +325,11 @@ async def _get_or_create_wallet_user(
 @router.post("/challenge", response_model=WalletChallengeResponse)
 async def wallet_challenge(
     body: WalletChallengeRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> WalletChallengeResponse:
     """Issue a one-time login message for ETH / Solana / Sui."""
+    limit_wallet(request, "challenge")
     chain = body.chain.strip().lower()
     if chain not in SUPPORTED_CHAINS:
         raise HTTPException(
@@ -365,10 +368,12 @@ async def wallet_challenge(
 @router.post("/verify", response_model=UserSchema)
 async def wallet_verify(
     body: WalletVerifyRequest,
+    request: Request,
     response: Response,
     session: AsyncSession = Depends(get_db),
 ) -> UserSchema:
     """Verify signed challenge, create/link user, and set session cookie."""
+    limit_wallet(request, "verify")
     chain = body.chain.strip().lower()
     if chain not in SUPPORTED_CHAINS:
         raise HTTPException(status_code=400, detail="Unsupported chain")

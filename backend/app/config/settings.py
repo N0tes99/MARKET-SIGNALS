@@ -126,6 +126,14 @@ class Settings(BaseSettings):
     public_app_url: str = ""
     # Min seconds between verification email sends
     email_verify_cooldown_seconds: int = 60
+    # Auth spray protection (in-process; Render web is one dyno)
+    auth_rate_window_seconds: int = 900
+    auth_login_ip_limit: int = 8
+    auth_login_email_limit: int = 8
+    auth_register_ip_limit: int = 5
+    auth_forgot_ip_limit: int = 5
+    auth_wallet_ip_limit: int = 10
+    auth_totp_limit: int = 8
 
     @field_validator("database_url", mode="before")
     @classmethod

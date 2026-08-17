@@ -20,6 +20,15 @@ def test_solana_username_avoids_wallet_chars() -> None:
     assert name.lower() not in {"mist", "reef"}
 
 
+def test_solana_username_with_two_leftover_letters() -> None:
+    # Real ed25519 pubkey whose base58 form only leaves w/x unused.
+    address = "DoBEbSEKSGuNmZvjvhAeypAHbYy4i5dvC52syLfrYEQt"
+    name = random_wallet_username(address)
+    assert 3 <= len(name) <= 8
+    assert name.isalpha()
+    assert set(name.lower()).isdisjoint({ch.lower() for ch in address if ch.isalnum()})
+
+
 def test_synthetic_email_is_handle_only() -> None:
     email = synthetic_wallet_email("wispqk")
     assert email == "wispqk@wallets.signalengine.app"
