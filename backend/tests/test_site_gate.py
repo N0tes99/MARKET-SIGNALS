@@ -56,14 +56,46 @@ async def test_public_preview_allowed_when_gate_on(totp_secret: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_assets_list_allowed_for_keepwarm_when_gate_on(totp_secret: str) -> None:
-    """Exact /assets list is MFA-public so keep-warm can rank. Basic Auth still applies."""
+async def test_assets_list_requires_login_when_gate_on(totp_secret: str) -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         res = await client.get("/api/v1/assets")
-    # Not LOGIN_REQUIRED — middleware let it through (handler may 200 or soft-fail).
+    assert res.status_code == 401
+    assert res.json()["code"] == "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_assets_list_allowed_with_cron_secret_when_gate_on(
+    totp_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.core.site_gate.settings.cron_secret", "test-cron-secret")
+    monkeypatch.setattr("app.config.settings.cron_secret", "test-cron-secret")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(
+            "/api/v1/assets",
+            headers={"X-Cron-Secret": "test-cron-secret"},
+        )
     assert res.status_code != 401
-    assert res.headers.get("www-authenticate") is None
+    assert res.json().get("code") != "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_assets_list_mfa_session_still_works_when_gate_on(totp_secret: str) -> None:
+    uid = uuid4()
+    session = create_access_token(uid)
+    mfa = create_mfa_token(
+        user_id=uid,
+        grant_expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(
+            "/api/v1/assets",
+            cookies={"se_session": session, MFA_COOKIE_NAME: mfa},
+        )
+    assert res.status_code != 401
+    assert res.json().get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
 
 
 @pytest.mark.asyncio

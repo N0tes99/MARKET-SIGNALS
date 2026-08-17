@@ -35,11 +35,12 @@ async def get_alert_status(
 
 @router.post("/check", response_model=AlertDispatchSchema)
 async def check_alerts(
+    _admin: User = Depends(require_admin_user),
     pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
     learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
 ) -> AlertDispatchSchema:
-    """Re-score tracked assets (or use cache) and dispatch threshold alerts."""
+    """Re-score tracked assets (or use cache) and dispatch threshold alerts (admin only)."""
     assets = await asyncio.to_thread(
         _ASSETS_LIST_CACHE.get_stale_while_revalidate,
         "dashboard",

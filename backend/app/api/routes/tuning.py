@@ -5,7 +5,9 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.tracked import is_tracked
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_weight_optimizer
+from app.models.user import User
 from app.schemas.tuning import (
     ActiveWeightsSchema,
     ApplyPresetSchema,
@@ -75,9 +77,10 @@ async def optimize_weights(
 @router.post("/weights/apply", response_model=ActiveWeightsSchema)
 async def apply_weight_preset(
     body: ApplyPresetSchema,
+    _admin: User = Depends(require_admin_user),
     optimizer: WeightOptimizer = Depends(get_weight_optimizer),
 ) -> ActiveWeightsSchema:
-    """Apply a named weight preset to live scoring."""
+    """Apply a named weight preset to live scoring (admin only)."""
     try:
         weights = await asyncio.to_thread(optimizer.apply_preset, body.preset)
     except ValueError as exc:
@@ -92,9 +95,10 @@ async def apply_weight_preset(
 
 @router.post("/weights/reset", response_model=ActiveWeightsSchema)
 async def reset_weights(
+    _admin: User = Depends(require_admin_user),
     optimizer: WeightOptimizer = Depends(get_weight_optimizer),
 ) -> ActiveWeightsSchema:
-    """Restore default scoring weights and re-enable auto-regime."""
+    """Restore default scoring weights and re-enable auto-regime (admin only)."""
     await asyncio.to_thread(optimizer.reset)
     preset, weights = optimizer.active_weights()
     return ActiveWeightsSchema(
