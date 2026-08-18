@@ -1,4 +1,4 @@
-"""Build the crypto perps activity board (funding depth + optional Coinglass)."""
+"""Build the crypto perps activity board (funding depth + public liquidations)."""
 
 from __future__ import annotations
 
@@ -75,16 +75,8 @@ def _funding_row(symbol: str) -> PerpsFundingRowSchema:
     )
 
 
-def _liquidation_row(symbol: str, *, configured: bool) -> PerpsLiquidationRowSchema:
+def _liquidation_row(symbol: str) -> PerpsLiquidationRowSchema:
     url = _coinglass_url(symbol)
-    if not configured:
-        return PerpsLiquidationRowSchema(
-            symbol=symbol,
-            available=False,
-            coinglass_url=url,
-            description="Coinglass API key not configured",
-        )
-
     try:
         snap = fetch_aggregated_liquidations(symbol)
     except Exception:
@@ -155,13 +147,12 @@ def build_perps_board(
 ) -> PerpsBoardSchema:
     """Assemble funding + liquidations + Layer-2 perp ideas for the UI."""
     universe = list(symbols or V2_UNIVERSE)
-    configured = bool((settings.coinglass_api_key or "").strip())
 
     def _load() -> PerpsBoardSchema:
         workers = min(_BOARD_WORKERS, max(1, len(universe)))
 
         def _one(sym: str) -> tuple[PerpsFundingRowSchema, PerpsLiquidationRowSchema]:
-            return _funding_row(sym), _liquidation_row(sym, configured=configured)
+            return _funding_row(sym), _liquidation_row(sym)
 
         if len(universe) <= 1:
             pairs = [_one(universe[0])] if universe else []
@@ -186,16 +177,26 @@ def build_perps_board(
             {r.source for r in funding if r.available and (r.source or "").strip()}
         )
         funding_source = "+".join(sources) if sources else "okx|bybit"
-        if not configured:
+        liq_intervals = {
+            (r.interval or "").lower()
+            for r in liquidations
+            if r.available and (r.interval or "").strip()
+        }
+        if liq_filled == 0:
             liq_note = (
-                "Liquidation aggregates need COINGLASS_API_KEY on the API. "
-                "Coinglass deep-links stay available; funding board uses Bybit "
-                "when reachable, else OKX (US/Render-safe)."
+                "No recent public liquidations this scan (OKX, then Bybit). "
+                "Coinglass deep-links stay available."
             )
-        elif liq_filled == 0:
-            liq_note = "Coinglass is configured but no liquidation rows returned this scan."
-        else:
+        elif liq_intervals <= {"4h"} and bool(
+            (settings.coinglass_api_key or "").strip()
+        ):
             liq_note = f"Coinglass 4h aggregates for {liq_filled}/{len(universe)} names."
+        else:
+            liq_note = (
+                f"Recent OKX (Bybit fallback) liquidations for "
+                f"{liq_filled}/{len(universe)} names. Coinglass charts stay "
+                "as an optional deep-link."
+            )
 
         return PerpsBoardSchema(
             as_of=datetime.now(UTC),
@@ -203,7 +204,7 @@ def build_perps_board(
             funding=funding,
             liquidations=liquidations,
             ideas=_idea_rows(setup_scanner),
-            liquidations_configured=configured,
+            liquidations_configured=liq_filled > 0,
             liquidations_note=liq_note,
             funding_source=funding_source,
             symbols_scanned=len(universe),
@@ -211,5 +212,5 @@ def build_perps_board(
             liquidations_filled=liq_filled,
         )
 
-    cache_key = f"perps:{','.join(universe)}:{int(configured)}"
+    cache_key = f"perps:{','.join(universe)}"
     return _BOARD_CACHE.get_or_set(cache_key, _load)

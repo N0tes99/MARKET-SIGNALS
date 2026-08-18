@@ -18,5 +18,5 @@ router = APIRouter()
 async def get_perps_board(
     scanner: SetupScanner = Depends(get_setup_scanner),
 ) -> PerpsBoardSchema:
-    """Funding board (Bybit→OKX) + optional Coinglass liquidations + Layer-2 ideas."""
+    """Funding board (Bybit→OKX) + public liquidations + Layer-2 ideas."""
     return await asyncio.to_thread(build_perps_board, setup_scanner=scanner)

@@ -1,4 +1,4 @@
-"""Derivatives Engine — funding, OI change, and Coinglass liquidations."""
+"""Derivatives Engine — funding, OI change, and liquidation aggregates."""
 
 import logging
 from dataclasses import dataclass

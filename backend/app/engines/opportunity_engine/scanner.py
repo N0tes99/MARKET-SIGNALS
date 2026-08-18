@@ -170,7 +170,7 @@ def scan_liq_flush(
     liq: LiquidationSnapshot | None,
     as_of: datetime,
 ) -> OpportunityIdea | None:
-    """Liquidation imbalance / heat from CoinGlass aggregated stats."""
+    """Liquidation imbalance / heat from recent aggregated stats."""
     if liq is None or liq.total_usd < _LIQ_MIN_TOTAL_USD:
         return None
 
