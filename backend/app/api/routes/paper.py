@@ -85,6 +85,10 @@ def _trade_schema(t: PaperTrade) -> PaperTradeSchema:
         factors=list(t.factors),
         notes=t.notes,
         signal_record_id=t.signal_record_id,
+        take_profit_pct=t.take_profit_pct,
+        stop_loss_pct=t.stop_loss_pct,
+        stamp=t.stamp,
+        policy=dict(getattr(t, "policy", None) or {}),
     )
 
 

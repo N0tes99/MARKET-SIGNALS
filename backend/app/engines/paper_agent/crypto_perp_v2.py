@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from app.engines.paper_agent.types import PaperDirection
@@ -59,6 +59,7 @@ class CryptoPerpV2Idea:
     setup_type: str
     confidence: float
     factors: list[str]
+    extras: dict = field(default_factory=dict)
 
 
 def _momentum_pct(market: MarketDataService, symbol: str) -> float | None:
@@ -217,6 +218,11 @@ def score_symbol(
     ):
         return None
 
+    from app.engines.paper_agent.paper_policy import momentum_fights_crowded_funding
+
+    if momentum_fights_crowded_funding(direction, funding_bps, coeffs.funding_extreme_bps):
+        return None
+
     fund_delta, fund_factors, fund_conflicts = _funding_tilt(direction, funding_bps, oi_delta)
     rule += fund_delta
     factors.extend(fund_factors)
@@ -243,6 +249,11 @@ def score_symbol(
         setup_type=SETUP_TYPE,
         confidence=confidence,
         factors=[*factors[:5], *conflicts[:2]],
+        extras={
+            "funding_bps": funding_bps,
+            "mom_12h_pct": mom,
+            "oi_delta_pct": oi_delta,
+        },
     )
 
 

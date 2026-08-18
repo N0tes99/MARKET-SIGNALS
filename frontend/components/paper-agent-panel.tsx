@@ -157,6 +157,14 @@ function TradeRow({ trade }: { trade: PaperTrade }) {
               {trade.close_reason}
             </span>
           ) : null}
+          {typeof trade.policy?.policy_id === "string" ? (
+            <span
+              className="font-mono text-[10px] text-muted-foreground/35"
+              title="Frozen bot knobs — same id means the same parameters"
+            >
+              {trade.policy.policy_id}
+            </span>
+          ) : null}
         </div>
         <span className="font-mono text-[10px] text-muted-foreground/50">
           {new Date(trade.signal_at).toLocaleString(undefined, {

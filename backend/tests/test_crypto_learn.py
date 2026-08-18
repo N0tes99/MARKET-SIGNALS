@@ -10,6 +10,7 @@ from app.engines.learning_engine import LearningEngine, SignalOutcome
 from app.engines.learning_engine.store import InMemorySignalStore
 from app.engines.runner_engine.crypto_learn import (
     DEFAULT_COEFFICIENTS,
+    MIN_CLOSED_TO_APPLY,
     encode_paper_open_notes,
     get_crypto_learn_coefficients,
     get_crypto_learn_config,
@@ -97,13 +98,14 @@ def test_outcome_stats_by_setup_filters_perp_momentum() -> None:
     assert engine.outcome_stats_by_setup("missing_setup")["resolved"] == 0
 
 
-def test_tuner_skips_apply_when_n_below_ten() -> None:
+def test_tuner_skips_apply_when_n_below_thirty() -> None:
     engine = LearningEngine(store=InMemorySignalStore())
-    for _ in range(6):
+    for _ in range(12):
         _open(engine, bucket="crowded", funding=12.0)
     _resolve_all(engine, SignalOutcome.LOSS.value, -3.0)
 
     rows = [r for r in engine.list_paper_memory() if r.outcome]
+    assert MIN_CLOSED_TO_APPLY == 30
     assert tune_coefficients(rows) is None
     assert maybe_retune_from_paper(engine) is None
     assert get_crypto_learn_coefficients().preset == "default"
@@ -127,13 +129,14 @@ def test_tuner_picks_skip_crowded_when_crowded_loses() -> None:
                 )
 
     rows = [r for r in engine.list_paper_memory() if r.outcome]
-    winner = tune_coefficients(rows)
+    winner = tune_coefficients(rows, min_closed=10)
     assert winner is not None
     assert winner.skip_crowded_opens is True
 
+    # Auto-apply stays frozen until 30 honest perp_momentum closes.
     applied = maybe_retune_from_paper(engine)
-    assert applied is not None
+    assert applied is None
     live = get_crypto_learn_coefficients()
-    assert live.skip_crowded_opens is True
-    assert live.preset.startswith("learned_paper")
-    assert live != DEFAULT_COEFFICIENTS
+    assert live.skip_crowded_opens is False
+    assert live.preset == "default"
+    assert live == DEFAULT_COEFFICIENTS

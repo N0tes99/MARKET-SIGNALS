@@ -364,6 +364,13 @@ export interface PaperTrade {
   take_profit_pct?: number;
   stop_loss_pct?: number;
   stamp?: string;
+  policy?: {
+    schema?: string;
+    policy_id?: string;
+    knobs?: Record<string, unknown>;
+    features?: Record<string, unknown>;
+    close?: Record<string, unknown>;
+  };
 }
 
 export interface PaperMaturity {

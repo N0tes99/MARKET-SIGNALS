@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 PaperSource = Literal[
     "crypto_setup",
@@ -57,6 +57,8 @@ class PaperTrade:
     take_profit_pct: float = 6.0
     stop_loss_pct: float = 3.0
     stamp: str = ""
+    # Frozen knobs + features at open (and close labels after exit).
+    policy: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

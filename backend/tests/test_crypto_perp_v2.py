@@ -261,7 +261,7 @@ def _empty_cme(monkeypatch) -> None:
 
 
 def test_agent_one_symbol_skips_other_source_same_tick(monkeypatch) -> None:
-    """v2 long BTC + setup short BTC in one discover → keep highest, skip the rest."""
+    """Same-symbol: prefer L2 fade over v2 momentum, then skip the rest."""
     _empty_cme(monkeypatch)
     monkeypatch.setattr(
         "app.engines.paper_agent.agent.scan_crypto_perp_v2",
@@ -304,16 +304,19 @@ def test_agent_one_symbol_skips_other_source_same_tick(monkeypatch) -> None:
         size_usd=2500.0,
     )
     notes = agent.tick()
-    assert any(n.startswith("open:BTC:perp_momentum") for n in notes)
+    assert any(n.startswith("open:BTC:funding_extreme") for n in notes)
     assert "skip:symbol_open:BTC" in notes
-    assert not any(n.startswith("open:BTC:funding_extreme") for n in notes)
+    assert not any(n.startswith("open:BTC:perp_momentum") for n in notes)
     assert any(n.startswith("open:ETH:funding_extreme") for n in notes)
     trades = agent.store.list_all()
     btc = [t for t in trades if t.symbol == "BTC"]
     eth = [t for t in trades if t.symbol == "ETH"]
     assert len(btc) == 1
-    assert btc[0].source == "crypto_perp_v2"
-    assert btc[0].direction == "long"
+    assert btc[0].source == "crypto_setup"
+    assert btc[0].direction == "short"
+    assert btc[0].policy.get("policy_id")
+    assert btc[0].policy["knobs"]["max_new_opens_per_day"] == 3
+    assert "policy_id=" in btc[0].notes
     assert len(eth) == 1
     assert eth[0].source == "crypto_setup"
 
@@ -425,3 +428,82 @@ def test_fingerprint_still_blocks_same_source_direction(monkeypatch) -> None:
     assert store.list_all()[0].fingerprint == _fingerprint(
         "crypto_setup", "BTC", "funding_extreme", "short"
     )
+
+
+def test_score_symbol_skips_long_momentum_into_crowded_funding(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.crypto_perp_v2.fetch_derivatives_depth",
+        lambda symbol, timeout=2.0: _depth(funding=0.0010),  # +10 bps
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.crypto_perp_v2.fetch_fear_greed",
+        lambda: (40, "Fear"),
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.crypto_perp_v2.analyze_reddit_social",
+        lambda symbol, allow_live=False: SimpleNamespace(
+            available=False, lean=0.0, description="", score=50.0
+        ),
+    )
+    assert score_symbol(_Market(4.0), "BTC") is None  # type: ignore[arg-type]
+
+
+def test_agent_prefers_l2_over_higher_v2_score(monkeypatch) -> None:
+    _empty_cme(monkeypatch)
+    monkeypatch.setattr("app.engines.paper_agent.agent.MAX_NEW_OPENS_PER_DAY", 1)
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda market, min_confidence=55.0: [
+            SimpleNamespace(
+                symbol="SOL",
+                direction="long",
+                setup_type=SETUP_TYPE,
+                confidence=90.0,
+                factors=["12h momentum +8.0%"],
+                extras={"funding_bps": 1.0},
+            )
+        ],
+    )
+
+    class _Crypto:
+        def scan_feed(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="ETH",
+                    setup_type="funding_extreme",
+                    direction_bias="short",
+                    confidence=58.0,
+                    factors=["Funding +8 bps"],
+                )
+            ]
+
+    notes = PaperAgent(
+        market_data=_Market(5.0),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_EmptyFeed(),  # type: ignore[arg-type]
+        store=PaperTradeStore(),
+        pipeline=None,
+        size_usd=2500.0,
+    ).tick()
+    assert any(n.startswith("open:ETH:funding_extreme") for n in notes)
+    assert not any(n.startswith("open:SOL:") for n in notes)
+
+
+def test_agent_skips_v2_when_funding_fights_momentum(monkeypatch) -> None:
+    _empty_cme(monkeypatch)
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda market, min_confidence=55.0: [
+            SimpleNamespace(
+                symbol="BTC",
+                direction="long",
+                setup_type=SETUP_TYPE,
+                confidence=80.0,
+                factors=["12h momentum +5.0%"],
+                extras={"funding_bps": 12.0},
+            )
+        ],
+    )
+    notes = _agent().tick()
+    assert "skip:crowded_funding:BTC" in notes
+    assert not any(n.startswith("open:BTC:") for n in notes)
