@@ -188,9 +188,9 @@ export default function PerpsPage() {
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Paper crypto activity only — Layer-2 setups and perp v2 momentum. Funding comes
-          from Bybit when reachable, otherwise OKX (US/Render-safe). Liquidation aggregates
-          need a Coinglass key; without it you still get deep-links. Not live exchange orders.
-          Not financial advice.
+          from Bybit when reachable, otherwise OKX (US/Render-safe). Liquidations use recent
+          OKX fills (Bybit fallback); Coinglass stays an optional chart deep-link.
+          Not live exchange orders. Not financial advice.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -344,7 +344,7 @@ export default function PerpsPage() {
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground/70">
             {board.data?.liquidations_note ??
-              "Aggregated long/short wipe over the recent 4h window when Coinglass is keyed."}
+              "Recent OKX/Bybit long/short liquidations. Coinglass charts stay as a deep-link."}
           </p>
           {board.isLoading ? (
             <div className="surface mt-4 h-40 animate-pulse" />

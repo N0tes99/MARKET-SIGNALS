@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     binance_enabled: bool = True
     kraken_api_url: str = "https://api.kraken.com"
     fred_api_key: str = ""
-    # Coinglass (liquidations) — empty key skips fetch; funding/OI still work
+    # Coinglass (optional paid overlay). Empty key uses public OKX/Bybit liquidations.
     coinglass_api_key: str = ""
     coinglass_base_url: str = "https://open-api-v4.coinglass.com"
     coinglass_exchange_list: str = "Binance,OKX,Bybit"

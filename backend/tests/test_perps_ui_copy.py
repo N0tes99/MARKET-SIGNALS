@@ -17,7 +17,9 @@ def test_perps_page_sections() -> None:
     assert "Liquidations" in text
     assert "Perp ideas" in text
     assert "crypto_perp_v2" in text
-    assert "COINGLASS" in text or "Coinglass" in text
+    assert "Coinglass" in text
+    assert "OKX" in text
+    assert "need a Coinglass key" not in text
     assert "md:block" in text
     assert "Not live exchange orders" in text
 

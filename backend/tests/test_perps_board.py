@@ -70,7 +70,9 @@ def test_build_perps_board_funding_and_empty_liqs(monkeypatch) -> None:
     assert board.funding_filled == 2
     assert board.liquidations_configured is False
     assert board.liquidations_filled == 0
-    assert "COINGLASS" in board.liquidations_note.upper() or "Coinglass" in board.liquidations_note
+    assert "COINGLASS_API_KEY" not in board.liquidations_note
+    assert "need COINGLASS" not in board.liquidations_note.upper()
+    assert "OKX" in board.liquidations_note
     assert board.funding[0].symbol == "BTC"  # highest |bps|
     assert board.funding[0].funding_bps == pytest.approx(8.0)
     assert board.funding_source == "bybit"
@@ -82,7 +84,7 @@ def test_build_perps_board_funding_and_empty_liqs(monkeypatch) -> None:
 def test_build_perps_board_with_liquidations(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.engines.paper_agent.perps_board.settings.coinglass_api_key",
-        "test-key",
+        "",
     )
     monkeypatch.setattr(
         "app.engines.paper_agent.perps_board.fetch_derivatives_depth",
@@ -102,7 +104,7 @@ def test_build_perps_board_with_liquidations(monkeypatch) -> None:
             symbol=symbol,
             long_usd=40_000_000,
             short_usd=10_000_000,
-            interval="4h",
+            interval="okx",
         ),
     )
     board = build_perps_board(symbols=("SOL",), setup_scanner=None)
@@ -111,6 +113,8 @@ def test_build_perps_board_with_liquidations(monkeypatch) -> None:
     assert board.liquidations[0].available is True
     assert board.liquidations[0].long_usd == 40_000_000
     assert "longs flushed" in board.liquidations[0].description
+    assert "COINGLASS_API_KEY" not in board.liquidations_note
+    assert "OKX" in board.liquidations_note
 
 
 @pytest.mark.asyncio
