@@ -455,6 +455,54 @@ export async function fetchPerpsBoard(): Promise<PerpsBoard> {
   return apiFetch<PerpsBoard>("/api/v1/perps/board", 100_000);
 }
 
+export type CmeFuturesBucket = "trending" | "extended" | "quiet";
+export type CmeFuturesGroup =
+  | "index"
+  | "energy"
+  | "metals"
+  | "rates"
+  | "fx"
+  | "grains"
+  | "crypto";
+
+export interface CmeFuturesUniverseItem {
+  symbol: string;
+  name: string;
+  group: CmeFuturesGroup;
+}
+
+export interface CmeFuturesRow {
+  id: string;
+  symbol: string;
+  name: string;
+  group: CmeFuturesGroup;
+  bucket: CmeFuturesBucket;
+  score: number;
+  last: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  open_interest: number | null;
+  expiry: string | null;
+  mom_12h_pct: number | null;
+  mom_20d_pct: number | null;
+  relative_volume: number | null;
+  factors: string[];
+  conflicts: string[];
+  as_of: string;
+}
+
+export interface CmeFuturesBoard {
+  rows: CmeFuturesRow[];
+  scanned_at: string;
+  symbols_scanned: number;
+  universe: CmeFuturesUniverseItem[];
+  source: string;
+}
+
+export async function fetchCmeFuturesBoard(): Promise<CmeFuturesBoard> {
+  return apiFetch<CmeFuturesBoard>("/api/v1/futures/board", 100_000);
+}
+
 export interface AlpacaAccount {
   equity: number;
   cash: number;
@@ -811,6 +859,7 @@ export interface CryptoRadarCandidate {
   oi_change_pct: number | null;
   funding_source: string;
   mark_price: number | null;
+  basis_pct: number | null;
   as_of: string;
 }
 
@@ -823,6 +872,9 @@ export interface CryptoRadarFeedResponse {
   symbols_scanned: number;
   funding_filled: number;
   universe: string[];
+  coefficients_preset: string;
+  perp_momentum_n: number;
+  perp_momentum_win_rate: number | null;
 }
 
 export async function fetchCryptoRadar(): Promise<CryptoRadarFeedResponse> {

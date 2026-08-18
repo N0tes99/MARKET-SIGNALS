@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from app.engines.paper_agent.crypto_perp_v2 import V2_UNIVERSE
+from app.engines.runner_engine.crypto_learn import get_crypto_learn_coefficients
 from app.engines.sentiment_engine.engine import fetch_fear_greed
 from app.market_data.providers.bybit_derivatives import (
     fetch_derivatives_depth,
@@ -28,8 +29,6 @@ CRYPTO_RADAR_UNIVERSE: tuple[str, ...] = V2_UNIVERSE
 _MOM_12H_BARS = 12
 _OHLCV_1H_LIMIT = max(20, _MOM_12H_BARS + 8)
 _OHLCV_1D_LIMIT = 28
-_FUNDING_EXTREME_BPS = 8.0
-_FUNDING_SOFT_BPS = 3.0
 _SCAN_WORKERS = 6
 _CACHE: TTLCache[list[CryptoRadarCandidate]] = TTLCache(ttl_seconds=90.0)
 
@@ -50,6 +49,7 @@ class CryptoRadarCandidate:
     oi_change_pct: float | None = None
     funding_source: str = ""
     mark_price: float | None = None
+    basis_pct: float | None = None
     as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -78,6 +78,35 @@ def _mom_20d(market: MarketDataService, symbol: str) -> float | None:
     return _pct_change(float(closes.iloc[-21]), float(closes.iloc[-1]))
 
 
+def _spot_price(market: MarketDataService, symbol: str) -> float | None:
+    try:
+        ticker = market.get_ticker(symbol)
+    except Exception:
+        return None
+    price = getattr(ticker, "price", None)
+    if price is None:
+        return None
+    try:
+        value = float(price)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _basis_pct(
+    market: MarketDataService,
+    symbol: str,
+    mark: float | None,
+) -> float | None:
+    """Mark vs spot, percent. Missing either side → skip."""
+    if mark is None or mark <= 0:
+        return None
+    spot = _spot_price(market, symbol)
+    if spot is None or spot <= 0:
+        return None
+    return ((mark - spot) / spot) * 100.0
+
+
 def _classify(
     *,
     score: float,
@@ -89,17 +118,18 @@ def _classify(
     abs_12 = abs(mom_12h) if mom_12h is not None else 0.0
     abs_20 = abs(mom_20d) if mom_20d is not None else 0.0
 
-    extreme_fund = abs_fund >= _FUNDING_EXTREME_BPS
-    soft_fund = abs_fund >= _FUNDING_SOFT_BPS
-    strong_mom = abs_12 >= 4.0 or abs_20 >= 15.0
-    soft_mom = abs_12 >= 1.5 or abs_20 >= 8.0
+    coeffs = get_crypto_learn_coefficients()
+    extreme_fund = abs_fund >= coeffs.funding_extreme_bps
+    soft_fund = abs_fund >= coeffs.funding_soft_bps
+    strong_mom = abs_12 >= coeffs.strong_mom_12h or abs_20 >= coeffs.strong_mom_20d
+    soft_mom = abs_12 >= coeffs.soft_mom_12h or abs_20 >= coeffs.soft_mom_20d
 
     # Crowded first — crypto-specific positioning lane.
-    if extreme_fund and score >= 55.0:
+    if extreme_fund and score >= coeffs.crowded_score_floor:
         return "crowded"
-    if strong_mom and score >= 60.0:
+    if strong_mom and score >= coeffs.running_score_floor:
         return "running"
-    if (soft_mom or soft_fund) and score >= 52.0:
+    if (soft_mom or soft_fund) and score >= coeffs.watch_score_floor:
         return "watch"
     return "none"
 
@@ -113,6 +143,7 @@ def score_symbol(
     """Score one crypto symbol into a radar candidate."""
     normalized = symbol.upper()
     now = as_of or datetime.now(UTC)
+    coeffs = get_crypto_learn_coefficients()
     factors: list[str] = []
     conflicts: list[str] = []
     rule = 48.0
@@ -122,20 +153,20 @@ def score_symbol(
 
     if mom_12h is not None:
         factors.append(f"12h {mom_12h:+.1f}%")
-        rule += min(abs(mom_12h), 12.0) * 1.8
+        rule += min(abs(mom_12h), 12.0) * coeffs.radar_mom_12h_mult
     else:
         conflicts.append("12h momentum unavailable")
 
     if mom_20d is not None:
         factors.append(f"20d {mom_20d:+.1f}%")
-        rule += min(abs(mom_20d), 25.0) * 0.35
+        rule += min(abs(mom_20d), 25.0) * coeffs.radar_mom_20d_mult
         # Align 12h and 20d direction when both present
-        if mom_12h is not None and mom_12h * mom_20d > 0 and abs(mom_12h) >= 1.5:
+        if mom_12h is not None and mom_12h * mom_20d > 0 and abs(mom_12h) >= coeffs.soft_mom_12h:
             factors.append("Multi-horizon momentum aligned")
-            rule += 4.0
+            rule += coeffs.radar_mom_align_bonus
         elif mom_12h is not None and mom_12h * mom_20d < 0 and abs(mom_12h) >= 2.0:
             conflicts.append("12h fights 20d trend")
-            rule -= 5.0
+            rule -= coeffs.radar_mom_fight_penalty
 
     funding_bps: float | None = None
     oi_delta: float | None = None
@@ -149,23 +180,28 @@ def score_symbol(
         mark = depth.mark_price
         factors.append(f"Funding {funding_bps:+.2f} bps [{funding_source}]")
         abs_bps = abs(funding_bps)
-        if abs_bps >= _FUNDING_EXTREME_BPS:
+        if abs_bps >= coeffs.funding_extreme_bps:
             factors.append("Extreme funding crowding")
             rule += 10.0
-        elif abs_bps >= _FUNDING_SOFT_BPS:
+        elif abs_bps >= coeffs.funding_soft_bps:
             factors.append("Elevated funding")
             rule += 4.0
         if oi_delta is not None:
             factors.append(f"OI Δ {oi_delta:+.1f}%")
-            if abs_bps >= _FUNDING_EXTREME_BPS and oi_delta >= 3.0:
+            if abs_bps >= coeffs.funding_extreme_bps and oi_delta >= 3.0:
                 conflicts.append("OI rising with extreme funding")
-                rule -= 3.0
+                rule -= coeffs.crowded_oi_penalty
             elif oi_delta <= -5.0:
                 factors.append("OI unwinding")
                 rule += 3.0
     else:
         conflicts.append("Funding unavailable")
         rule -= 4.0
+
+    basis_pct = _basis_pct(market, normalized, mark)
+    if basis_pct is not None:
+        factors.append(f"Basis {basis_pct:+.3f}%")
+        rule += min(abs(basis_pct), 1.5) * coeffs.basis_weight
 
     fng = fetch_fear_greed()
     if fng is not None:
@@ -188,7 +224,7 @@ def score_symbol(
         symbol=normalized,
         bucket=bucket,
         score=score,
-        factors=factors[:6],
+        factors=factors[:7],
         conflicts=conflicts[:3],
         mom_12h_pct=mom_12h,
         mom_20d_pct=mom_20d,
@@ -196,6 +232,7 @@ def score_symbol(
         oi_change_pct=round(oi_delta, 2) if oi_delta is not None else None,
         funding_source=funding_source,
         mark_price=mark,
+        basis_pct=round(basis_pct, 4) if basis_pct is not None else None,
         as_of=now,
     )
 

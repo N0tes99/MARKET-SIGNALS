@@ -25,6 +25,8 @@ def test_perps_page_sections() -> None:
 def test_nav_and_manifest_include_perps() -> None:
     header = _HEADER.read_text(encoding="utf-8")
     assert 'href="/perps"' in header
+    assert 'href="/futures"' in header
+    assert "Futures" in header
     manifest = _MANIFEST.read_text(encoding="utf-8")
     assert 'url: "/perps"' in manifest
 
@@ -32,6 +34,7 @@ def test_nav_and_manifest_include_perps() -> None:
 def test_proxy_gives_perps_board_long_timeout() -> None:
     text = _PROXY.read_text(encoding="utf-8")
     assert "api/v1/perps/board" in text
+    assert "api/v1/futures/board" in text
     assert "100_000" in text
     assert "x-forwarded-for" in text
     assert "x-nf-client-connection-ip" in text

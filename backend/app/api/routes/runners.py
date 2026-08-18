@@ -9,8 +9,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.core.service_dependencies import get_runner_scanner
+from app.core.service_dependencies import get_learning_engine, get_runner_scanner
 from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
+from app.engines.runner_engine.crypto_learn import (
+    get_crypto_learn_coefficients,
+    perp_momentum_expectancy,
+)
 from app.engines.runner_engine.crypto_radar import (
     CRYPTO_RADAR_UNIVERSE,
     CryptoRadarCandidate,
@@ -104,6 +108,7 @@ def _crypto_to_schema(candidate: CryptoRadarCandidate) -> CryptoRadarCandidateSc
         oi_change_pct=candidate.oi_change_pct,
         funding_source=candidate.funding_source,
         mark_price=candidate.mark_price,
+        basis_pct=getattr(candidate, "basis_pct", None),
         as_of=candidate.as_of,
     )
 
@@ -119,6 +124,12 @@ async def list_crypto_radar() -> CryptoRadarFeedResponse:
 
     all_cands: list[CryptoRadarCandidate] = buckets.get("all", [])
     funding_filled = sum(1 for c in all_cands if c.funding_bps is not None)
+    coeffs = get_crypto_learn_coefficients()
+    try:
+        expectancy = perp_momentum_expectancy(get_learning_engine())
+    except Exception:
+        logger.debug("perp_momentum expectancy unavailable", exc_info=True)
+        expectancy = {"n": 0, "win_rate": None}
     return CryptoRadarFeedResponse(
         candidates=[_crypto_to_schema(c) for c in all_cands],
         watch=[_crypto_to_schema(c) for c in buckets["watch"]],
@@ -128,6 +139,11 @@ async def list_crypto_radar() -> CryptoRadarFeedResponse:
         symbols_scanned=len(CRYPTO_RADAR_UNIVERSE),
         funding_filled=funding_filled,
         universe=list(CRYPTO_RADAR_UNIVERSE),
+        coefficients_preset=coeffs.preset,
+        perp_momentum_n=int(expectancy.get("n") or 0),
+        perp_momentum_win_rate=(
+            float(expectancy["win_rate"]) if expectancy.get("win_rate") is not None else None
+        ),
     )
 
 

@@ -11,6 +11,7 @@ from app.market_data.symbols import (
     get_asset_class,
     is_tracked,
     looks_like_us_equity_ticker,
+    looks_like_yahoo_future,
 )
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
 
@@ -45,16 +46,18 @@ def timestamp_to_utc(value: object) -> datetime:
 
 
 class YahooFinanceProvider:
-    """Fetch OHLCV and quotes for US stocks and ETFs via yfinance."""
+    """Fetch OHLCV and quotes for US stocks, ETFs, and Yahoo continuous futures."""
 
     def _resolve_yahoo_symbol(self, symbol: str) -> str:
-        """Accept watchlist equities, runner seed / ad-hoc US tickers, and ^VIX."""
+        """Accept watchlist equities, runner seed / ad-hoc US tickers, ^VIX, and =F."""
         normalized = symbol.upper().strip()
         if normalized.startswith("^"):
             return normalized
+        if looks_like_yahoo_future(normalized):
+            return normalized
         if is_tracked(normalized):
             asset_class = get_asset_class(normalized)
-            if asset_class not in {AssetClass.STOCK, AssetClass.ETF}:
+            if asset_class not in {AssetClass.STOCK, AssetClass.ETF, AssetClass.FUTURES}:
                 msg = f"Symbol '{normalized}' is not a stock or ETF"
                 raise ValueError(msg)
             return normalized

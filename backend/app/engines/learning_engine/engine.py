@@ -66,6 +66,7 @@ class LearningEngine:
         opportunity_score: float,
         entry_price: float,
         factors: list[str] | None = None,
+        extras: dict | None = None,
     ) -> SignalRecord:
         """Log a paper open into learning memory (unresolved until honest close)."""
         pid = paper_trade_id if isinstance(paper_trade_id, UUID) else UUID(str(paper_trade_id))
@@ -74,6 +75,8 @@ class LearningEngine:
             existing = find(pid)
             if existing is not None:
                 return existing
+
+        from app.engines.runner_engine.crypto_learn import encode_paper_open_notes
 
         record = SignalRecord(
             id=uuid4(),
@@ -86,9 +89,11 @@ class LearningEngine:
             opportunity_score=opportunity_score,
             category_scores={},
             entry_price=entry_price,
-            notes=(
-                f"paper_open setup={setup_type} dir={direction} "
-                f"factors={','.join((factors or [])[:4])}"
+            notes=encode_paper_open_notes(
+                setup_type=setup_type,
+                direction=direction,
+                factors=factors,
+                extras=extras,
             ),
             source="paper_honest",
             paper_trade_id=pid,
@@ -214,6 +219,44 @@ class LearningEngine:
             "total_logged": len(records),
             "resolved": len(resolved),
             "open": len(records) - len(resolved),
+            "wins": wins,
+            "losses": losses,
+            "breakeven": breakeven,
+            "no_trade": no_trade,
+            "win_rate": round((wins / traded) * 100, 1) if traded else 0.0,
+            "avg_return_pct": round(sum(returns) / len(returns), 3) if returns else 0.0,
+        }
+
+    def outcome_stats_by_setup(
+        self,
+        setup_type: str,
+        *,
+        source: str = "paper_honest",
+    ) -> dict[str, float | int]:
+        """Summarize resolved paper outcomes for one setup type."""
+        from app.engines.runner_engine.crypto_learn import setup_type_from_notes
+
+        if source == "paper_honest":
+            records = self.list_paper_memory(limit=500)
+        else:
+            list_src = getattr(self._store, "list_by_source", None)
+            records = (
+                list_src(source, limit=500)
+                if callable(list_src)
+                else [r for r in self._store.list_all(limit=1000) if r.source == source]
+            )
+        matched = [r for r in records if setup_type_from_notes(r.notes) == setup_type]
+        resolved = [r for r in matched if r.outcome]
+        wins = sum(1 for r in resolved if r.outcome == SignalOutcome.WIN.value)
+        losses = sum(1 for r in resolved if r.outcome == SignalOutcome.LOSS.value)
+        breakeven = sum(1 for r in resolved if r.outcome == SignalOutcome.BREAKEVEN.value)
+        no_trade = sum(1 for r in resolved if r.outcome == SignalOutcome.NO_TRADE.value)
+        traded = wins + losses + breakeven
+        returns = [r.realized_return_pct for r in resolved if r.realized_return_pct is not None]
+        return {
+            "total_logged": len(matched),
+            "resolved": len(resolved),
+            "open": len(matched) - len(resolved),
             "wins": wins,
             "losses": losses,
             "breakeven": breakeven,

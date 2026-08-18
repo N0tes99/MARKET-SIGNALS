@@ -161,6 +161,16 @@ def is_assets_list_path(path: str) -> bool:
     return normalized == "/api/v1/assets"
 
 
+def is_keep_warm_cron_path(path: str) -> bool:
+    """Exact scanner paths GitHub Actions may warm with X-Cron-Secret.
+
+    Nested routes (``/assets/{symbol}``, ``/futures/...`` besides ``/board``)
+    still require a logged-in MFA session.
+    """
+    normalized = path.rstrip("/") or "/"
+    return is_assets_list_path(path) or normalized == "/api/v1/futures/board"
+
+
 def request_has_valid_cron_secret(request: Request) -> bool:
     """True when CRON_SECRET is set and matches X-Cron-Secret."""
     expected = settings.cron_secret.strip()
@@ -199,8 +209,8 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
         if not gate_enabled() or is_access_public_path(request.url.path):
             return await call_next(request)
         # Keep-warm (GitHub Actions): valid cron secret may hit GET /assets
-        # without MFA. Logged-in dashboard sessions still use cookies below.
-        if is_assets_list_path(request.url.path) and request_has_valid_cron_secret(request):
+        # and GET /futures/board without MFA. Dashboard sessions still use cookies.
+        if is_keep_warm_cron_path(request.url.path) and request_has_valid_cron_secret(request):
             return await call_next(request)
 
         session_tok = request.cookies.get(SESSION_COOKIE_NAME)

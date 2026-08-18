@@ -23,6 +23,7 @@ class CryptoRadarCandidateSchema(BaseModel):
     oi_change_pct: float | None = None
     funding_source: str = ""
     mark_price: float | None = None
+    basis_pct: float | None = None
     as_of: datetime
 
 
@@ -37,3 +38,6 @@ class CryptoRadarFeedResponse(BaseModel):
     symbols_scanned: int = 0
     funding_filled: int = 0
     universe: list[str] = Field(default_factory=list)
+    coefficients_preset: str = "default"
+    perp_momentum_n: int = 0
+    perp_momentum_win_rate: float | None = None

@@ -230,3 +230,26 @@ def test_confirm_uses_atr_exit_pcts(monkeypatch) -> None:
     assert abs(tp - 8.0) < 0.01
     assert "grade A" in note
     assert "ATR" in note
+
+
+def test_confirm_cme_ignores_fng_and_skips_pipeline(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (82, "Extreme Greed"),
+    )
+
+    class _Pipe:
+        def evaluate(self, symbol, timeframe="1h"):
+            raise AssertionError("pipeline should not evaluate CME")
+
+    skip, tp, sl, note = confirm_open(
+        symbol="ES=F",
+        direction="long",
+        pipeline=_Pipe(),
+        entry_price=5400.0,
+        source="cme_futures",
+    )
+    assert skip is None
+    assert tp == 6.0
+    assert sl == 3.0
+    assert "cme" in note
