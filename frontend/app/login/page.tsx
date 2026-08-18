@@ -104,7 +104,22 @@ function LoginForm() {
                   onChange={setPassword}
                 />
               </label>
-              {error ? <p className="text-sm text-bearish">{error}</p> : null}
+              {error ? (
+                <p className="text-sm text-bearish">
+                  {error}
+                  {error.toLowerCase().includes("verification") ? (
+                    <>
+                      {" "}
+                      <Link
+                        href="/verify-email"
+                        className="text-foreground underline-offset-4 hover:underline"
+                      >
+                        Confirm email
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
               <button
                 type="submit"
                 disabled={submitting || walletBusy !== null}

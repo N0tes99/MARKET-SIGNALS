@@ -48,8 +48,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | Variable | Example / notes |
 |----------|-----------------|
 | `APP_ENV` | `production` |
-| `APP_DEBUG` | `false` |
-| `SECRET_KEY` | long random string (**required strong in prod** — signs social JWT cookies) |
+| `APP_DEBUG` | `false` (forced off when `APP_ENV=production`, even if unset or `true`) |
+| `SECRET_KEY` | long random string (**required** — app refuses to start in production with the default `change-me-in-production`; signs social JWT cookies) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
 | `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://signals27.netlify.app` (falls back to first `CORS_ORIGINS`) |
 | `DATABASE_URL` | from Render Postgres |

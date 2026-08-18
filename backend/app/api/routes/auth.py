@@ -120,9 +120,10 @@ async def register(
     )
     conflict = existing.scalar_one_or_none()
     if conflict is not None:
-        if conflict.email.lower() == email:
-            raise HTTPException(status_code=409, detail="Email already registered")
-        raise HTTPException(status_code=409, detail="Username already taken")
+        raise HTTPException(
+            status_code=409,
+            detail="Email or username already registered",
+        )
 
     user = User(
         email=email,
@@ -156,13 +157,23 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_db),
 ) -> UserSchema:
-    """Authenticate and set the session cookie."""
+    """Authenticate and set the session cookie.
+
+    When email verification is required (production, or SMTP configured),
+    unverified accounts get 403 and no cookie.
+    """
     email = body.email.lower().strip()
     limit_login(request, email)
     result = await session.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if _verification_required() and not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required",
+        )
 
     token = create_access_token(user.id)
     _set_session_cookie(response, token)
@@ -315,6 +326,7 @@ async def reset_password(
     user.password_reset_sent_at = None
     await session.flush()
 
-    token = create_access_token(user.id)
-    _set_session_cookie(response, token)
+    if not (_verification_required() and not user.email_verified):
+        token = create_access_token(user.id)
+        _set_session_cookie(response, token)
     return _user_schema(user)
