@@ -34,7 +34,28 @@ _YF_PERIOD_MAP: dict[str, str] = {
     "1d": "2y",
 }
 
+# Scanner-sized limits (CME board uses 20 hourly / 28 daily) skip the chart windows.
+_YF_SHORT_PERIOD_MAP: dict[str, str] = {
+    "1h": "5d",
+    "4h": "5d",
+    "1d": "3mo",
+}
+_SHORT_PERIOD_LIMIT = 40
+
 _INTRADAY = frozenset({"1m", "5m", "15m"})
+
+
+def yahoo_history_period(timeframe: str, limit: int) -> str:
+    """Yahoo ``history(period=…)`` window for ``timeframe`` and ``limit``.
+
+    Small scanner limits request a short period so CME 1h/1d fills do not pull
+    60d/2y. Chart-sized limits keep ``_YF_PERIOD_MAP`` so equity history is not
+    starved.
+    """
+    default = _YF_PERIOD_MAP.get(timeframe, "1y")
+    if limit <= _SHORT_PERIOD_LIMIT:
+        return _YF_SHORT_PERIOD_MAP.get(timeframe, default)
+    return default
 
 
 def timestamp_to_utc(value: object) -> datetime:
@@ -74,7 +95,7 @@ class YahooFinanceProvider:
             msg = f"Timeframe '{timeframe}' is not supported for equities"
             raise ValueError(msg)
 
-        period = _YF_PERIOD_MAP.get(timeframe, "1y")
+        period = yahoo_history_period(timeframe, limit)
         ticker = yf.Ticker(normalized)
         raw = ticker.history(
             period=period,

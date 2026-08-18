@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, date, datetime
-from types import SimpleNamespace
+from threading import Event
 
 import pandas as pd
 import pytest
 from httpx import AsyncClient
 
 from app.engines.runner_engine.cme_futures import (
+    _CACHE,
     CME_FUTURES_UNIVERSE,
+    CmeFuturesRow,
     classify_bucket,
     clear_cme_futures_cache,
+    scan_cme_futures,
     score_symbol,
 )
 from app.engines.runner_engine.scoring.yahoo_futures_quote import YahooFuturesQuote
@@ -36,7 +40,7 @@ class _Market:
         self._avg_volume = avg_volume
 
     def get_ticker(self, symbol):
-        return SimpleNamespace(price=self._last)
+        raise AssertionError("CME last comes from fast_info or daily bars, not get_ticker")
 
     def safe_get_ohlcv(self, symbol, timeframe, limit=96):
         if timeframe == "1h":
@@ -73,14 +77,41 @@ class _Market:
 
 
 @pytest.fixture(autouse=True)
-def _clear_cache() -> None:
+def _clear_cache(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("CME_FUTURES_DISK_CACHE_PATH", str(tmp_path / "cme_board.json"))
     clear_cme_futures_cache()
     yield
     clear_cme_futures_cache()
 
 
+def _universe_cache_key() -> str:
+    return ",".join(spec.symbol for spec in CME_FUTURES_UNIVERSE)
+
+
+def _stale_row(*, last: float = 1111.0) -> CmeFuturesRow:
+    now = datetime.now(UTC)
+    return CmeFuturesRow(
+        id="cme-futures:ES=F",
+        symbol="ES=F",
+        name="E-mini S&P 500",
+        group="index",
+        bucket="quiet",
+        score=41.0,
+        last=last,
+        as_of=now,
+    )
+
+
+def _wait_until_idle(key: str, timeout: float = 8.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        _, _, refreshing, _ = _CACHE.meta(key)
+        if not refreshing:
+            return
+        time.sleep(0.05)
+
+
 def _quote(
-    *,
     change_pct: float | None = 0.42,
     volume: float | None = 180_000.0,
     open_interest: float | None = 2_100_000.0,
@@ -144,13 +175,22 @@ def test_score_symbol_trending(monkeypatch) -> None:
 def test_score_symbol_null_oi_and_expiry_safe(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.engines.runner_engine.cme_futures.fetch_yahoo_futures_quote",
-        lambda symbol: _quote(open_interest=None, expire=None, change_pct=None),
+        lambda symbol: _quote(
+            last=None,
+            change_pct=None,
+            volume=None,
+            open_interest=None,
+            expire=None,
+        ),
     )
     row = score_symbol(_Market(0.3, 1.2, bar_volume=70_000.0), "CL=F")  # type: ignore[arg-type]
     assert row.symbol == "CL=F"
     assert row.open_interest is None
     assert row.expiry is None
-    assert row.change_pct is None
+    assert row.last is not None
+    assert row.last > 0
+    assert row.change_pct is not None
+    assert row.volume is not None
     assert row.bucket in {"trending", "extended", "quiet"}
     assert 0.0 <= row.score <= 100.0
 
@@ -160,7 +200,7 @@ async def test_futures_board_route(client: AsyncClient, monkeypatch) -> None:
     now = datetime.now(UTC)
     monkeypatch.setattr(
         "app.api.routes.futures.build_cme_futures_board",
-        lambda: CmeFuturesBoardSchema(
+        lambda **kwargs: CmeFuturesBoardSchema(
             rows=[
                 {
                     "id": "cme-futures:ES=F",
@@ -203,3 +243,97 @@ async def test_futures_board_route(client: AsyncClient, monkeypatch) -> None:
     assert data.rows[0].open_interest is None
     assert data.rows[0].expiry is None
     assert data.source == "yahoo"
+
+
+def test_scan_serves_stale_without_waiting_on_yahoo(monkeypatch) -> None:
+    key = _universe_cache_key()
+    stale = _stale_row(last=1111.0)
+    _CACHE.seed_stale(key, [stale])
+
+    started = Event()
+
+    def _slow_score(market, symbol, **kwargs):
+        started.set()
+        time.sleep(0.12)
+        return stale
+
+    monkeypatch.setattr("app.engines.runner_engine.cme_futures.score_symbol", _slow_score)
+
+    t0 = time.perf_counter()
+    rows = scan_cme_futures()
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 0.1
+    assert rows[0].last == pytest.approx(1111.0)
+    assert started.wait(timeout=2.0)
+    _wait_until_idle(key)
+    _, fresh, refreshing, _ = _CACHE.meta(key)
+    assert fresh is True
+    assert refreshing is False
+
+
+def test_scan_cold_miss_does_not_block_on_yahoo(monkeypatch) -> None:
+    key = _universe_cache_key()
+    started = Event()
+    fresh_row = _stale_row(last=2222.0)
+
+    def _slow_score(market, symbol, **kwargs):
+        started.set()
+        time.sleep(0.12)
+        return fresh_row
+
+    monkeypatch.setattr("app.engines.runner_engine.cme_futures.score_symbol", _slow_score)
+
+    t0 = time.perf_counter()
+    rows = scan_cme_futures()
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 0.1
+    assert rows == []
+    assert started.wait(timeout=2.0)
+    _wait_until_idle(key)
+    cached, fresh, refreshing, _ = _CACHE.meta(key)
+    assert fresh is True
+    assert refreshing is False
+    assert cached is not None
+    assert cached[0].last == pytest.approx(2222.0)
+
+
+def test_scan_sync_true_writes_fresh_cache(monkeypatch) -> None:
+    key = _universe_cache_key()
+    fresh_row = _stale_row(last=3333.0)
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.score_symbol",
+        lambda market, symbol, **kwargs: fresh_row,
+    )
+    rows = scan_cme_futures(sync=True)
+    assert rows[0].last == pytest.approx(3333.0)
+    _, fresh, refreshing, _ = _CACHE.meta(key)
+    assert fresh is True
+    assert refreshing is False
+
+
+@pytest.mark.asyncio
+async def test_futures_board_serves_stale_without_waiting(
+    client: AsyncClient, monkeypatch
+) -> None:
+    key = _universe_cache_key()
+    stale = _stale_row(last=1111.0)
+    _CACHE.seed_stale(key, [stale])
+    started = Event()
+
+    def _slow_score(market, symbol, **kwargs):
+        started.set()
+        time.sleep(0.12)
+        return stale
+
+    monkeypatch.setattr("app.engines.runner_engine.cme_futures.score_symbol", _slow_score)
+
+    t0 = time.perf_counter()
+    response = await client.get("/api/v1/futures/board")
+    elapsed = time.perf_counter() - t0
+    assert response.status_code == 200
+    assert elapsed < 0.2
+    data = CmeFuturesBoardSchema.model_validate(response.json())
+    assert data.rows[0].last == pytest.approx(1111.0)
+    assert started.wait(timeout=2.0)
+    _wait_until_idle(key)
+

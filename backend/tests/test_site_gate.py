@@ -116,7 +116,7 @@ async def test_futures_board_allowed_with_cron_secret_when_gate_on(
     monkeypatch.setattr("app.config.settings.cron_secret", "test-cron-secret")
     monkeypatch.setattr(
         "app.api.routes.futures.build_cme_futures_board",
-        lambda: CmeFuturesBoardSchema(
+        lambda **kwargs: CmeFuturesBoardSchema(
             rows=[],
             scanned_at=datetime.now(UTC),
             symbols_scanned=0,

@@ -13,6 +13,12 @@ router = APIRouter()
 
 
 @router.get("/board", response_model=CmeFuturesBoardSchema)
-async def get_futures_board() -> CmeFuturesBoardSchema:
-    """Yahoo continuous front-month scan (ES, NQ, CL, GC, …). Not a live CME feed."""
-    return await asyncio.to_thread(build_cme_futures_board)
+async def get_futures_board(sync: bool = False) -> CmeFuturesBoardSchema:
+    """Yahoo continuous front-month scan (ES, NQ, CL, GC, …). Not a live CME feed.
+
+    Default: last good scan immediately (stale-while-revalidate). Cold miss
+    seeds empty and refreshes in the background (avoids Netlify proxy 504s).
+
+    ``sync=true``: block until a full scan completes (keep-warm / tests).
+    """
+    return await asyncio.to_thread(build_cme_futures_board, sync=sync)

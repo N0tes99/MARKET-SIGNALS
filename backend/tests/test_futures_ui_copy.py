@@ -39,3 +39,4 @@ def test_keep_warm_pings_futures_board() -> None:
     assert "/api/v1/futures/board" in text
     assert "X-Cron-Secret" in text
     assert "--max-time 180" in text
+    assert text.count("sync=true") >= 2
