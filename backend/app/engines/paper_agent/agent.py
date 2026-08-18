@@ -357,6 +357,14 @@ class PaperAgent:
                 daily_cap_hit = True
                 notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
 
+            # One paper position per symbol (any source). Keep the existing
+            # open; do not close-and-replace. Fingerprints stay source-scoped.
+            occupied_symbols = {
+                t.symbol.upper()
+                for t in self._store.open_or_pending()
+                if t.status in {"open", "pending_honest"}
+            }
+
             for cand in candidates:
                 if daily_left <= 0:
                     daily_cap_hit = True
@@ -369,6 +377,15 @@ class PaperAgent:
                     continue
                 if cand["source"] == "cme_futures" and cme_left <= 0:
                     notes.append(f"skip:cme_futures_cap:{cand['symbol']}")
+                    continue
+                symbol_key = str(cand["symbol"]).upper()
+                if symbol_key in occupied_symbols:
+                    notes.append(f"skip:symbol_open:{symbol_key}")
+                    logger.info(
+                        "paper_skip symbol_open %s %s (already open or pending)",
+                        symbol_key,
+                        cand["source"],
+                    )
                     continue
                 skip, tp_pct, sl_pct, confirm_note = self._confirm_open(
                     cand["symbol"], cand["direction"], source=cand["source"]
@@ -402,6 +419,7 @@ class PaperAgent:
                 if trade:
                     notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
                     active.add(cand["fingerprint"])
+                    occupied_symbols.add(trade.symbol.upper())
                     daily_left -= 1
                     if cand["source"] == "crypto_perp_v2":
                         v2_left -= 1

@@ -251,3 +251,177 @@ def test_layer2_crypto_still_opens_alongside_v2(monkeypatch) -> None:
     notes = agent.tick()
     assert any(n.startswith("open:LINK:funding_extreme") for n in notes)
     assert agent.store.list_all()[0].source == "crypto_setup"
+
+
+def _empty_cme(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_cme_paper_ideas",
+        lambda market, min_confidence=55.0: [],
+    )
+
+
+def test_agent_one_symbol_skips_other_source_same_tick(monkeypatch) -> None:
+    """v2 long BTC + setup short BTC in one discover → keep highest, skip the rest."""
+    _empty_cme(monkeypatch)
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda market, min_confidence=55.0: [
+            SimpleNamespace(
+                symbol="BTC",
+                direction="long",
+                setup_type=SETUP_TYPE,
+                confidence=72.0,
+                factors=["12h momentum +5.0%"],
+            )
+        ],
+    )
+
+    class _Crypto:
+        def scan_feed(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="BTC",
+                    setup_type="funding_extreme",
+                    direction_bias="short",
+                    confidence=68.0,
+                    factors=["Funding +9 bps"],
+                ),
+                SimpleNamespace(
+                    symbol="ETH",
+                    setup_type="funding_extreme",
+                    direction_bias="long",
+                    confidence=70.0,
+                    factors=["Funding extreme"],
+                ),
+            ]
+
+    agent = PaperAgent(
+        market_data=_Market(5.0),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_EmptyFeed(),  # type: ignore[arg-type]
+        store=PaperTradeStore(),
+        pipeline=None,
+        size_usd=2500.0,
+    )
+    notes = agent.tick()
+    assert any(n.startswith("open:BTC:perp_momentum") for n in notes)
+    assert "skip:symbol_open:BTC" in notes
+    assert not any(n.startswith("open:BTC:funding_extreme") for n in notes)
+    assert any(n.startswith("open:ETH:funding_extreme") for n in notes)
+    trades = agent.store.list_all()
+    btc = [t for t in trades if t.symbol == "BTC"]
+    eth = [t for t in trades if t.symbol == "ETH"]
+    assert len(btc) == 1
+    assert btc[0].source == "crypto_perp_v2"
+    assert btc[0].direction == "long"
+    assert len(eth) == 1
+    assert eth[0].source == "crypto_setup"
+
+
+def test_agent_skips_second_long_on_open_symbol(monkeypatch) -> None:
+    """Double-long across sources is blocked the same way as fade-vs-momentum."""
+    _empty_cme(monkeypatch)
+    store = PaperTradeStore()
+    now = datetime.now(UTC)
+    store.upsert(
+        PaperTrade(
+            id="t-btc-v2",
+            symbol="BTC",
+            source="crypto_perp_v2",
+            setup_type=SETUP_TYPE,
+            direction="long",
+            fingerprint=_fingerprint("crypto_perp_v2", "BTC", SETUP_TYPE, "long"),
+            signal_at=now,
+            confidence=72.0,
+            opportunity_score=72.0,
+            size_usd=2500.0,
+            status="pending_honest",
+            optimistic_entry=100.0,
+            optimistic_entry_at=now,
+        )
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda market, min_confidence=55.0: [],
+    )
+
+    class _Crypto:
+        def scan_feed(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="BTC",
+                    setup_type="funding_extreme",
+                    direction_bias="long",
+                    confidence=80.0,
+                    factors=["Funding extreme"],
+                )
+            ]
+
+    notes = PaperAgent(
+        market_data=_Market(5.0),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_EmptyFeed(),  # type: ignore[arg-type]
+        store=store,
+        pipeline=None,
+        size_usd=2500.0,
+    ).tick()
+    assert "skip:symbol_open:BTC" in notes
+    assert not any(n.startswith("open:BTC:") for n in notes)
+    assert len(store.list_all()) == 1
+    assert store.list_all()[0].source == "crypto_perp_v2"
+
+
+def test_fingerprint_still_blocks_same_source_direction(monkeypatch) -> None:
+    """Same source + setup + direction still never becomes a second candidate."""
+    _empty_cme(monkeypatch)
+    store = PaperTradeStore()
+    now = datetime.now(UTC)
+    store.upsert(
+        PaperTrade(
+            id="t-btc-setup",
+            symbol="BTC",
+            source="crypto_setup",
+            setup_type="funding_extreme",
+            direction="short",
+            fingerprint=_fingerprint("crypto_setup", "BTC", "funding_extreme", "short"),
+            signal_at=now,
+            confidence=68.0,
+            opportunity_score=68.0,
+            size_usd=2500.0,
+            status="open",
+            optimistic_entry=100.0,
+            optimistic_entry_at=now,
+        )
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda market, min_confidence=55.0: [],
+    )
+
+    class _Crypto:
+        def scan_feed(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    symbol="BTC",
+                    setup_type="funding_extreme",
+                    direction_bias="short",
+                    confidence=90.0,
+                    factors=["Funding +9 bps"],
+                )
+            ]
+
+    notes = PaperAgent(
+        market_data=_Market(5.0),  # type: ignore[arg-type]
+        crypto_scanner=_Crypto(),  # type: ignore[arg-type]
+        equity_scanner=_EmptyFeed(),  # type: ignore[arg-type]
+        store=store,
+        pipeline=None,
+        size_usd=2500.0,
+    ).tick()
+    assert not any(n.startswith("open:BTC:") for n in notes)
+    # Fingerprint drops the duplicate before the open loop, so symbol_open is silent.
+    assert "skip:symbol_open:BTC" not in notes
+    assert len(store.list_all()) == 1
+    assert store.list_all()[0].fingerprint == _fingerprint(
+        "crypto_setup", "BTC", "funding_extreme", "short"
+    )
