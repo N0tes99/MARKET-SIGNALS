@@ -1,10 +1,10 @@
-"""Small Yahoo .info snapshot for CME continuous futures — not the 13-dim radar pipeline."""
+"""Small Yahoo ``fast_info`` snapshot for CME continuous futures — not ``.info``."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date
 
 import yfinance as yf
 
@@ -17,7 +17,11 @@ _QUOTE_CACHE: TTLCache[YahooFuturesQuote] = TTLCache(ttl_seconds=180.0)
 
 @dataclass(frozen=True)
 class YahooFuturesQuote:
-    """Free Yahoo fields used by the CME board. None = field not present."""
+    """Free Yahoo fields used by the CME board. None = field not present.
+
+    ``open_interest`` and ``expire_date`` stay optional — ``fast_info`` does
+    not expose them. Do not invent values.
+    """
 
     symbol: str
     fetched_ok: bool
@@ -28,9 +32,15 @@ class YahooFuturesQuote:
     expire_date: date | None = None
 
 
-def _num(info: dict, *keys: str) -> float | None:
+def _fast_get(info: object, key: str) -> object:
+    if isinstance(info, dict):
+        return info.get(key)
+    return getattr(info, key, None)
+
+
+def _fast_num(info: object, *keys: str) -> float | None:
     for key in keys:
-        raw = info.get(key)
+        raw = _fast_get(info, key)
         if raw is None:
             continue
         try:
@@ -43,49 +53,35 @@ def _num(info: dict, *keys: str) -> float | None:
     return None
 
 
-def _expire_date(info: dict) -> date | None:
-    raw = info.get("expireDate")
-    if raw is None:
-        raw = info.get("expirationDate")
-    if raw is None:
-        return None
-    try:
-        ts = float(raw)
-    except (TypeError, ValueError):
-        return None
-    if ts <= 0:
-        return None
-    if ts > 1e12:
-        ts /= 1000.0
-    try:
-        return datetime.fromtimestamp(ts, UTC).date()
-    except (OverflowError, OSError, ValueError):
-        return None
-
-
 def empty_yahoo_futures_quote(symbol: str) -> YahooFuturesQuote:
     """Explicit miss — used by tests and failed fetches."""
     return YahooFuturesQuote(symbol=symbol.upper().strip(), fetched_ok=False)
 
 
-def _parse_info(symbol: str, info: dict) -> YahooFuturesQuote:
-    last = _num(info, "regularMarketPrice", "previousClose")
-    change = _num(info, "regularMarketChangePercent")
-    volume = _num(info, "regularMarketVolume", "volume")
-    oi = _num(info, "openInterest")
+def _parse_fast_info(symbol: str, info: object) -> YahooFuturesQuote:
+    last = _fast_num(info, "last_price", "regular_market_price")
+    prev = _fast_num(info, "previous_close", "regular_market_previous_close")
+    volume = _fast_num(info, "last_volume", "regular_market_volume", "ten_day_average_volume")
+    change = None
+    if last is not None and prev is not None and prev > 0:
+        change = (last / prev - 1.0) * 100.0
+    last = last if last is not None and last > 0 else None
+    volume = volume if volume is not None and volume >= 0 else None
+    if last is None and volume is None and change is None:
+        return empty_yahoo_futures_quote(symbol)
     return YahooFuturesQuote(
         symbol=symbol,
         fetched_ok=True,
-        last=last if last is not None and last > 0 else None,
+        last=last,
         change_pct=change,
-        volume=volume if volume is not None and volume >= 0 else None,
-        open_interest=oi if oi is not None and oi >= 0 else None,
-        expire_date=_expire_date(info),
+        volume=volume,
+        open_interest=None,
+        expire_date=None,
     )
 
 
 def fetch_yahoo_futures_quote(symbol: str) -> YahooFuturesQuote:
-    """Cached Yahoo ``.info`` slice for one continuous futures root."""
+    """Cached Yahoo ``fast_info`` slice for one continuous futures root."""
     normalized = symbol.upper().strip()
     cached = _QUOTE_CACHE.get(normalized)
     if cached is not None:
@@ -93,9 +89,7 @@ def fetch_yahoo_futures_quote(symbol: str) -> YahooFuturesQuote:
 
     try:
         ticker = yf.Ticker(normalized)
-        raw_info = ticker.info
-        info = raw_info if isinstance(raw_info, dict) else {}
-        snap = _parse_info(normalized, info) if info else empty_yahoo_futures_quote(normalized)
+        snap = _parse_fast_info(normalized, ticker.fast_info)
     except Exception:
         logger.warning("Yahoo futures quote failed for %s", normalized, exc_info=True)
         snap = empty_yahoo_futures_quote(normalized)

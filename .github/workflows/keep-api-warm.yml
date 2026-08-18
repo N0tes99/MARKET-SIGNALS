@@ -179,6 +179,12 @@ jobs:
             BASE="${HEALTH_URL%/api/v1/health}"
             URL="${BASE}/api/v1/futures/board"
           fi
+          # sync=true blocks until the Yahoo =F scan completes so memory+disk
+          # are populated. Browser GETs omit sync and use stale-while-revalidate.
+          case "$URL" in
+            *\?*) URL="${URL}&sync=true" ;;
+            *) URL="${URL}?sync=true" ;;
+          esac
 
           echo "Waking API via health (${HEALTH_URL})"
           curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \

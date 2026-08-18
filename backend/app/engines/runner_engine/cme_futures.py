@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from pathlib import Path
 from typing import Literal
+
+from pydantic import TypeAdapter
 
 from app.engines.runner_engine.scoring.yahoo_futures_quote import (
     YahooFuturesQuote,
@@ -19,6 +23,7 @@ from app.schemas.cme_futures import (
     CmeFuturesRowSchema,
     CmeFuturesUniverseItem,
 )
+from app.utils.disk_cache import read_json, write_json
 from app.utils.scoring_helpers import clamp_score
 from app.utils.ttl_cache import TTLCache
 
@@ -39,6 +44,15 @@ _EXTENDED_20D = 10.0
 _TRENDING_SCORE_FLOOR = 55.0
 _EXTENDED_SCORE_FLOOR = 50.0
 _CACHE: TTLCache[list[CmeFuturesRow]] = TTLCache(ttl_seconds=90.0)
+_ROW_SCHEMA_LIST = TypeAdapter(list[CmeFuturesRowSchema])
+
+
+def _disk_path() -> Path:
+    return Path(os.environ.get("CME_FUTURES_DISK_CACHE_PATH", "/tmp/se_cme_futures_board.json"))
+
+
+def _full_cache_key() -> str:
+    return ",".join(spec.symbol for spec in CME_FUTURES_UNIVERSE)
 
 
 @dataclass(frozen=True)
@@ -118,19 +132,53 @@ def _last_bar_volume(daily) -> float | None:
     return value if value >= 0 else None
 
 
-def _spot_last(market: MarketDataService, symbol: str) -> float | None:
-    try:
-        ticker = market.get_ticker(symbol)
-    except Exception:
-        return None
-    price = getattr(ticker, "price", None)
-    if price is None:
+def _last_close(daily) -> float | None:
+    if daily is None or daily.empty or "close" not in daily.columns:
         return None
     try:
-        value = float(price)
-    except (TypeError, ValueError):
+        value = float(daily["close"].iloc[-1])
+    except (TypeError, ValueError, IndexError):
         return None
     return value if value > 0 else None
+
+
+def _session_change_from_daily(daily, last: float | None) -> float | None:
+    if daily is None or len(daily) < 2 or "close" not in daily.columns:
+        return None
+    try:
+        prev = float(daily["close"].iloc[-2])
+        end = last if last is not None else float(daily["close"].iloc[-1])
+    except (TypeError, ValueError, IndexError):
+        return None
+    return _pct_change(prev, end)
+
+
+def _schema_from_row(row: CmeFuturesRow) -> CmeFuturesRowSchema:
+    return CmeFuturesRowSchema.model_validate(row, from_attributes=True)
+
+
+def _row_from_schema(item: CmeFuturesRowSchema) -> CmeFuturesRow:
+    return CmeFuturesRow(**item.model_dump())
+
+
+def _persist_rows(rows: list[CmeFuturesRow]) -> None:
+    payload = _ROW_SCHEMA_LIST.dump_python(
+        [_schema_from_row(row) for row in rows],
+        mode="json",
+    )
+    write_json(_disk_path(), payload)
+
+
+def _read_disk_rows() -> list[CmeFuturesRow] | None:
+    raw = read_json(_disk_path())
+    if raw is None:
+        return None
+    try:
+        items = _ROW_SCHEMA_LIST.validate_python(raw)
+    except Exception:
+        logger.exception("Invalid CME futures disk cache at %s", _disk_path())
+        return None
+    return [_row_from_schema(item) for item in items]
 
 
 def classify_bucket(
@@ -176,17 +224,20 @@ def score_symbol(
     rule = 48.0
 
     snap = quote if quote is not None else fetch_yahoo_futures_quote(normalized)
-    last = _spot_last(market, normalized)
+    daily = _daily_frame(market, normalized)
+
+    last = snap.last
     if last is None:
-        last = snap.last
+        last = _last_close(daily)
     if last is None:
         conflicts.append("Last unavailable")
 
     change_pct = snap.change_pct
+    if change_pct is None:
+        change_pct = _session_change_from_daily(daily, last)
     if change_pct is not None:
         factors.append(f"Session {change_pct:+.2f}%")
 
-    daily = _daily_frame(market, normalized)
     volume = snap.volume if snap.volume is not None else _last_bar_volume(daily)
     if volume is None:
         conflicts.append("Volume unavailable")
@@ -273,8 +324,14 @@ def scan_cme_futures(
     *,
     symbols: tuple[str, ...] | None = None,
     use_cache: bool = True,
+    sync: bool = False,
 ) -> list[CmeFuturesRow]:
-    """Scan the CME Yahoo universe; highest score first."""
+    """Scan the CME Yahoo universe; highest score first.
+
+    Cached scans use stale-while-revalidate so ``GET /futures/board`` never
+    blocks on Yahoo when a last-good payload exists. ``sync=True`` forces a
+    fresh fill (keep-warm).
+    """
     md = market or MarketDataService()
     specs = (
         tuple(FUTURES_BY_SYMBOL[s.upper()] for s in symbols if s.upper() in FUTURES_BY_SYMBOL)
@@ -282,6 +339,7 @@ def scan_cme_futures(
         else CME_FUTURES_UNIVERSE
     )
     cache_key = ",".join(s.symbol for s in specs)
+    persist = cache_key == _full_cache_key()
 
     def _load() -> list[CmeFuturesRow]:
         now = datetime.now(UTC)
@@ -303,44 +361,38 @@ def scan_cme_futures(
 
         rows.extend(results)
         rows.sort(key=lambda r: r.score, reverse=True)
+        if persist:
+            _persist_rows(rows)
         return rows
 
-    if use_cache:
-        return list(_CACHE.get_or_set(cache_key, _load))
-    return _load()
+    if not use_cache:
+        return _load()
+
+    if sync:
+        rows = _load()
+        _CACHE.set(cache_key, rows)
+        return list(rows)
+
+    cached, _, _, _ = _CACHE.meta(cache_key)
+    if cached is None:
+        disk = _read_disk_rows() if persist else None
+        # Seed stale so SWR returns immediately and refreshes in background.
+        _CACHE.seed_stale(cache_key, disk if disk else [])
+
+    return list(_CACHE.get_stale_while_revalidate(cache_key, _load))
 
 
 def build_cme_futures_board(
     market: MarketDataService | None = None,
     *,
     use_cache: bool = True,
+    sync: bool = False,
 ) -> CmeFuturesBoardSchema:
     """API payload for GET /futures/board."""
-    rows = scan_cme_futures(market, use_cache=use_cache)
+    rows = scan_cme_futures(market, use_cache=use_cache, sync=sync)
     scanned_at = rows[0].as_of if rows else datetime.now(UTC)
     return CmeFuturesBoardSchema(
-        rows=[
-            CmeFuturesRowSchema(
-                id=row.id,
-                symbol=row.symbol,
-                name=row.name,
-                group=row.group,  # type: ignore[arg-type]
-                bucket=row.bucket,
-                score=row.score,
-                last=row.last,
-                change_pct=row.change_pct,
-                volume=row.volume,
-                open_interest=row.open_interest,
-                expiry=row.expiry,
-                mom_12h_pct=row.mom_12h_pct,
-                mom_20d_pct=row.mom_20d_pct,
-                relative_volume=row.relative_volume,
-                factors=row.factors,
-                conflicts=row.conflicts,
-                as_of=row.as_of,
-            )
-            for row in rows
-        ],
+        rows=[_schema_from_row(row) for row in rows],
         scanned_at=scanned_at,
         symbols_scanned=len(rows),
         universe=[
