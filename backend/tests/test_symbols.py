@@ -5,6 +5,7 @@ from app.market_data.symbols import (
     BINANCE_SYMBOL_MAP,
     CRYPTO_SYMBOLS,
     ETF_SYMBOLS,
+    FUTURES_SYMBOLS,
     KRAKEN_PAIR_MAP,
     STOCK_SYMBOLS,
     TRACKED_SYMBOLS,
@@ -42,7 +43,11 @@ def test_equity_symbols_have_asset_class() -> None:
 
 
 def test_all_tracked_symbols_mapped() -> None:
-    assert set(ASSET_CLASS_MAP) == set(TRACKED_SYMBOLS)
+    assert set(ASSET_CLASS_MAP) == set(TRACKED_SYMBOLS) | set(FUTURES_SYMBOLS)
+    assert set(FUTURES_SYMBOLS).isdisjoint(TRACKED_SYMBOLS)
+    for symbol in FUTURES_SYMBOLS:
+        assert get_asset_class(symbol) == AssetClass.FUTURES
+        assert not is_tracked(symbol)
 
 
 def test_kraken_doge_pair() -> None:

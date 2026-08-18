@@ -53,6 +53,12 @@ function MainNav() {
             Perps
           </Link>
           <Link
+            href="/futures"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Futures
+          </Link>
+          <Link
             href="/radar"
             className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
           >

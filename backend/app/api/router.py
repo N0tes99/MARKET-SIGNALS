@@ -14,6 +14,7 @@ from app.api.routes import (
     evidence,
     evidence_snapshots,
     favorites,
+    futures,
     health,
     learning,
     opportunities,
@@ -58,6 +59,7 @@ api_router.include_router(
 api_router.include_router(runners.router, prefix="/runners", tags=["runners"])
 api_router.include_router(options_tape.router, prefix="/options-tape", tags=["options-tape"])
 api_router.include_router(perps.router, prefix="/perps", tags=["perps"])
+api_router.include_router(futures.router, prefix="/futures", tags=["futures"])
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper"])

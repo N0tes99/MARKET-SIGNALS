@@ -9,7 +9,13 @@ import pandas as pd
 import pytest
 from httpx import AsyncClient
 
+from app.engines.paper_agent.crypto_perp_v2 import V2_UNIVERSE
+from app.engines.runner_engine.crypto_learn import (
+    CryptoLearnCoefficients,
+    get_crypto_learn_config,
+)
 from app.engines.runner_engine.crypto_radar import (
+    CRYPTO_RADAR_UNIVERSE,
     clear_crypto_radar_cache,
     scan_crypto_radar,
     score_symbol,
@@ -59,8 +65,10 @@ class _Market:
 @pytest.fixture(autouse=True)
 def _clear_cache() -> None:
     clear_crypto_radar_cache()
+    get_crypto_learn_config().reset(persist=False)
     yield
     clear_crypto_radar_cache()
+    get_crypto_learn_config().reset(persist=False)
 
 
 def _depth(*, funding: float = 0.001, oi_hist: list[float] | None = None) -> DerivativesDepth:
@@ -178,7 +186,68 @@ async def test_crypto_radar_route(client: AsyncClient, monkeypatch) -> None:
     response = await client.get("/api/v1/runners/crypto")
     assert response.status_code == 200
     data = CryptoRadarFeedResponse.model_validate(response.json())
-    assert data.symbols_scanned == 12
+    assert data.symbols_scanned == 16
+    assert len(data.universe) == 16
+    assert data.coefficients_preset == "default"
+    assert data.perp_momentum_n == 0
     assert len(data.watch) == 1
     assert data.watch[0].symbol == "ETH"
     assert data.funding_filled == 1
+
+
+def test_universe_is_sixteen_aligned_names() -> None:
+    assert len(V2_UNIVERSE) == 16
+    assert CRYPTO_RADAR_UNIVERSE == V2_UNIVERSE
+    for name in ("SUI", "ADA", "LTC", "DOT"):
+        assert name in V2_UNIVERSE
+
+
+def test_score_symbol_adds_basis_factor(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_derivatives_depth",
+        lambda symbol: _depth(funding=0.0002),
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_fear_greed",
+        lambda: (45, "Neutral"),
+    )
+
+    class _SpotMarket(_Market):
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=148.5)
+
+    cand = score_symbol(_SpotMarket(5.0, 18.0), "SOL")  # type: ignore[arg-type]
+    assert cand.basis_pct is not None
+    assert any(f.startswith("Basis ") for f in cand.factors)
+
+
+def test_score_symbol_skips_basis_when_spot_missing(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_derivatives_depth",
+        lambda symbol: _depth(funding=0.0002),
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_fear_greed",
+        lambda: (45, "Neutral"),
+    )
+    cand = score_symbol(_Market(5.0, 18.0), "SOL")  # type: ignore[arg-type]
+    assert cand.basis_pct is None
+    assert not any(f.startswith("Basis ") for f in cand.factors)
+
+
+def test_score_symbol_respects_coefficient_override(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_derivatives_depth",
+        lambda symbol: _depth(funding=0.0012, oi_hist=[100.0, 110.0]),
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.crypto_radar.fetch_fear_greed",
+        lambda: (55, "Neutral"),
+    )
+    get_crypto_learn_config().apply(
+        CryptoLearnCoefficients(funding_extreme_bps=20.0, preset="test_override"),
+        persist=False,
+    )
+    cand = score_symbol(_Market(1.0, 2.0), "BTC")  # type: ignore[arg-type]
+    assert cand.bucket != "crowded"
+    assert cand.funding_bps == pytest.approx(12.0)

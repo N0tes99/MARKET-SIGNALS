@@ -129,6 +129,7 @@ function CryptoBucketColumn({
                 <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
                   12h {formatPct(c.mom_12h_pct)} · 20d {formatPct(c.mom_20d_pct)} · fund{" "}
                   {formatBps(c.funding_bps)}
+                  {c.basis_pct != null ? ` · basis ${formatPct(c.basis_pct)}` : ""}
                 </p>
               </Link>
             </li>
@@ -138,6 +139,11 @@ function CryptoBucketColumn({
     </section>
   );
 }
+
+const TRACK_LABELS: Record<RadarTrack, string> = {
+  equities: "Equities",
+  crypto: "Crypto",
+};
 
 function TrackToggle({
   track,
@@ -161,7 +167,7 @@ function TrackToggle({
                 : "text-muted-foreground/60 hover:text-muted-foreground"
             }`}
           >
-            {key}
+            {TRACK_LABELS[key]}
           </button>
         );
       })}
@@ -310,9 +316,9 @@ function CryptoTrack() {
   return (
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Possible crypto moves on the perp-v2 universe (12 names). Momentum from spot tape;
-        funding from Bybit when reachable, else OKX. Not the equity 10X fundamental model — and
-        not live orders.
+        Possible crypto perp moves on the perp-v2 universe (16 names). Momentum from spot tape;
+        funding + basis from Bybit when reachable, else OKX. Learned coefficients from paper —
+        not an AI-trained model, and not live orders.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -320,6 +326,11 @@ function CryptoTrack() {
           funding {data?.funding_filled ?? 0}/{data?.symbols_scanned ?? 0} · watch{" "}
           {data?.watch.length ?? 0} · crowded {data?.crowded.length ?? 0} · running{" "}
           {data?.running.length ?? 0}
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          {(data?.perp_momentum_n ?? 0) > 0
+            ? `perp momentum ${data?.perp_momentum_n} paper · ${data?.perp_momentum_win_rate ?? 0}% win · coeffs ${data?.coefficients_preset ?? "default"}`
+            : "learning from paper"}
         </p>
         {isFetching && !isLoading ? (
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">

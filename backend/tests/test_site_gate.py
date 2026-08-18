@@ -11,6 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.security import JWT_ALGORITHM, create_access_token
 from app.core.site_gate import MFA_COOKIE_NAME, create_mfa_token, decode_mfa_token, verify_totp_code
 from app.main import app
+from app.schemas.cme_futures import CmeFuturesBoardSchema
 
 
 @pytest.fixture
@@ -96,6 +97,58 @@ async def test_assets_list_mfa_session_still_works_when_gate_on(totp_secret: str
         )
     assert res.status_code != 401
     assert res.json().get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
+
+
+@pytest.mark.asyncio
+async def test_futures_board_requires_login_when_gate_on(totp_secret: str) -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/v1/futures/board")
+    assert res.status_code == 401
+    assert res.json()["code"] == "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_futures_board_allowed_with_cron_secret_when_gate_on(
+    totp_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.core.site_gate.settings.cron_secret", "test-cron-secret")
+    monkeypatch.setattr("app.config.settings.cron_secret", "test-cron-secret")
+    monkeypatch.setattr(
+        "app.api.routes.futures.build_cme_futures_board",
+        lambda: CmeFuturesBoardSchema(
+            rows=[],
+            scanned_at=datetime.now(UTC),
+            symbols_scanned=0,
+            universe=[],
+            source="yahoo",
+        ),
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(
+            "/api/v1/futures/board",
+            headers={"X-Cron-Secret": "test-cron-secret"},
+        )
+    assert res.status_code != 401
+    assert res.json().get("code") != "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_runners_and_perps_still_require_login_with_cron_when_gate_on(
+    totp_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.core.site_gate.settings.cron_secret", "test-cron-secret")
+    monkeypatch.setattr("app.config.settings.cron_secret", "test-cron-secret")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        headers = {"X-Cron-Secret": "test-cron-secret"}
+        runners = await client.get("/api/v1/runners", headers=headers)
+        perps = await client.get("/api/v1/perps/board", headers=headers)
+    assert runners.status_code == 401
+    assert runners.json()["code"] == "LOGIN_REQUIRED"
+    assert perps.status_code == 401
+    assert perps.json()["code"] == "LOGIN_REQUIRED"
 
 
 @pytest.mark.asyncio

@@ -1,14 +1,15 @@
 # Ping endpoints so Render free-tier spins down less often, and so
-# /assets scoring (+ Discord alerts) can run without site visitors.
-# Schedules can drift on free Actions minutes; ~5–10m assets keeps
-# in-process rank cache warm for dashboard cold windows.
+# /assets scoring (+ Discord alerts) and the CME futures board can run
+# without site visitors. Schedules can drift on free Actions minutes;
+# ~5–10m assets/futures keeps in-process caches warm for dashboard
+# cold windows (Yahoo =F scan can exceed the ~100s Netlify proxy).
 name: Keep API warm
 
 on:
   schedule:
     # Health: light keep-alive (~every 10m)
     - cron: "*/10 * * * *"
-    # Assets: full rank_all warm (~every 7m — between 5–10m)
+    # Assets + CME futures board + paper tick (~every 7m — between 5–10m)
     - cron: "*/7 * * * *"
   workflow_dispatch:
 
@@ -133,6 +134,81 @@ jobs:
           elif [ "$HTTP_CODE" != "200" ]; then
             echo "::warning::Assets ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
             head -c 200 /tmp/assets_body || true
+            echo
+          else
+            echo "OK (HTTP ${HTTP_CODE})"
+          fi
+          exit 0
+
+  ping-futures:
+    # Cold GET /futures/board scans 24 Yahoo =F contracts (info + OHLCV).
+    # First hit after sleep can exceed the ~100s Netlify/proxy budget (504).
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Ping CME futures board
+        continue-on-error: true
+        env:
+          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+          API_FUTURES_BOARD_URL: ${{ vars.API_FUTURES_BOARD_URL }}
+          API_USERNAME: ${{ secrets.API_USERNAME }}
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          normalize_path() {
+            local raw="$1"
+            local append="$2"
+            local trimmed="${raw%/}"
+            local rest="${trimmed#*://}"
+            if [[ "$rest" != */* ]]; then
+              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
+              echo "${trimmed}${append}"
+            else
+              echo "$trimmed"
+            fi
+          }
+
+          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
+          # Prefer vars.API_FUTURES_BOARD_URL (full Render /api/v1/futures/board)
+          # so keep-warm fills the Yahoo =F cache without Netlify proxy timeouts.
+          if [ -n "${API_FUTURES_BOARD_URL:-}" ]; then
+            URL=$(normalize_path "${API_FUTURES_BOARD_URL}" "/api/v1/futures/board")
+          else
+            BASE="${HEALTH_URL%/api/v1/health}"
+            URL="${BASE}/api/v1/futures/board"
+          fi
+
+          echo "Waking API via health (${HEALTH_URL})"
+          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
+            || echo "::warning::Health wake ping failed (continuing to futures board)"
+          sleep 8
+
+          AUTH_ARGS=()
+          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
+            echo "Using Basic Auth for futures board ping"
+          else
+            echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /futures/board will 401"
+          fi
+
+          CRON_ARGS=()
+          if [ -n "${CRON_SECRET:-}" ]; then
+            CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
+          else
+            echo "::warning::CRON_SECRET not set — /futures/board keep-warm will 401 when the TOTP gate is on"
+          fi
+
+          # Cold Yahoo =F scan can take ~60–90s; 180s matches /assets keep-warm.
+          echo "Pinging ${URL} (max 180s; timeouts/502 are non-fatal)"
+          HTTP_CODE=$(curl -sS -o /tmp/futures_body -w "%{http_code}" --max-time 180 \
+            "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$URL" || true)
+          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "::warning::Futures board returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET (X-Cron-Secret) match Render"
+          elif [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Futures board ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
+            head -c 200 /tmp/futures_body || true
             echo
           else
             echo "OK (HTTP ${HTTP_CODE})"

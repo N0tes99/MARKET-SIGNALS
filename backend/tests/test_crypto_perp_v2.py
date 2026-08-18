@@ -6,9 +6,11 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from app.engines.paper_agent.agent import PaperAgent, _fingerprint
 from app.engines.paper_agent.crypto_perp_v2 import (
+    V2_UNIVERSE,
     _OHLCV_LIMIT,
     SETUP_TYPE,
     scan_crypto_perp_v2,
@@ -16,7 +18,15 @@ from app.engines.paper_agent.crypto_perp_v2 import (
 )
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import PaperTrade
+from app.engines.runner_engine.crypto_learn import get_crypto_learn_config
 from app.market_data.providers.bybit_derivatives import DerivativesDepth
+
+
+@pytest.fixture(autouse=True)
+def _reset_coeffs() -> None:
+    get_crypto_learn_config().reset(persist=False)
+    yield
+    get_crypto_learn_config().reset(persist=False)
 
 
 class _EmptyFeed:
@@ -63,6 +73,11 @@ def _depth(*, funding: float = -0.0004, oi_hist: list[float] | None = None) -> D
         oi_history=oi_hist or [100.0, 98.0],
         source="bybit",
     )
+
+
+def test_v2_universe_is_sixteen() -> None:
+    assert len(V2_UNIVERSE) == 16
+    assert V2_UNIVERSE[-4:] == ("SUI", "ADA", "LTC", "DOT")
 
 
 def test_momentum_ohlcv_limit_meets_safe_get_min_rows() -> None:

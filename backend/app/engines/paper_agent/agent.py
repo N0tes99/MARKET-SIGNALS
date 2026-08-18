@@ -196,8 +196,13 @@ class PaperAgent:
 
             # --- Crypto perps v2 (momentum + funding depth + F&G + Reddit cache) ---
             try:
+                from app.engines.runner_engine.crypto_learn import (
+                    get_crypto_learn_coefficients,
+                )
+
+                v2_floor = get_crypto_learn_coefficients().min_confidence
                 v2_ideas = scan_crypto_perp_v2(
-                    self._market, min_confidence=MIN_CONFIDENCE
+                    self._market, min_confidence=v2_floor
                 )
             except Exception:
                 logger.exception("Paper agent crypto_perp_v2 feed failed")
@@ -510,6 +515,27 @@ class PaperAgent:
         except Exception:
             logger.exception("paper_discord failed %s %s", kind, trade.symbol)
 
+    def _radar_open_extras(self, trade: PaperTrade) -> dict:
+        extras: dict = {"setup_type": trade.setup_type}
+        if trade.setup_type != "perp_momentum":
+            return extras
+        try:
+            from app.engines.runner_engine.crypto_radar import score_symbol
+
+            cand = score_symbol(self._market, trade.symbol)
+            extras.update(
+                {
+                    "radar_bucket": cand.bucket,
+                    "radar_score": cand.score,
+                    "funding_bps": cand.funding_bps,
+                    "mom_12h_pct": cand.mom_12h_pct,
+                    "basis_pct": cand.basis_pct,
+                }
+            )
+        except Exception:
+            logger.debug("radar snapshot for paper open failed", exc_info=True)
+        return extras
+
     def _remember_open(self, trade: PaperTrade) -> None:
         if self._learning is None or trade.signal_record_id:
             return
@@ -523,6 +549,7 @@ class PaperAgent:
                 opportunity_score=trade.opportunity_score,
                 entry_price=trade.optimistic_entry,
                 factors=trade.factors,
+                extras=self._radar_open_extras(trade),
             )
             trade.signal_record_id = str(record.id)
             self._store.upsert(trade)
@@ -563,6 +590,15 @@ class PaperAgent:
                     outcome,
                     f"{ret:.3f}" if ret is not None else "-",
                 )
+                if trade.setup_type == "perp_momentum":
+                    try:
+                        from app.engines.runner_engine.crypto_learn import (
+                            maybe_retune_from_paper,
+                        )
+
+                        maybe_retune_from_paper(self._learning)
+                    except Exception:
+                        logger.exception("crypto learn retune failed trade=%s", trade.id)
         except Exception:
             logger.exception("Paper memory close failed trade=%s", trade.id)
 

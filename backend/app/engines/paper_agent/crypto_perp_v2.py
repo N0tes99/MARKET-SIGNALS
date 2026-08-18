@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from app.engines.paper_agent.types import PaperDirection
+from app.engines.runner_engine.crypto_learn import get_crypto_learn_coefficients
 from app.engines.sentiment_engine.engine import fetch_fear_greed
 from app.engines.sentiment_engine.reddit_social import analyze_reddit_social
 from app.market_data.providers.bybit_derivatives import (
@@ -23,6 +24,7 @@ SETUP_TYPE = "perp_momentum"
 MIN_CONFIDENCE = 55.0
 
 # Focused slice — keeps discover under the 90s paper cadence.
+# Same source of truth as Radar futures + perps board funding.
 V2_UNIVERSE: tuple[str, ...] = (
     "BTC",
     "ETH",
@@ -36,14 +38,15 @@ V2_UNIVERSE: tuple[str, ...] = (
     "APT",
     "INJ",
     "OP",
+    "SUI",
+    "ADA",
+    "LTC",
+    "DOT",
 )
 
 _MOMENTUM_BARS = 12  # ~12h on 1h candles
 # safe_get_ohlcv always validates min_rows=20 — never request fewer.
 _OHLCV_LIMIT = max(20, _MOMENTUM_BARS + 8)
-_MOMENTUM_MIN_PCT = 1.5
-_FUNDING_EXTREME_BPS = 8.0
-_FUNDING_SOFT_BPS = 3.0
 _SCAN_WORKERS = 6
 
 
@@ -71,9 +74,10 @@ def _momentum_pct(market: MarketDataService, symbol: str) -> float | None:
 
 
 def _direction_from_momentum(mom_pct: float) -> PaperDirection | None:
-    if mom_pct >= _MOMENTUM_MIN_PCT:
+    floor = get_crypto_learn_coefficients().v2_min_momentum_pct
+    if mom_pct >= floor:
         return "long"
-    if mom_pct <= -_MOMENTUM_MIN_PCT:
+    if mom_pct <= -floor:
         return "short"
     return None
 
@@ -84,6 +88,7 @@ def _funding_tilt(
     oi_delta: float | None,
 ) -> tuple[float, list[str], list[str]]:
     """Return (rule_delta, factors, conflicts) for funding vs momentum."""
+    coeffs = get_crypto_learn_coefficients()
     factors: list[str] = []
     conflicts: list[str] = []
     delta = 0.0
@@ -96,31 +101,31 @@ def _funding_tilt(
     abs_bps = abs(funding_bps)
 
     if direction == "long":
-        if funding_bps >= _FUNDING_EXTREME_BPS:
+        if funding_bps >= coeffs.funding_extreme_bps:
             conflicts.append("Crowded long funding fights momentum long")
             delta -= 14.0
-        elif funding_bps >= _FUNDING_SOFT_BPS:
+        elif funding_bps >= coeffs.funding_soft_bps:
             conflicts.append("Elevated long funding")
             delta -= 6.0
-        elif funding_bps <= -_FUNDING_SOFT_BPS:
+        elif funding_bps <= -coeffs.funding_soft_bps:
             factors.append("Negative funding supports long")
             delta += 8.0
     else:
-        if funding_bps <= -_FUNDING_EXTREME_BPS:
+        if funding_bps <= -coeffs.funding_extreme_bps:
             conflicts.append("Crowded short funding fights momentum short")
             delta -= 14.0
-        elif funding_bps <= -_FUNDING_SOFT_BPS:
+        elif funding_bps <= -coeffs.funding_soft_bps:
             conflicts.append("Elevated short funding")
             delta -= 6.0
-        elif funding_bps >= _FUNDING_SOFT_BPS:
+        elif funding_bps >= coeffs.funding_soft_bps:
             factors.append("Positive funding supports short")
             delta += 8.0
 
     if oi_delta is not None:
         factors.append(f"OI Δ {oi_delta:+.1f}%")
-        if abs_bps >= _FUNDING_EXTREME_BPS and oi_delta >= 3.0:
+        if abs_bps >= coeffs.funding_extreme_bps and oi_delta >= 3.0:
             conflicts.append("OI rising with extreme funding")
-            delta -= 4.0
+            delta -= coeffs.v2_crowded_oi_penalty
         elif oi_delta <= -5.0:
             factors.append("OI unwinding")
             delta += 3.0
@@ -193,9 +198,10 @@ def score_symbol(
     if direction is None:
         return None
 
+    coeffs = get_crypto_learn_coefficients()
     factors: list[str] = [f"12h momentum {mom:+.1f}%"]
     conflicts: list[str] = []
-    rule = 52.0 + min(abs(mom), 12.0) * 2.0  # ~55 at 1.5%, ~76 at 12%
+    rule = 52.0 + min(abs(mom), 12.0) * coeffs.v2_mom_mult  # ~55 at 1.5%, ~76 at 12%
 
     depth = fetch_derivatives_depth(normalized)
     funding_bps: float | None = None
@@ -203,6 +209,13 @@ def score_symbol(
     if depth is not None and depth.funding_rate is not None:
         funding_bps = depth.funding_rate * 10_000
         oi_delta = oi_change_pct(depth.oi_history)
+
+    if (
+        coeffs.skip_crowded_opens
+        and funding_bps is not None
+        and abs(funding_bps) >= coeffs.funding_extreme_bps
+    ):
+        return None
 
     fund_delta, fund_factors, fund_conflicts = _funding_tilt(direction, funding_bps, oi_delta)
     rule += fund_delta
@@ -220,7 +233,8 @@ def score_symbol(
     # Conflict drag — keep explainable and capped
     rule -= min(len(conflicts), 3) * 3.0
     confidence = clamp_score(rule)
-    if confidence < MIN_CONFIDENCE:
+    floor = coeffs.min_confidence
+    if confidence < floor:
         return None
 
     return CryptoPerpV2Idea(
@@ -236,10 +250,15 @@ def scan_crypto_perp_v2(
     market: MarketDataService,
     *,
     symbols: tuple[str, ...] | None = None,
-    min_confidence: float = MIN_CONFIDENCE,
+    min_confidence: float | None = None,
 ) -> list[CryptoPerpV2Idea]:
     """Scan the v2 universe; highest confidence first."""
     universe = symbols or V2_UNIVERSE
+    floor = (
+        min_confidence
+        if min_confidence is not None
+        else get_crypto_learn_coefficients().min_confidence
+    )
     now = datetime.now(UTC)
     ideas: list[CryptoPerpV2Idea] = []
 
@@ -260,7 +279,7 @@ def scan_crypto_perp_v2(
     for idea in results:
         if idea is None:
             continue
-        if idea.confidence < min_confidence:
+        if idea.confidence < floor:
             continue
         ideas.append(idea)
 
