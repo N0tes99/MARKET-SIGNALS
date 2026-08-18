@@ -10,9 +10,9 @@ import pytest
 
 from app.engines.paper_agent.agent import PaperAgent, _fingerprint
 from app.engines.paper_agent.crypto_perp_v2 import (
-    V2_UNIVERSE,
     _OHLCV_LIMIT,
     SETUP_TYPE,
+    V2_UNIVERSE,
     scan_crypto_perp_v2,
     score_symbol,
 )

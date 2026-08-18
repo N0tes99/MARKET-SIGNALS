@@ -190,9 +190,7 @@ def _variant_takes(record: SignalRecord, coeffs: CryptoLearnCoefficients) -> boo
     extreme = False
     if isinstance(funding, (int, float)):
         extreme = abs(float(funding)) >= coeffs.funding_extreme_bps
-    if coeffs.skip_crowded_opens and (bucket == "crowded" or extreme):
-        return False
-    return True
+    return not (coeffs.skip_crowded_opens and (bucket == "crowded" or extreme))
 
 
 def _stats_for_records(records: list[SignalRecord]) -> dict[str, float | int]:

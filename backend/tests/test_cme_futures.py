@@ -101,7 +101,7 @@ def _quote(
 def test_universe_is_twenty_four_named_contracts() -> None:
     assert len(FUTURES_SYMBOLS) == 24
     assert len(CME_FUTURES_UNIVERSE) == 24
-    assert FUTURES_SYMBOLS == tuple(c.symbol for c in CME_FUTURES_UNIVERSE)
+    assert tuple(c.symbol for c in CME_FUTURES_UNIVERSE) == FUTURES_SYMBOLS
     for name in ("ES=F", "NQ=F", "CL=F", "GC=F", "ZN=F", "6E=F", "ZC=F", "BTC=F"):
         assert name in FUTURES_SYMBOLS
     groups = {c.group.value for c in CME_FUTURES_UNIVERSE}
