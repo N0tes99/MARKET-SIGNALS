@@ -32,6 +32,15 @@ def _reset_auth_rate_limits() -> None:
     reset_rate_limits()
 
 
+@pytest.fixture(autouse=True)
+def _silence_cme_paper_scan(monkeypatch) -> None:
+    """Existing paper ticks must not hit Yahoo CME quotes."""
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_cme_paper_ideas",
+        lambda *a, **k: [],
+    )
+
+
 @pytest.fixture
 def evidence_service() -> EvidenceService:
     """Provide an evidence service backed by mock market data."""

@@ -1,11 +1,12 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
 import { useFuturesBoard } from "@/hooks/use-futures-board";
 import { cn } from "@/lib/utils";
-import type { CmeFuturesGroup, CmeFuturesRow } from "@/services/api";
+import { fetchPaperSummary, type CmeFuturesGroup, type CmeFuturesRow } from "@/services/api";
 
 const GROUPS: { key: CmeFuturesGroup | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -98,12 +99,33 @@ function FuturesMobileCard({ row }: { row: CmeFuturesRow }) {
 
 export default function FuturesPage() {
   const board = useFuturesBoard();
+  const paper = useQuery({
+    queryKey: ["paper-summary", "futures-tab"],
+    queryFn: () => fetchPaperSummary(false),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
   const [group, setGroup] = useState<CmeFuturesGroup | "all">("all");
   const rows = useMemo(() => {
     const all = board.data?.rows ?? [];
     const filtered = group === "all" ? all : all.filter((row) => row.group === group);
     return [...filtered].sort((a, b) => b.score - a.score);
   }, [board.data?.rows, group]);
+
+  const openCme = (paper.data?.open_trades ?? []).filter((t) => t.source === "cme_futures");
+  const closedCme = (paper.data?.recent_closed ?? []).filter((t) => t.source === "cme_futures");
+  const resolvedCme = closedCme.filter((t) => t.honest_pnl_usd != null);
+  const cmePaperN = resolvedCme.length;
+  const cmeWinRate =
+    cmePaperN > 0
+      ? Math.round(
+          (resolvedCme.filter((t) => (t.honest_pnl_usd ?? 0) > 0).length / cmePaperN) * 100,
+        )
+      : null;
+  const openCmeLine =
+    openCme.length === 0
+      ? "none"
+      : openCme.map((t) => `${t.symbol} ${t.direction}`).join(" · ");
 
   return (
     <main className="min-h-screen">
@@ -125,11 +147,19 @@ export default function FuturesPage() {
               refreshing
             </span>
           ) : null}
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+            paper open {openCmeLine}
+            {" · "}
+            {cmePaperN > 0
+              ? `cme momentum ${cmePaperN} paper · ${cmeWinRate ?? 0}% win`
+              : "learning from paper"}
+          </p>
           <button
             type="button"
             className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
             onClick={() => {
               void board.refetch();
+              void paper.refetch();
             }}
           >
             Retry

@@ -9,11 +9,14 @@ from app.engines.event_engine.engine import _fetch_earnings_event
 from app.engines.paper_agent.broker import STOP_LOSS_PCT, TAKE_PROFIT_PCT
 from app.engines.paper_agent.types import PaperDirection
 from app.engines.sentiment_engine.engine import fetch_fear_greed
+from app.indicators.atr import calculate_atr
 from app.market_data.symbols import (
+    FUTURES_BY_SYMBOL,
     AssetClass,
     get_asset_class,
     is_crypto,
     looks_like_us_equity_ticker,
+    looks_like_yahoo_future,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,22 @@ def grade_meets_floor(grade: str, floor: str = MIN_GRADE) -> bool:
     return _GRADE_RANK.get(grade, -1) >= _GRADE_RANK.get(floor, 99)
 
 
+def _is_cme_paper(symbol: str, source: str | None = None) -> bool:
+    """Yahoo continuous futures — not spot crypto, not a US equity ticker."""
+    if source == "cme_futures":
+        return True
+    normalized = symbol.upper().strip()
+    if normalized in FUTURES_BY_SYMBOL:
+        return True
+    try:
+        return get_asset_class(normalized) == AssetClass.FUTURES
+    except ValueError:
+        return looks_like_yahoo_future(normalized)
+
+
 def _is_crypto_symbol(symbol: str) -> bool:
+    if looks_like_yahoo_future(symbol):
+        return False
     try:
         return is_crypto(symbol)
     except ValueError:
@@ -45,6 +63,8 @@ def _is_crypto_symbol(symbol: str) -> bool:
 
 
 def _is_equity_like(symbol: str) -> bool:
+    if looks_like_yahoo_future(symbol):
+        return False
     try:
         return get_asset_class(symbol) in {AssetClass.STOCK, AssetClass.ETF}
     except ValueError:
@@ -69,15 +89,23 @@ def confirm_open(
     direction: PaperDirection,
     pipeline: _DecisionLike | None,
     entry_price: float,
+    source: str | None = None,
+    market=None,
 ) -> tuple[str | None, float, float, str]:
     """Return (skip_reason, take_profit_pct, stop_loss_pct, note).
 
     skip_reason is None when the idea may open. Percent exits come from
     RiskEngine ATR levels (same R:R for long and short). Fallback 6/3 only
     if confirmation is disabled (no pipeline — tests).
+
+    CME Yahoo names skip F&G and the 13-category pipeline; exits come from
+    Yahoo OHLCV ATR instead.
     """
     if pipeline is None:
         return None, TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:off"
+
+    if _is_cme_paper(symbol, source):
+        return _confirm_cme_open(symbol=symbol, entry_price=entry_price, market=market)
 
     fng = fetch_fear_greed()
     fng_note = ""
@@ -150,3 +178,48 @@ def _atr_exit_pcts(entry: float, stop_loss: float, take_profit: float) -> tuple[
     if sl < 0.4 or tp < sl:
         return STOP_LOSS_PCT, TAKE_PROFIT_PCT
     return sl, tp
+
+
+def _confirm_cme_open(
+    *,
+    symbol: str,
+    entry_price: float,
+    market=None,
+) -> tuple[str | None, float, float, str]:
+    """Scanner-gated CME path: Yahoo ATR percents, no F&G, no DecisionPipeline."""
+    tp_pct, sl_pct, atr_note = _cme_atr_exit_pcts(market, symbol, entry_price)
+    return None, tp_pct, sl_pct, atr_note
+
+
+def _cme_atr_exit_pcts(market, symbol: str, entry: float) -> tuple[float, float, str]:
+    """2 ATR stop / 2–3.5 ATR target from Yahoo 1h bars. Fallback 6/3."""
+    fallback_note = "confirm:cme fallback 6/3"
+    if market is None or entry <= 0:
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    try:
+        df = market.safe_get_ohlcv(symbol, "1h", limit=32)
+    except Exception:
+        logger.exception("CME ATR OHLCV failed for %s", symbol)
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    if df is None or len(df) < 15:
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    try:
+        atr = float(calculate_atr(df["high"], df["low"], df["close"]).iloc[-1])
+    except Exception:
+        logger.exception("CME ATR calc failed for %s", symbol)
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    if atr <= 0 or entry <= 0:
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    atr_pct = (atr / entry) * 100.0
+    stop_mult = 2.0
+    if atr_pct >= 4.0:
+        tp_mult = 2.0
+    elif atr_pct >= 2.5:
+        tp_mult = 2.5
+    else:
+        tp_mult = 3.5
+    sl = stop_mult * atr_pct
+    tp = tp_mult * atr_pct
+    if sl < 0.4 or tp < sl:
+        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+    return tp, sl, f"confirm:cme ATR SL {sl:.1f}% / TP {tp:.1f}%"

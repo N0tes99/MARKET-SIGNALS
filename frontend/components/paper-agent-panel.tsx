@@ -123,6 +123,7 @@ function sourceLabel(source: string): string {
   if (source === "crypto_setup") return "crypto";
   if (source === "equity_setup") return "equity";
   if (source === "tape_hunt") return "tape";
+  if (source === "cme_futures") return "cme";
   return source;
 }
 

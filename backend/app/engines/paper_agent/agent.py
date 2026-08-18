@@ -20,6 +20,7 @@ from app.engines.paper_agent.broker import (
     should_close,
     unrealized_pnl,
 )
+from app.engines.paper_agent.cme_momentum import scan_cme_paper_ideas
 from app.engines.paper_agent.confirm import confirm_open
 from app.engines.paper_agent.crypto_perp_v2 import scan_crypto_perp_v2
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
@@ -45,6 +46,7 @@ STARTING_CASH = 15_000.0
 MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 3
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
+MAX_CME_FUTURES_OPENS_PER_DAY = 1
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0
@@ -312,11 +314,45 @@ class PaperAgent:
                     }
                 )
 
+            # --- CME Yahoo futures (cme_momentum, separate from crypto perps) ---
+            try:
+                cme_ideas = scan_cme_paper_ideas(
+                    self._market, min_confidence=MIN_CONFIDENCE
+                )
+            except Exception:
+                logger.exception("Paper agent cme_futures feed failed")
+                cme_ideas = []
+                notes.append("cme_futures_feed_error")
+
+            for idea in cme_ideas:
+                fp = _fingerprint(
+                    "cme_futures", idea.symbol, idea.setup_type, idea.direction
+                )
+                if fp in active:
+                    continue
+                candidates.append(
+                    {
+                        "source": "cme_futures",
+                        "symbol": idea.symbol,
+                        "setup_type": idea.setup_type,
+                        "direction": idea.direction,
+                        "fingerprint": fp,
+                        "confidence": float(idea.confidence),
+                        "opportunity_score": float(idea.confidence),
+                        "factors": list(idea.factors[:5]),
+                        "score": float(idea.confidence),
+                        "extra_note": "cme momentum",
+                        "extras": dict(idea.extras),
+                    }
+                )
+
             candidates.sort(key=lambda c: c["score"], reverse=True)
             opens_today = self._opens_on_utc_day(now)
             daily_left = max(0, MAX_NEW_OPENS_PER_DAY - opens_today)
             v2_opens_today = self._opens_on_utc_day(now, source="crypto_perp_v2")
             v2_left = max(0, MAX_CRYPTO_PERP_V2_OPENS_PER_DAY - v2_opens_today)
+            cme_opens_today = self._opens_on_utc_day(now, source="cme_futures")
+            cme_left = max(0, MAX_CME_FUTURES_OPENS_PER_DAY - cme_opens_today)
             if daily_left <= 0 and candidates:
                 daily_cap_hit = True
                 notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
@@ -331,8 +367,11 @@ class PaperAgent:
                 if cand["source"] == "crypto_perp_v2" and v2_left <= 0:
                     notes.append(f"skip:crypto_perp_v2_cap:{cand['symbol']}")
                     continue
+                if cand["source"] == "cme_futures" and cme_left <= 0:
+                    notes.append(f"skip:cme_futures_cap:{cand['symbol']}")
+                    continue
                 skip, tp_pct, sl_pct, confirm_note = self._confirm_open(
-                    cand["symbol"], cand["direction"]
+                    cand["symbol"], cand["direction"], source=cand["source"]
                 )
                 if skip:
                     notes.append(f"{skip}:{cand['symbol']}")
@@ -358,6 +397,7 @@ class PaperAgent:
                     confirm_note=" ".join(
                         p for p in (confirm_note, cand.get("extra_note", "")) if p
                     ),
+                    memory_extras=cand.get("extras"),
                 )
                 if trade:
                     notes.append(f"open:{trade.symbol}:{trade.setup_type}:{trade.size_usd:.0f}")
@@ -365,6 +405,8 @@ class PaperAgent:
                     daily_left -= 1
                     if cand["source"] == "crypto_perp_v2":
                         v2_left -= 1
+                    if cand["source"] == "cme_futures":
+                        cme_left -= 1
                     logger.info(
                         "paper_open id=%s symbol=%s setup=%s conf=%.1f score=%.1f daily_left=%d",
                         trade.id,
@@ -399,7 +441,11 @@ class PaperAgent:
         return notes
 
     def _confirm_open(
-        self, symbol: str, direction: PaperDirection
+        self,
+        symbol: str,
+        direction: PaperDirection,
+        *,
+        source: str | None = None,
     ) -> tuple[str | None, float, float, str]:
         px = last_price(self._market, symbol) or 0.0
         return confirm_open(
@@ -407,6 +453,8 @@ class PaperAgent:
             direction=direction,
             pipeline=self._pipeline,
             entry_price=px,
+            source=source,
+            market=self._market,
         )
 
     def _open_from_signal(
@@ -424,6 +472,7 @@ class PaperAgent:
         take_profit_pct: float = 6.0,
         stop_loss_pct: float = 3.0,
         confirm_note: str = "",
+        memory_extras: dict | None = None,
     ) -> PaperTrade | None:
         px = last_price(self._market, symbol)
         if px is None or px <= 0:
@@ -475,7 +524,7 @@ class PaperAgent:
             trade.notes += f" Honest fill @ {trade.honest_entry:.6g} bar {bar_ts.isoformat()}."
 
         self._store.upsert(trade)
-        self._remember_open(trade)
+        self._remember_open(trade, extras=memory_extras)
         self._ping_discord("open", trade)
         logger.info(
             "Paper open %s %s %s conf=%.1f opt=%.6g honest=%s stamp=%s",
@@ -536,10 +585,13 @@ class PaperAgent:
             logger.debug("radar snapshot for paper open failed", exc_info=True)
         return extras
 
-    def _remember_open(self, trade: PaperTrade) -> None:
+    def _remember_open(self, trade: PaperTrade, extras: dict | None = None) -> None:
         if self._learning is None or trade.signal_record_id:
             return
         try:
+            merged = dict(self._radar_open_extras(trade))
+            if extras:
+                merged.update(extras)
             record = self._learning.record_paper_open(
                 paper_trade_id=trade.id,
                 symbol=trade.symbol,
@@ -549,7 +601,7 @@ class PaperAgent:
                 opportunity_score=trade.opportunity_score,
                 entry_price=trade.optimistic_entry,
                 factors=trade.factors,
-                extras=self._radar_open_extras(trade),
+                extras=merged,
             )
             trade.signal_record_id = str(record.id)
             self._store.upsert(trade)

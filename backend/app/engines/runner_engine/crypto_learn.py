@@ -118,6 +118,11 @@ def encode_paper_open_notes(
             "funding_bps",
             "mom_12h_pct",
             "basis_pct",
+            "group",
+            "bucket",
+            "score",
+            "change_pct",
+            "oi",
         ):
             value = extras.get(key)
             if value is None or value == "":
@@ -143,7 +148,15 @@ def parse_paper_notes(notes: str | None) -> dict[str, Any]:
         if key == "factors":
             parsed[key] = raw
             continue
-        if key in {"radar_score", "funding_bps", "mom_12h_pct", "basis_pct"}:
+        if key in {
+            "radar_score",
+            "funding_bps",
+            "mom_12h_pct",
+            "basis_pct",
+            "score",
+            "change_pct",
+            "oi",
+        }:
             try:
                 parsed[key] = float(raw)
             except ValueError:
