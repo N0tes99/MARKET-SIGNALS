@@ -282,3 +282,94 @@ async def test_forgot_and_reset_password(social_client) -> None:
         result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one()
         assert user.password_reset_token_hash is None
+
+
+@pytest.mark.asyncio
+async def test_register_conflict_does_not_name_field(social_client) -> None:
+    client, _factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"dup_{suffix}@example.com"
+    username = f"dup_{suffix}"
+    first = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": username, "password": "password123"},
+    )
+    assert first.status_code == 201
+
+    same_email = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": f"other_{suffix}", "password": "password123"},
+    )
+    same_user = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"other_{suffix}@example.com",
+            "username": username,
+            "password": "password123",
+        },
+    )
+    for response in (same_email, same_user):
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Email or username already registered"
+
+
+@pytest.mark.asyncio
+async def test_login_rejects_unverified_when_required(social_client, monkeypatch) -> None:
+    client, factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"unverified_{suffix}@example.com"
+    username = f"unverified_{suffix}"
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": username, "password": "password123"},
+    )
+    assert register.status_code == 201
+
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.email_verified_at = None
+        await session.commit()
+
+    monkeypatch.setattr("app.api.routes.auth._verification_required", lambda: True)
+    await client.post("/api/v1/auth/logout")
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login.status_code == 403
+    assert login.json()["detail"] == "Email verification required"
+    assert SESSION_COOKIE_NAME not in login.cookies
+
+
+@pytest.mark.asyncio
+async def test_reset_password_skips_session_when_unverified(
+    social_client, monkeypatch
+) -> None:
+    client, factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"reset_uv_{suffix}@example.com"
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": f"reset_uv_{suffix}", "password": "oldpass123"},
+    )
+    assert register.status_code == 201
+
+    raw = secrets.token_urlsafe(32)
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.email_verified_at = None
+        user.password_reset_token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        user.password_reset_sent_at = datetime.now(UTC)
+        await session.commit()
+
+    monkeypatch.setattr("app.api.routes.auth._verification_required", lambda: True)
+    await client.post("/api/v1/auth/logout")
+    reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": raw, "password": "newpass123"},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["email_verified"] is False
+    assert SESSION_COOKIE_NAME not in reset.cookies

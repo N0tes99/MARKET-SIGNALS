@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root .env (signal-engine/.env) — works when running from backend/
@@ -147,6 +147,18 @@ class Settings(BaseSettings):
         if url.startswith("postgresql://") and "+asyncpg" not in url and "+psycopg" not in url:
             url = "postgresql+asyncpg://" + url.removeprefix("postgresql://")
         return url
+
+    @model_validator(mode="after")
+    def harden_production(self) -> "Settings":
+        """Refuse a default SECRET_KEY and force debug off in production."""
+        if self.app_env.strip().lower() != "production":
+            return self
+        self.app_debug = False
+        if self.secret_key.strip() in {"", "change-me-in-production"}:
+            raise ValueError(
+                "SECRET_KEY must be a strong random value when APP_ENV=production"
+            )
+        return self
 
     def cors_origin_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of origins."""
