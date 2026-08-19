@@ -13,14 +13,24 @@ export default function HomePage() {
     <main className="min-h-screen">
       <DashboardHeader />
       <div className="container mx-auto px-3 pb-12 pt-1 sm:px-4 sm:pb-16 sm:pt-2">
-        <PaperAgentPanel />
-        <TopPicks />
+        <div className="desk-pair lg:grid lg:grid-cols-12 lg:gap-10">
+          <div className="lg:col-span-7">
+            <PaperAgentPanel />
+          </div>
+          <div className="lg:col-span-5">
+            <TopPicks />
+          </div>
+        </div>
         <OptionsTapeStrip />
-        <EquityOpportunitiesFeed />
-        <RadarPreviewStrip />
+        <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
+          <EquityOpportunitiesFeed />
+          <RadarPreviewStrip />
+        </div>
         <AssetGrid />
-        <OpportunitiesFeed />
-        <AlpacaActivityPanel />
+        <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
+          <OpportunitiesFeed />
+          <AlpacaActivityPanel />
+        </div>
       </div>
     </main>
   );
