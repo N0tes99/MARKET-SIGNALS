@@ -166,9 +166,7 @@ def cot_fights_direction(
         return False
     if direction == "long" and cot_index_value >= high:
         return True
-    if direction == "short" and cot_index_value <= low:
-        return True
-    return False
+    return direction == "short" and cot_index_value <= low
 
 
 def overlay_for_direction(direction: str | None, snap: CotSnapshot) -> CotOverlay:

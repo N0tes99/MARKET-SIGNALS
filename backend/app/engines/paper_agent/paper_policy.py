@@ -50,9 +50,7 @@ def momentum_fights_crowded_funding(
         return False
     if direction == "long" and funding_bps >= extreme_bps:
         return True
-    if direction == "short" and funding_bps <= -extreme_bps:
-        return True
-    return False
+    return direction == "short" and funding_bps <= -extreme_bps
 
 
 def policy_id_for_knobs(knobs: dict[str, Any]) -> str:
