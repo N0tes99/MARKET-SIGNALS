@@ -1,21 +1,19 @@
 # Ping endpoints so Render free-tier spins down less often, and so
 # /assets scoring (+ Discord alerts) and the CME futures board can run
-# without site visitors. Schedules can drift on free Actions minutes;
-# ~5–10m assets/futures keeps in-process caches warm for dashboard
-# cold windows (Yahoo =F scan can exceed the ~100s Netlify proxy).
+# without site visitors. A single 10-minute schedule runs all jobs
+# together, keeping Render warm while minimising Actions-minute spend
+# (previously two overlapping schedules doubled concurrent job count).
 name: Keep API warm
 
 on:
   schedule:
-    # Health: light keep-alive (~every 10m)
+    # All jobs every 10 minutes — single schedule avoids overlapping
+    # triggers that burned through Actions minutes and caused failures.
     - cron: "*/10 * * * *"
-    # Assets + CME futures board + paper tick (~every 7m — between 5–10m)
-    - cron: "*/7 * * * *"
   workflow_dispatch:
 
 jobs:
   ping-health:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *'
     runs-on: ubuntu-latest
     steps:
       - name: Ping health endpoint
@@ -61,7 +59,6 @@ jobs:
           echo "OK (HTTP ${HTTP_CODE})"
 
   ping-assets:
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -143,7 +140,6 @@ jobs:
   ping-futures:
     # Cold GET /futures/board scans 24 Yahoo =F contracts (info + OHLCV).
     # First hit after sleep can exceed the ~100s Netlify/proxy budget (504).
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -224,7 +220,6 @@ jobs:
   ping-paper:
     # Advance the paper bot on a schedule so it can open when setups exist
     # even without a human on the dashboard (Render free has no Celery beat).
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/7 * * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
