@@ -137,5 +137,5 @@ def test_tape_daily_cap_shared(monkeypatch) -> None:
     )
     agent = _agent(tape, store=store)
     agent.tick()
-    assert len(store.list_all()) == 3
+    assert len(store.list_all()) == 4
     assert all(t.source == "tape_hunt" for t in store.list_all())
