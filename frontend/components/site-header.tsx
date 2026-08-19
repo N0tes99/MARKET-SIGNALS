@@ -31,7 +31,7 @@ function BuiltByNotes() {
 }
 
 function NavLink({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link

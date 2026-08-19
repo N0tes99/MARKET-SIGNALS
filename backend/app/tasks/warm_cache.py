@@ -19,23 +19,43 @@ def warm_market_and_decisions(timeframe: str = "1h") -> dict[str, int | str]:
     market_data = get_market_data_service()
     pipeline = get_decision_pipeline()
     symbols = list(TRACKED_SYMBOLS)
+    errors: list[str] = []
 
-    market_data.warm(symbols, timeframe=timeframe, limit=200)
-    decisions = pipeline.rank_all(symbols, timeframe=timeframe)
-    reddit = prefetch_reddit_buzz(symbols)
+    try:
+        market_data.warm(symbols, timeframe=timeframe, limit=200)
+    except Exception:
+        logger.warning("warm_market_and_decisions: market data warm failed", exc_info=True)
+        errors.append("market_warm")
 
+    decisions: list = []
+    try:
+        decisions = pipeline.rank_all(symbols, timeframe=timeframe)
+    except Exception:
+        logger.warning("warm_market_and_decisions: rank_all failed", exc_info=True)
+        errors.append("rank_all")
+
+    reddit: dict = {}
+    try:
+        reddit = prefetch_reddit_buzz(symbols)
+    except Exception:
+        logger.warning("warm_market_and_decisions: reddit prefetch failed", exc_info=True)
+        errors.append("reddit")
+
+    status = "partial" if errors else "ok"
     logger.info(
-        "Warm cache complete: %s symbols prefetched, %s decisions ranked, reddit=%s",
+        "Warm cache complete: %s symbols prefetched, %s decisions ranked, reddit=%s, errors=%s",
         len(symbols),
         len(decisions),
         reddit,
+        errors,
     )
     return {
-        "status": "ok",
+        "status": status,
         "symbols": len(symbols),
         "decisions": len(decisions),
         "timeframe": timeframe,
         "reddit_warmed": int(reddit.get("warmed", 0) or 0),
+        "errors": errors,
     }
 
 
@@ -45,7 +65,11 @@ def warm_reddit_social() -> dict[str, int | str]:
     from app.api.tracked import TRACKED_SYMBOLS
     from app.market_data.providers.reddit_public import prefetch_reddit_buzz
 
-    result = prefetch_reddit_buzz(list(TRACKED_SYMBOLS))
+    try:
+        result = prefetch_reddit_buzz(list(TRACKED_SYMBOLS))
+    except Exception:
+        logger.warning("warm_reddit_social: prefetch failed", exc_info=True)
+        return {"status": "error", "warmed": 0}
     logger.info("Reddit social warm complete: %s", result)
     return result
 
@@ -55,8 +79,12 @@ def tick_paper_agent() -> dict[str, int | str | list[str]]:
     """Advance paper bot discovery/management without requiring a dashboard visit."""
     from app.core.service_dependencies import get_paper_agent
 
-    agent = get_paper_agent()
-    notes = agent.tick()
+    try:
+        agent = get_paper_agent()
+        notes = agent.tick()
+    except Exception:
+        logger.warning("tick_paper_agent: agent tick failed", exc_info=True)
+        return {"status": "error", "opens": 0, "notes": []}
     opens = sum(1 for n in notes if n.startswith("open:"))
     logger.info("Paper agent scheduled tick opens=%d notes=%s", opens, notes[:12])
     return {

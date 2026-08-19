@@ -139,7 +139,9 @@ def test_idea_from_row_uses_change_pct_when_mom_missing() -> None:
 def test_idea_from_row_skips_crowded_cot() -> None:
     assert idea_from_row(_row(cot_index=90.0, mom_12h=2.5)) is None
     assert idea_from_row(_row(cot_index=10.0, mom_12h=-2.5)) is None
-    idea = idea_from_row(_row(cot_index=10.0, mom_12h=2.5, cot_effect="strengthen", cot_spec_net=-200_000))
+    idea = idea_from_row(
+        _row(cot_index=10.0, mom_12h=2.5, cot_effect="strengthen", cot_spec_net=-200_000),
+    )
     assert idea is not None
     assert idea.extras["cot_index"] == pytest.approx(10.0)
     assert idea.extras["cot_effect"] == "strengthen"
