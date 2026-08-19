@@ -45,6 +45,13 @@
     background: #06090c;
   }
 
+  /* Installed desktop window — don't pretend this is a phone */
+  @media (display-mode: standalone) and (min-width: 768px) {
+    html[data-display-mode="standalone"] body {
+      overscroll-behavior-y: auto;
+    }
+  }
+
   ::selection {
     background: hsl(40 8% 78% / 0.18);
   }
@@ -76,6 +83,30 @@
 
   .label-caps {
     @apply font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/85;
+  }
+
+  .app-nav-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .app-nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 1024px) {
+    .desk-pair > section,
+    .desk-pair > div > section {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom-width: 0;
+    }
+
+    .desk-pair {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid rgb(255 255 255 / 0.05);
+      padding-bottom: 2rem;
+    }
   }
 
   .seg-control {

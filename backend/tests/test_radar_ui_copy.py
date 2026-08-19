@@ -41,6 +41,14 @@ def test_compact_header_stacks_on_mobile() -> None:
     text = _HEADER.read_text(encoding="utf-8")
     assert "flex-col" in text
     assert "{title}" in text
+    assert "hidden md:block" in text
+    assert "h-14" in text
+
+
+def test_homescreen_allows_desktop_orientation() -> None:
+    text = _MANIFEST.read_text(encoding="utf-8")
+    assert 'orientation: "any"' in text
+    assert "portrait-primary" not in text
 
 
 def test_homescreen_shortcuts_include_radar_and_tape() -> None:

@@ -35,7 +35,7 @@ export function AuthNav() {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3 md:flex-nowrap">
       {!user.email_verified ? (
         <button
           type="button"
