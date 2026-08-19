@@ -1,292 +1,151 @@
 # Ping endpoints so Render free-tier spins down less often, and so
 # /assets scoring (+ Discord alerts) and the CME futures board can run
-# without site visitors. A single 10-minute schedule runs all jobs
-# together, keeping Render warm while minimising Actions-minute spend
-# (previously two overlapping schedules doubled concurrent job count).
+# without site visitors.
+#
+# Cost optimisation: all pings run as sequential steps in ONE job so
+# GitHub bills 1 minute per trigger instead of 4. The single health
+# wake at the top serves all subsequent endpoint pings.
 name: Keep API warm
 
 on:
   schedule:
-    # All jobs every 10 minutes — single schedule avoids overlapping
-    # triggers that burned through Actions minutes and caused failures.
     - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:
-  ping-health:
+  warm:
     runs-on: ubuntu-latest
+    env:
+      API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+      API_ASSETS_URL: ${{ vars.API_ASSETS_URL }}
+      API_FUTURES_BOARD_URL: ${{ vars.API_FUTURES_BOARD_URL }}
+      API_PAPER_CRON_URL: ${{ vars.API_PAPER_CRON_URL }}
+      API_USERNAME: ${{ secrets.API_USERNAME }}
+      API_PASSWORD: ${{ secrets.API_PASSWORD }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Ping health endpoint
-        env:
-          # Repo variable — prefer full path:
-          # https://market-signals-51f0.onrender.com/api/v1/health
-          # Bare host / trailing slash is auto-appended to /api/v1/health.
-          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+      - name: Resolve URLs
+        id: urls
         run: |
-          set -euo pipefail
-          URL="${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}"
-          # Strip trailing slashes for path checks
-          TRIMMED="${URL%/}"
-          case "${TRIMMED}" in
-            http://*|https://*)
-              # scheme://host with no path (or only "/") → append health path
-              REST="${TRIMMED#*://}"
-              if [[ "$REST" != */* ]]; then
-                echo "::warning::API_HEALTH_URL has no path (got: $URL) — appending /api/v1/health"
-                URL="${TRIMMED}/api/v1/health"
-              fi
-              ;;
-            *)
-              echo "::error::API_HEALTH_URL must be an http(s) URL (got: $URL)"
-              exit 1
-              ;;
-          esac
+          normalize_path() {
+            local raw="$1" append="$2" trimmed rest
+            trimmed="${raw%/}"
+            rest="${trimmed#*://}"
+            if [[ "$rest" != */* ]]; then
+              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
+              echo "${trimmed}${append}"
+            else
+              echo "$trimmed"
+            fi
+          }
 
-          echo "Pinging ${URL}"
+          HEALTH=$(normalize_path \
+            "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" \
+            "/api/v1/health")
+
+          ASSETS=$(normalize_path \
+            "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" \
+            "/api/v1/assets")
+          case "$ASSETS" in *\?*) ASSETS="${ASSETS}&sync=true" ;; *) ASSETS="${ASSETS}?sync=true" ;; esac
+
+          if [ -n "${API_FUTURES_BOARD_URL:-}" ]; then
+            FUTURES=$(normalize_path "${API_FUTURES_BOARD_URL}" "/api/v1/futures/board")
+          else
+            BASE="${HEALTH%/api/v1/health}"
+            FUTURES="${BASE}/api/v1/futures/board"
+          fi
+          case "$FUTURES" in *\?*) FUTURES="${FUTURES}&sync=true" ;; *) FUTURES="${FUTURES}?sync=true" ;; esac
+
+          if [ -n "${API_PAPER_CRON_URL:-}" ]; then
+            PAPER=$(normalize_path "${API_PAPER_CRON_URL}" "/api/v1/paper/cron-tick")
+          else
+            BASE="${HEALTH%/api/v1/health}"
+            PAPER="${BASE}/api/v1/paper/cron-tick"
+          fi
+
+          echo "health=$HEALTH"   >> "$GITHUB_OUTPUT"
+          echo "assets=$ASSETS"   >> "$GITHUB_OUTPUT"
+          echo "futures=$FUTURES" >> "$GITHUB_OUTPUT"
+          echo "paper=$PAPER"     >> "$GITHUB_OUTPUT"
+
+      - name: Wake API (health check)
+        run: |
+          URL="${{ steps.urls.outputs.health }}"
+          echo "Pinging $URL"
           HTTP_CODE=$(curl -sS -o /tmp/health_body -w "%{http_code}" --max-time 60 "$URL" || true)
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-            echo "::error::Health returned HTTP ${HTTP_CODE}. /api/v1/health must be public (no Basic Auth)."
-            echo "Check repo variable API_HEALTH_URL — set to https://<host>/api/v1/health (not bare hostname)."
-            echo "If the path is correct but still 401, AUTH middleware may be applying to /health — fix Render AUTH exclusions."
+            echo "::error::Health returned HTTP ${HTTP_CODE} — /api/v1/health must be public (no auth)"
             exit 1
           fi
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Health returned HTTP ${HTTP_CODE} (expected 200)"
             head -c 500 /tmp/health_body || true
-            echo
             exit 1
           fi
           echo "OK (HTTP ${HTTP_CODE})"
-
-  ping-assets:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Ping assets endpoint
-        continue-on-error: true
-        env:
-          # Variables (include full path preferred):
-          # API_HEALTH_URL=https://….onrender.com/api/v1/health
-          # API_ASSETS_URL=https://….onrender.com/api/v1/assets
-          API_ASSETS_URL: ${{ vars.API_ASSETS_URL }}
-          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
-          # Secrets (same as Render AUTH_USERNAME / AUTH_PASSWORD):
-          API_USERNAME: ${{ secrets.API_USERNAME }}
-          API_PASSWORD: ${{ secrets.API_PASSWORD }}
-          # Same CRON_SECRET as ping-paper / Render — required when the TOTP gate is on.
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          set -euo pipefail
-          normalize_path() {
-            # $1 = URL, $2 = path to append if host-only
-            local raw="$1"
-            local append="$2"
-            local trimmed="${raw%/}"
-            local rest="${trimmed#*://}"
-            if [[ "$rest" != */* ]]; then
-              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
-              echo "${trimmed}${append}"
-            else
-              echo "$trimmed"
-            fi
-          }
-
-          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
-          # Prefer vars.API_ASSETS_URL (full Render /api/v1/assets) so keep-warm
-          # fills in-process caches without Netlify proxy timeouts.
-          # sync=true blocks until rank_all completes so memory+disk are populated.
-          URL=$(normalize_path "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" "/api/v1/assets")
-          case "$URL" in
-            *\?*) URL="${URL}&sync=true" ;;
-            *) URL="${URL}?sync=true" ;;
-          esac
-
-          echo "Waking API via health (${HEALTH_URL})"
-          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
-            || echo "::warning::Health wake ping failed (continuing to assets)"
+          # Let the API finish booting before hitting heavier endpoints
           sleep 8
 
+      - name: Ping assets (warm rank_all cache)
+        continue-on-error: true
+        run: |
+          URL="${{ steps.urls.outputs.assets }}"
           AUTH_ARGS=()
-          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
             AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-            echo "Using Basic Auth for assets ping"
-          else
-            echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /assets will 401"
-          fi
-
           CRON_ARGS=()
-          if [ -n "${CRON_SECRET:-}" ]; then
-            CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
-          else
-            echo "::warning::CRON_SECRET not set — /assets keep-warm will 401 when the TOTP gate is on"
-          fi
+          [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
 
-          # Cold rank_all can exceed 2m on free Render — give it enough time so
-          # memory + disk caches populate for the Netlify dashboard proxy.
-          echo "Pinging ${URL} (max 180s; timeouts/502 are non-fatal)"
+          echo "Pinging $URL (max 180s)"
           HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 180 \
             "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$URL" || true)
-          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-            echo "::warning::Assets returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET (X-Cron-Secret) match Render"
-          elif [ "$HTTP_CODE" != "200" ]; then
-            echo "::warning::Assets ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
-            head -c 200 /tmp/assets_body || true
-            echo
-          else
-            echo "OK (HTTP ${HTTP_CODE})"
-          fi
-          exit 0
-
-  ping-futures:
-    # Cold GET /futures/board scans 24 Yahoo =F contracts (info + OHLCV).
-    # First hit after sleep can exceed the ~100s Netlify/proxy budget (504).
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Ping CME futures board
-        continue-on-error: true
-        env:
-          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
-          API_FUTURES_BOARD_URL: ${{ vars.API_FUTURES_BOARD_URL }}
-          API_USERNAME: ${{ secrets.API_USERNAME }}
-          API_PASSWORD: ${{ secrets.API_PASSWORD }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          set -euo pipefail
-          normalize_path() {
-            local raw="$1"
-            local append="$2"
-            local trimmed="${raw%/}"
-            local rest="${trimmed#*://}"
-            if [[ "$rest" != */* ]]; then
-              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
-              echo "${trimmed}${append}"
-            else
-              echo "$trimmed"
-            fi
-          }
-
-          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
-          # Prefer vars.API_FUTURES_BOARD_URL (full Render /api/v1/futures/board)
-          # so keep-warm fills the Yahoo =F cache without Netlify proxy timeouts.
-          if [ -n "${API_FUTURES_BOARD_URL:-}" ]; then
-            URL=$(normalize_path "${API_FUTURES_BOARD_URL}" "/api/v1/futures/board")
-          else
-            BASE="${HEALTH_URL%/api/v1/health}"
-            URL="${BASE}/api/v1/futures/board"
-          fi
-          # sync=true blocks until the Yahoo =F scan completes so memory+disk
-          # are populated. Browser GETs omit sync and use stale-while-revalidate.
-          case "$URL" in
-            *\?*) URL="${URL}&sync=true" ;;
-            *) URL="${URL}?sync=true" ;;
+          case "$HTTP_CODE" in
+            200) echo "OK (HTTP ${HTTP_CODE})" ;;
+            401|403) echo "::warning::Assets HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET" ;;
+            *)   echo "::warning::Assets HTTP ${HTTP_CODE} (cold start / timeout)"; head -c 200 /tmp/assets_body || true ;;
           esac
 
-          echo "Waking API via health (${HEALTH_URL})"
-          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
-            || echo "::warning::Health wake ping failed (continuing to futures board)"
-          sleep 8
-
+      - name: Ping futures board (warm Yahoo =F cache)
+        continue-on-error: true
+        run: |
+          URL="${{ steps.urls.outputs.futures }}"
           AUTH_ARGS=()
-          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
             AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-            echo "Using Basic Auth for futures board ping"
-          else
-            echo "::warning::API_USERNAME/API_PASSWORD secrets not set — direct Render /futures/board will 401"
-          fi
-
           CRON_ARGS=()
-          if [ -n "${CRON_SECRET:-}" ]; then
-            CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
-          else
-            echo "::warning::CRON_SECRET not set — /futures/board keep-warm will 401 when the TOTP gate is on"
-          fi
+          [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
 
-          # Cold Yahoo =F scan can take ~60–90s; 180s matches /assets keep-warm.
-          echo "Pinging ${URL} (max 180s; timeouts/502 are non-fatal)"
+          echo "Pinging $URL (max 180s)"
           HTTP_CODE=$(curl -sS -o /tmp/futures_body -w "%{http_code}" --max-time 180 \
             "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$URL" || true)
-          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-            echo "::warning::Futures board returned HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET (X-Cron-Secret) match Render"
-          elif [ "$HTTP_CODE" != "200" ]; then
-            echo "::warning::Futures board ping failed or timed out (HTTP ${HTTP_CODE}; cold start / 502)"
-            head -c 200 /tmp/futures_body || true
-            echo
-          else
-            echo "OK (HTTP ${HTTP_CODE})"
-          fi
-          exit 0
+          case "$HTTP_CODE" in
+            200) echo "OK (HTTP ${HTTP_CODE})" ;;
+            401|403) echo "::warning::Futures HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET" ;;
+            *)   echo "::warning::Futures HTTP ${HTTP_CODE} (cold start / timeout)"; head -c 200 /tmp/futures_body || true ;;
+          esac
 
-  ping-paper:
-    # Advance the paper bot on a schedule so it can open when setups exist
-    # even without a human on the dashboard (Render free has no Celery beat).
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
       - name: Tick paper agent
         continue-on-error: true
-        env:
-          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
-          API_PAPER_CRON_URL: ${{ vars.API_PAPER_CRON_URL }}
-          API_USERNAME: ${{ secrets.API_USERNAME }}
-          API_PASSWORD: ${{ secrets.API_PASSWORD }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          set -euo pipefail
-          normalize_path() {
-            local raw="$1"
-            local append="$2"
-            local trimmed="${raw%/}"
-            local rest="${trimmed#*://}"
-            if [[ "$rest" != */* ]]; then
-              echo "::warning::URL has no path (got: $raw) — appending ${append}" >&2
-              echo "${trimmed}${append}"
-            else
-              echo "$trimmed"
-            fi
-          }
-
           if [ -z "${CRON_SECRET:-}" ]; then
             echo "::warning::CRON_SECRET not set — skipping paper cron-tick"
             exit 0
           fi
-
-          HEALTH_URL=$(normalize_path "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" "/api/v1/health")
-          URL=$(normalize_path "${API_PAPER_CRON_URL:-}" "/api/v1/paper/cron-tick")
-          if [ -z "${API_PAPER_CRON_URL:-}" ]; then
-            # Derive from health host when var unset
-            BASE="${HEALTH_URL%/api/v1/health}"
-            URL="${BASE}/api/v1/paper/cron-tick"
-          fi
-
-          echo "Waking API via health (${HEALTH_URL})"
-          curl -fsS --max-time 60 "$HEALTH_URL" -o /dev/null \
-            || echo "::warning::Health wake ping failed (continuing to paper tick)"
-          sleep 5
-
+          URL="${{ steps.urls.outputs.paper }}"
           AUTH_ARGS=()
-          if [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ]; then
+          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
             AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-          fi
 
-          echo "POST ${URL} (max 180s)"
+          echo "POST $URL (max 180s)"
           HTTP_CODE=$(curl -sS -o /tmp/paper_body -w "%{http_code}" --max-time 180 \
             -X POST \
             -H "X-Cron-Secret: ${CRON_SECRET}" \
             -H "Content-Type: application/json" \
             "${AUTH_ARGS[@]}" \
             "$URL" || true)
-          if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
-            echo "::warning::Paper cron-tick HTTP ${HTTP_CODE} — check CRON_SECRET + Basic Auth secrets"
-          elif [ "$HTTP_CODE" = "503" ]; then
-            echo "::warning::Paper cron-tick 503 — set CRON_SECRET on Render to match GitHub secret"
-          elif [ "$HTTP_CODE" != "200" ]; then
-            echo "::warning::Paper cron-tick failed (HTTP ${HTTP_CODE})"
-            head -c 300 /tmp/paper_body || true
-            echo
-          else
-            echo "OK (HTTP ${HTTP_CODE})"
-            head -c 400 /tmp/paper_body || true
-            echo
-          fi
-          exit 0
+          case "$HTTP_CODE" in
+            200) echo "OK (HTTP ${HTTP_CODE})"; head -c 400 /tmp/paper_body || true ;;
+            401|403) echo "::warning::Paper cron-tick HTTP ${HTTP_CODE} — check CRON_SECRET + Basic Auth" ;;
+            503) echo "::warning::Paper cron-tick 503 — CRON_SECRET on Render may not match" ;;
+            *)   echo "::warning::Paper cron-tick HTTP ${HTTP_CODE}"; head -c 300 /tmp/paper_body || true ;;
+          esac
