@@ -178,7 +178,7 @@ def test_score_symbol_trending(monkeypatch) -> None:
 
 
 def test_score_symbol_cot_weakens_crowded_long(monkeypatch) -> None:
-    from app.market_data.providers.cftc_cot import CotSnapshot, SCORE_TILT
+    from app.market_data.providers.cftc_cot import SCORE_TILT, CotSnapshot
 
     monkeypatch.setattr(
         "app.engines.runner_engine.cme_futures.fetch_yahoo_futures_quote",
