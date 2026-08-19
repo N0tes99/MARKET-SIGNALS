@@ -123,6 +123,10 @@ def encode_paper_open_notes(
             "score",
             "change_pct",
             "oi",
+            "cot_index",
+            "cot_spec_net",
+            "cot_effect",
+            "cot_report_date",
             "policy_id",
             "rank_tier",
             "source",
@@ -169,6 +173,8 @@ def parse_paper_notes(notes: str | None) -> dict[str, Any]:
             "change_pct",
             "oi",
             "oi_delta_pct",
+            "cot_index",
+            "cot_spec_net",
             "rank_tier",
         }:
             try:

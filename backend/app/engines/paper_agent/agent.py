@@ -51,9 +51,9 @@ AGENT_NAME = "Signal Engine Paper Agent"
 STARTING_CASH = 15_000.0
 # Match Layer 2/3 WATCH bar — do not spend a daily slot on IGNORE-band 50–54.9.
 MIN_CONFIDENCE = 55.0
-MAX_NEW_OPENS_PER_DAY = 3
+MAX_NEW_OPENS_PER_DAY = 5
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
-MAX_CME_FUTURES_OPENS_PER_DAY = 1
+MAX_CME_FUTURES_OPENS_PER_DAY = 3
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0

@@ -355,8 +355,8 @@ export function PaperAgentPanel() {
             Starting {money(data.starting_cash)} paper · each idea locks {money(data.optimistic.size_usd ?? 2500)}{" "}
             notional · max{" "}
             {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} concurrent ·{" "}
-            {Math.max(0, (data.daily_open_cap ?? 3) - (data.opens_today ?? 0))} of{" "}
-            {data.daily_open_cap ?? 3} daily opens left · ATR TP/SL from RiskEngine · max hold 3d
+            {Math.max(0, (data.daily_open_cap ?? 5) - (data.opens_today ?? 0))} of{" "}
+            {data.daily_open_cap ?? 5} daily opens left · ATR TP/SL from RiskEngine · max hold 3d
             · WATCH 55 + grade B + F&G + R:R · no US cash Sat/Sun ET
             {" · last tick "}
             <span className={lastTickMeta(data.last_tick_at).stale ? "text-muted-foreground/70" : ""}>

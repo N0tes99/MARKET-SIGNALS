@@ -13,6 +13,7 @@ from typing import Any
 POLICY_SCHEMA = "paper_policy.v1"
 PREFERRED_L2_SETUPS = frozenset({"funding_extreme", "liq_flush"})
 SKIP_MOMENTUM_VS_CROWDED_FUNDING = True
+SKIP_CME_VS_CROWDED_COT = True
 # Honest labels: ±0.05% is noise, not a win.
 MIN_WIN_RETURN_PCT = 0.5
 MIN_LOSS_RETURN_PCT = -0.5
@@ -132,6 +133,7 @@ def snapshot_live_knobs(
         "v2_universe_n": len(v2.V2_UNIVERSE),
         "preferred_l2_setups": sorted(PREFERRED_L2_SETUPS),
         "skip_momentum_vs_crowded_funding": SKIP_MOMENTUM_VS_CROWDED_FUNDING,
+        "skip_cme_vs_crowded_cot": SKIP_CME_VS_CROWDED_COT,
         "min_win_return_pct": MIN_WIN_RETURN_PCT,
         "min_loss_return_pct": MIN_LOSS_RETURN_PCT,
     }

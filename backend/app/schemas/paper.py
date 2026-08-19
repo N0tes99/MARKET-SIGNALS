@@ -83,4 +83,4 @@ class PaperSummarySchema(BaseModel):
     tick_notes: list[str] = Field(default_factory=list)
     maturity: PaperMaturitySchema | None = None
     opens_today: int = 0
-    daily_open_cap: int = 3
+    daily_open_cap: int = 5

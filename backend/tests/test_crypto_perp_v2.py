@@ -315,7 +315,7 @@ def test_agent_one_symbol_skips_other_source_same_tick(monkeypatch) -> None:
     assert btc[0].source == "crypto_setup"
     assert btc[0].direction == "short"
     assert btc[0].policy.get("policy_id")
-    assert btc[0].policy["knobs"]["max_new_opens_per_day"] == 3
+    assert btc[0].policy["knobs"]["max_new_opens_per_day"] == 5
     assert "policy_id=" in btc[0].notes
     assert len(eth) == 1
     assert eth[0].source == "crypto_setup"

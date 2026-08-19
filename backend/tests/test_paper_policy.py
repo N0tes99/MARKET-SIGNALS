@@ -57,9 +57,11 @@ def test_policy_snapshot_roundtrip_in_notes() -> None:
     )
     assert policy["schema"] == "paper_policy.v1"
     assert policy["policy_id"]
-    assert policy["knobs"]["max_new_opens_per_day"] == 3
+    assert policy["knobs"]["max_new_opens_per_day"] == 5
     assert policy["knobs"]["learn_min_closed_to_apply"] == 30
     assert policy["knobs"]["skip_momentum_vs_crowded_funding"] is True
+    assert policy["knobs"]["skip_cme_vs_crowded_cot"] is True
+    assert policy["knobs"]["max_cme_futures_opens_per_day"] == 3
     assert policy["features"]["funding_bps"] == 9.0
     same = snapshot_paper_execution(
         size_usd=2500.0,

@@ -496,6 +496,10 @@ export interface CmeFuturesRow {
   factors: string[];
   conflicts: string[];
   as_of: string;
+  cot_index?: number | null;
+  cot_as_of?: string | null;
+  cot_spec_net?: number | null;
+  cot_effect?: "strengthen" | "weaken" | "neutral" | null;
 }
 
 export interface CmeFuturesBoard {

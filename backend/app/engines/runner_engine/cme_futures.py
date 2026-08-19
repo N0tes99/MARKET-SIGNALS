@@ -16,6 +16,7 @@ from app.engines.runner_engine.scoring.yahoo_futures_quote import (
     YahooFuturesQuote,
     fetch_yahoo_futures_quote,
 )
+from app.market_data.providers.cftc_cot import CotEffect, fetch_cot_snapshot, overlay_for_direction
 from app.market_data.service import MarketDataService
 from app.market_data.symbols import FUTURES_BY_SYMBOL, FUTURES_CONTRACTS, FuturesSpec
 from app.schemas.cme_futures import (
@@ -76,6 +77,10 @@ class CmeFuturesRow:
     factors: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
     as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
+    cot_index: float | None = None
+    cot_as_of: date | None = None
+    cot_spec_net: float | None = None
+    cot_effect: CotEffect | None = None
 
 
 def _pct_change(start: float, end: float) -> float | None:
@@ -282,6 +287,35 @@ def score_symbol(
         conflicts.append("Relative volume unavailable")
 
     rule -= min(len(conflicts), 3) * 2.0
+
+    tape_dir: str | None = None
+    tape = mom_12h if mom_12h is not None else change_pct
+    if tape is not None and tape > 0:
+        tape_dir = "long"
+    elif tape is not None and tape < 0:
+        tape_dir = "short"
+
+    cot = fetch_cot_snapshot(normalized)
+    cot_index = None
+    cot_as_of = None
+    cot_spec_net = None
+    cot_effect: CotEffect | None = None
+    if cot is not None:
+        cot_index = cot.cot_index
+        cot_as_of = cot.report_date
+        cot_spec_net = cot.spec_net
+        if oi is None and cot.open_interest is not None:
+            oi = cot.open_interest
+            factors.append(f"Weekly COT OI as-of {cot.report_date.isoformat()}")
+            rule += 2.0
+        overlay = overlay_for_direction(tape_dir, cot)
+        cot_effect = overlay.effect
+        if overlay.factor:
+            factors.append(overlay.factor)
+        if overlay.conflict:
+            conflicts.insert(0, overlay.conflict)
+        rule += overlay.delta
+
     score = clamp_score(rule)
     bucket = classify_bucket(score=score, mom_12h=mom_12h, mom_20d=mom_20d)
 
@@ -300,9 +334,13 @@ def score_symbol(
         mom_12h_pct=mom_12h,
         mom_20d_pct=mom_20d,
         relative_volume=round(rel_vol, 3) if rel_vol is not None else None,
-        factors=factors[:7],
-        conflicts=conflicts[:3],
+        factors=factors[:8],
+        conflicts=conflicts[:4],
         as_of=now,
+        cot_index=cot_index,
+        cot_as_of=cot_as_of,
+        cot_spec_net=cot_spec_net,
+        cot_effect=cot_effect,
     )
 
 

@@ -113,4 +113,4 @@ class PaperAgentSummary:
     tick_notes: list[str] = field(default_factory=list)
     maturity: PaperMaturitySnapshot | None = None
     opens_today: int = 0
-    daily_open_cap: int = 3
+    daily_open_cap: int = 5
