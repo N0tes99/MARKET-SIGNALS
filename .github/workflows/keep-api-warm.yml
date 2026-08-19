@@ -39,13 +39,18 @@ jobs:
             fi
           }
 
-          HEALTH=$(normalize_path \
-            "${API_HEALTH_URL:-https://signals27.netlify.app/api/backend/api/v1/health}" \
-            "/api/v1/health")
+          if [ -z "${API_HEALTH_URL:-}" ]; then
+            echo "::error::API_HEALTH_URL repo variable is not set. Go to Settings → Secrets and variables → Actions → Variables and add API_HEALTH_URL=https://<your-render-host>/api/v1/health"
+            exit 1
+          fi
+          HEALTH=$(normalize_path "${API_HEALTH_URL}" "/api/v1/health")
 
-          ASSETS=$(normalize_path \
-            "${API_ASSETS_URL:-https://signals27.netlify.app/api/backend/api/v1/assets}" \
-            "/api/v1/assets")
+          if [ -z "${API_ASSETS_URL:-}" ]; then
+            echo "::warning::API_ASSETS_URL not set — assets warm-up skipped"
+            ASSETS=""
+          else
+            ASSETS=$(normalize_path "${API_ASSETS_URL}" "/api/v1/assets")
+          fi
           case "$ASSETS" in *\?*) ASSETS="${ASSETS}&sync=true" ;; *) ASSETS="${ASSETS}?sync=true" ;; esac
 
           if [ -n "${API_FUTURES_BOARD_URL:-}" ]; then
@@ -90,6 +95,10 @@ jobs:
         continue-on-error: true
         run: |
           URL="${{ steps.urls.outputs.assets }}"
+          if [ -z "$URL" ]; then
+            echo "::warning::API_ASSETS_URL not set — skipping assets warm-up"
+            exit 0
+          fi
           AUTH_ARGS=()
           [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
             AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")

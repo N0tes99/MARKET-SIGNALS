@@ -51,7 +51,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `APP_DEBUG` | `false` (forced off when `APP_ENV=production`, even if unset or `true`) |
 | `SECRET_KEY` | long random string (**required** — app refuses to start in production with the default `change-me-in-production`; signs social JWT cookies) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
-| `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://signals27.netlify.app` (falls back to first `CORS_ORIGINS`) |
+| `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://your-site.netlify.app` (falls back to first `CORS_ORIGINS`) |
 | `DATABASE_URL` | from Render Postgres |
 | `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
@@ -65,7 +65,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
 | `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access` (default `Admin`) |
-| `CORS_ORIGINS` | your Netlify URL, e.g. `https://signals27.netlify.app` |
+| `CORS_ORIGINS` | your Netlify URL, e.g. `https://your-site.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 | `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run via Bybit→OKX without it |
 | `ALPACA_API_KEY` | optional — Alpaca read-only mirror of positions/fills (no order execution) + free IEX activity |
@@ -175,8 +175,8 @@ Defaults use the Netlify proxy when variables are unset. Prefer **direct Render 
 
 | Repo variable | Exact value |
 |---------------|-------------|
-| `API_HEALTH_URL` | `https://market-signals-51f0.onrender.com/api/v1/health` |
-| `API_ASSETS_URL` | `https://market-signals-51f0.onrender.com/api/v1/assets` |
+| `API_HEALTH_URL` | `https://<your-render-service>.onrender.com/api/v1/health` |
+| `API_ASSETS_URL` | `https://<your-render-service>.onrender.com/api/v1/assets` |
 | `API_PAPER_CRON_URL` | optional; defaults from health host → `/api/v1/paper/cron-tick` |
 
 `/assets` and `/paper/cron-tick` bypass the MFA product gate (so keep-warm works without a browser session) but stay **Basic-Auth** protected on Render. Add Actions **secrets** (not variables):
