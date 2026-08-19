@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -24,6 +25,12 @@ from app.engines.paper_agent.cme_momentum import scan_cme_paper_ideas
 from app.engines.paper_agent.confirm import confirm_open
 from app.engines.paper_agent.crypto_perp_v2 import scan_crypto_perp_v2
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
+from app.engines.paper_agent.paper_policy import (
+    attach_close_to_policy,
+    momentum_fights_crowded_funding,
+    snapshot_paper_execution,
+    sort_paper_candidates,
+)
 from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
@@ -44,9 +51,9 @@ AGENT_NAME = "Signal Engine Paper Agent"
 STARTING_CASH = 15_000.0
 # Match Layer 2/3 WATCH bar — do not spend a daily slot on IGNORE-band 50–54.9.
 MIN_CONFIDENCE = 55.0
-MAX_NEW_OPENS_PER_DAY = 3
+MAX_NEW_OPENS_PER_DAY = 5
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
-MAX_CME_FUTURES_OPENS_PER_DAY = 1
+MAX_CME_FUTURES_OPENS_PER_DAY = 3
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0
@@ -229,6 +236,7 @@ class PaperAgent:
                         "factors": list(idea.factors[:5]),
                         "score": float(idea.confidence),
                         "extra_note": "perp v2 momentum",
+                        "extras": dict(getattr(idea, "extras", None) or {}),
                     }
                 )
 
@@ -346,7 +354,7 @@ class PaperAgent:
                     }
                 )
 
-            candidates.sort(key=lambda c: c["score"], reverse=True)
+            candidates = sort_paper_candidates(candidates)
             opens_today = self._opens_on_utc_day(now)
             daily_left = max(0, MAX_NEW_OPENS_PER_DAY - opens_today)
             v2_opens_today = self._opens_on_utc_day(now, source="crypto_perp_v2")
@@ -372,6 +380,28 @@ class PaperAgent:
                 if _slots_left() <= 0:
                     hit_cap = True
                     break
+                if cand["source"] == "crypto_perp_v2":
+                    extras = cand.get("extras") or {}
+                    funding = extras.get("funding_bps")
+                    try:
+                        from app.engines.runner_engine.crypto_learn import (
+                            get_crypto_learn_coefficients,
+                        )
+
+                        extreme = get_crypto_learn_coefficients().funding_extreme_bps
+                    except Exception:
+                        extreme = 8.0
+                    if momentum_fights_crowded_funding(
+                        cand["direction"], funding, float(extreme)
+                    ):
+                        notes.append(f"skip:crowded_funding:{cand['symbol']}")
+                        logger.info(
+                            "paper_skip crowded_funding %s %s funding=%s",
+                            cand["symbol"],
+                            cand["direction"],
+                            funding,
+                        )
+                        continue
                 if cand["source"] == "crypto_perp_v2" and v2_left <= 0:
                     notes.append(f"skip:crypto_perp_v2_cap:{cand['symbol']}")
                     continue
@@ -503,6 +533,25 @@ class PaperAgent:
             logger.warning("Paper skip %s — invalid size_usd=%s", symbol, size)
             return None
 
+        policy = snapshot_paper_execution(
+            size_usd=size,
+            starting_cash=float(self._starting_cash),
+            take_profit_pct=take_profit_pct,
+            stop_loss_pct=stop_loss_pct,
+            source=source,
+            setup_type=setup_type,
+            direction=direction,
+            confidence=confidence,
+            opportunity_score=opportunity_score,
+            factors=factors,
+            extras=memory_extras,
+        )
+        merged_extras = dict(memory_extras or {})
+        merged_extras["policy"] = policy
+        merged_extras["policy_id"] = policy["policy_id"]
+        merged_extras["rank_tier"] = policy["features"]["rank_tier"]
+        merged_extras["source"] = source
+
         trade = PaperTrade(
             id=str(uuid4()),
             symbol=symbol.upper(),
@@ -521,10 +570,12 @@ class PaperAgent:
             factors=factors,
             take_profit_pct=take_profit_pct,
             stop_loss_pct=stop_loss_pct,
+            policy=policy,
             notes=(
                 f"Notional ${size:,.0f}. Optimistic fill @ {opt_entry:.6g} "
                 f"(signal last {px:.6g} + slip). Honest fill awaits next 15m bar open. "
                 f"Exits ATR SL {stop_loss_pct:.1f}% / TP {take_profit_pct:.1f}%. "
+                f"policy_id={policy['policy_id']}. "
                 f"{confirm_note}".strip()
             ),
         )
@@ -542,7 +593,17 @@ class PaperAgent:
             trade.notes += f" Honest fill @ {trade.honest_entry:.6g} bar {bar_ts.isoformat()}."
 
         self._store.upsert(trade)
-        self._remember_open(trade, extras=memory_extras)
+        self._remember_open(trade, extras=merged_extras)
+        set_meta = getattr(self._store, "set_meta", None)
+        if callable(set_meta):
+            set_meta(
+                "policy:current",
+                json.dumps(
+                    {"policy_id": policy["policy_id"], "knobs": policy["knobs"]},
+                    default=str,
+                    sort_keys=True,
+                ),
+            )
         self._ping_discord("open", trade)
         logger.info(
             "Paper open %s %s %s conf=%.1f opt=%.6g honest=%s stamp=%s",
@@ -645,7 +706,13 @@ class PaperAgent:
             )
             if resolved is None and trade.signal_record_id is None:
                 # Close arrived without open memory (legacy) — create then resolve.
-                self._remember_open(trade)
+                extras = None
+                if trade.policy:
+                    extras = {
+                        "policy": trade.policy,
+                        "policy_id": trade.policy.get("policy_id"),
+                    }
+                self._remember_open(trade, extras=extras)
                 resolved = self._learning.resolve_paper_close(
                     paper_trade_id=trade.id,
                     outcome=outcome,
@@ -660,6 +727,14 @@ class PaperAgent:
                     outcome,
                     f"{ret:.3f}" if ret is not None else "-",
                 )
+                trade.policy = attach_close_to_policy(
+                    trade.policy,
+                    close_reason=trade.close_reason,
+                    honest_return_pct=trade.honest_return_pct,
+                    optimistic_return_pct=trade.optimistic_return_pct,
+                    outcome=outcome,
+                )
+                self._store.upsert(trade)
                 if trade.setup_type == "perp_momentum":
                     try:
                         from app.engines.runner_engine.crypto_learn import (
@@ -782,6 +857,14 @@ class PaperAgent:
                 trade.close_reason or "done",
                 f"{trade.optimistic_pnl_usd:.2f}" if trade.optimistic_pnl_usd is not None else "-",
                 f"{trade.honest_pnl_usd:.2f}" if trade.honest_pnl_usd is not None else "-",
+            )
+            outcome, _ret = map_honest_close_outcome(trade)
+            trade.policy = attach_close_to_policy(
+                trade.policy,
+                close_reason=trade.close_reason,
+                honest_return_pct=trade.honest_return_pct,
+                optimistic_return_pct=trade.optimistic_return_pct,
+                outcome=outcome,
             )
             self._remember_close(trade)
             self._ping_discord("close", trade)

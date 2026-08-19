@@ -345,7 +345,7 @@ def test_discover_skipped_between_interval(monkeypatch) -> None:
 
 
 def test_daily_open_cap_picks_best(monkeypatch) -> None:
-    """Up to 3 opens/day — ranks by score and stops at the daily budget."""
+    """Up to 5 opens/day — ranks by score and stops at the daily budget."""
     store = PaperTradeStore()
     signal_at = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
 
@@ -383,6 +383,20 @@ def test_daily_open_cap_picks_best(monkeypatch) -> None:
             setup_type="funding_extreme",
             direction_bias="long",
             confidence=60.0,
+            factors=["also2"],
+        ),
+        SimpleNamespace(
+            symbol="FFF",
+            setup_type="funding_extreme",
+            direction_bias="short",
+            confidence=58.0,
+            factors=["also3"],
+        ),
+        SimpleNamespace(
+            symbol="GGG",
+            setup_type="funding_extreme",
+            direction_bias="long",
+            confidence=56.0,
             factors=["cut"],
         ),
     ]
@@ -429,19 +443,21 @@ def test_daily_open_cap_picks_best(monkeypatch) -> None:
     monkeypatch.setattr("app.engines.paper_agent.agent.datetime", _DT)
     notes = agent.tick()
     opens = [n for n in notes if n.startswith("open:")]
-    assert len(opens) == 3
+    assert len(opens) == 5
     assert any("BBB" in n for n in opens)
     assert any("CCC" in n for n in opens)
     assert any("DDD" in n for n in opens)
+    assert any("EEE" in n for n in opens)
+    assert any("FFF" in n for n in opens)
     assert not any("AAA" in n for n in opens)
-    assert not any("EEE" in n for n in opens)
-    assert "skip:daily_cap:3" in notes
+    assert not any("GGG" in n for n in opens)
+    assert "skip:daily_cap:5" in notes
 
     # Same UTC day — no more opens even if discover forced
     agent._last_discover_at = None
     notes2 = agent.tick()
     assert not any(n.startswith("open:") for n in notes2)
-    assert "skip:daily_cap:3" in notes2
+    assert "skip:daily_cap:5" in notes2
 
 
 def test_paper_feeds_learning_memory_and_maturity(monkeypatch) -> None:

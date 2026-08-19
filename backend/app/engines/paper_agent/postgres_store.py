@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from threading import Lock
 from uuid import UUID
 
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
@@ -56,6 +56,7 @@ def _row_to_trade(row: PaperTradeModel) -> PaperTrade:
         take_profit_pct=float(getattr(row, "take_profit_pct", 6.0) or 6.0),
         stop_loss_pct=float(getattr(row, "stop_loss_pct", 3.0) or 3.0),
         stamp=str(getattr(row, "stamp", "") or ""),
+        policy=dict(getattr(row, "policy", None) or {}),
     )
 
 
@@ -92,6 +93,7 @@ def _trade_values(trade: PaperTrade) -> dict:
         "stop_loss_pct": trade.stop_loss_pct,
         "stamp": trade.stamp,
         "signal_record_id": _to_uuid(trade.signal_record_id) if trade.signal_record_id else None,
+        "policy": dict(getattr(trade, "policy", None) or {}),
         "updated_at": datetime.now(UTC),
     }
 
@@ -111,6 +113,17 @@ class PostgresPaperTradeStore:
         )
         self._session_factory = sessionmaker(self._engine, expire_on_commit=False)
         self._lock = Lock()
+        self._ensure_policy_column()
+
+    def _ensure_policy_column(self) -> None:
+        """Add JSONB policy on existing paper_trades tables (no Alembic yet)."""
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE paper_trades ADD COLUMN IF NOT EXISTS policy JSONB")
+                )
+        except Exception:
+            logger.debug("paper trades policy column ensure skipped", exc_info=True)
 
     def ping(self) -> bool:
         try:

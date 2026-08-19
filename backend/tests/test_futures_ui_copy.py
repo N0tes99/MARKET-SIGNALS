@@ -14,6 +14,8 @@ def test_futures_page_is_cme_yahoo() -> None:
     assert 'title="Futures"' in text
     assert "Yahoo Finance continuous front-month" in text
     assert "not a live CME pit" in text
+    assert "CFTC COT" in text
+    assert "formatCot" in text
     assert "ES=F" in text
     assert "learning from paper" in text
     assert "cme_futures" in text

@@ -364,6 +364,13 @@ export interface PaperTrade {
   take_profit_pct?: number;
   stop_loss_pct?: number;
   stamp?: string;
+  policy?: {
+    schema?: string;
+    policy_id?: string;
+    knobs?: Record<string, unknown>;
+    features?: Record<string, unknown>;
+    close?: Record<string, unknown>;
+  };
 }
 
 export interface PaperMaturity {
@@ -489,6 +496,10 @@ export interface CmeFuturesRow {
   factors: string[];
   conflicts: string[];
   as_of: string;
+  cot_index?: number | null;
+  cot_as_of?: string | null;
+  cot_spec_net?: number | null;
+  cot_effect?: "strengthen" | "weaken" | "neutral" | null;
 }
 
 export interface CmeFuturesBoard {

@@ -79,6 +79,10 @@ class _Market:
 @pytest.fixture(autouse=True)
 def _clear_cache(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("CME_FUTURES_DISK_CACHE_PATH", str(tmp_path / "cme_board.json"))
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.fetch_cot_snapshot",
+        lambda symbol: None,
+    )
     clear_cme_futures_cache()
     yield
     clear_cme_futures_cache()
@@ -170,6 +174,64 @@ def test_score_symbol_trending(monkeypatch) -> None:
     assert row.open_interest == pytest.approx(2_100_000.0)
     assert row.expiry == date(2026, 9, 18)
     assert row.mom_12h_pct is not None
+    assert row.cot_effect is None
+
+
+def test_score_symbol_cot_weakens_crowded_long(monkeypatch) -> None:
+    from app.market_data.providers.cftc_cot import CotSnapshot, SCORE_TILT
+
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.fetch_yahoo_futures_quote",
+        lambda symbol: _quote(),
+    )
+    plain = score_symbol(_Market(2.5, 8.0), "ES=F")  # type: ignore[arg-type]
+    snap = CotSnapshot(
+        symbol="ES=F",
+        market_code="13874A",
+        book="tff",
+        report_date=date(2026, 8, 11),
+        spec_long=500_000,
+        spec_short=100_000,
+        spec_net=400_000,
+        open_interest=2_119_506,
+        cot_index=92.0,
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.fetch_cot_snapshot",
+        lambda symbol: snap,
+    )
+    crowded = score_symbol(_Market(2.5, 8.0), "ES=F")  # type: ignore[arg-type]
+    assert crowded.cot_effect == "weaken"
+    assert crowded.cot_index == pytest.approx(92.0)
+    assert crowded.score == pytest.approx(plain.score - SCORE_TILT)
+    assert any("crowded long" in item for item in crowded.conflicts)
+
+
+def test_score_symbol_weekly_cot_oi_when_yahoo_missing(monkeypatch) -> None:
+    from app.market_data.providers.cftc_cot import CotSnapshot
+
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.fetch_yahoo_futures_quote",
+        lambda symbol: _quote(open_interest=None),
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.cme_futures.fetch_cot_snapshot",
+        lambda symbol: CotSnapshot(
+            symbol="ES=F",
+            market_code="13874A",
+            book="tff",
+            report_date=date(2026, 8, 11),
+            spec_long=205_744,
+            spec_short=486_190,
+            spec_net=-280_446,
+            open_interest=2_119_506,
+            cot_index=18.0,
+        ),
+    )
+    row = score_symbol(_Market(2.5, 8.0), "ES=F")  # type: ignore[arg-type]
+    assert row.open_interest == pytest.approx(2_119_506)
+    assert row.cot_effect == "strengthen"
+    assert any("Weekly COT OI" in item for item in row.factors)
 
 
 def test_score_symbol_null_oi_and_expiry_safe(monkeypatch) -> None:

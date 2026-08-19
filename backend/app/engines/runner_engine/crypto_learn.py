@@ -26,7 +26,7 @@ from app.models.weight_override import WeightOverrideModel
 logger = logging.getLogger(__name__)
 
 SETUP_TYPE = "perp_momentum"
-MIN_CLOSED_TO_APPLY = 10
+MIN_CLOSED_TO_APPLY = 30
 CONSERVATIVE_WIN_RATE = 40.0
 # Reuse weight_overrides JSON row — id=1 is 13-category weights.
 ROW_ID = 2
@@ -123,6 +123,14 @@ def encode_paper_open_notes(
             "score",
             "change_pct",
             "oi",
+            "cot_index",
+            "cot_spec_net",
+            "cot_effect",
+            "cot_report_date",
+            "policy_id",
+            "rank_tier",
+            "source",
+            "oi_delta_pct",
         ):
             value = extras.get(key)
             if value is None or value == "":
@@ -132,7 +140,15 @@ def encode_paper_open_notes(
             else:
                 parts.append(f"{key}={value}")
     parts.append(f"factors={','.join((factors or [])[:4])}")
-    return " ".join(parts)
+    line = " ".join(parts)
+    policy = extras.get("policy") if extras else None
+    if isinstance(policy, dict):
+        from app.engines.paper_agent.paper_policy import format_policy_note_suffix
+
+        suffix = format_policy_note_suffix(policy)
+        if suffix:
+            line = f"{line} | {suffix}"
+    return line
 
 
 def parse_paper_notes(notes: str | None) -> dict[str, Any]:
@@ -156,6 +172,10 @@ def parse_paper_notes(notes: str | None) -> dict[str, Any]:
             "score",
             "change_pct",
             "oi",
+            "oi_delta_pct",
+            "cot_index",
+            "cot_spec_net",
+            "rank_tier",
         }:
             try:
                 parsed[key] = float(raw)
@@ -248,7 +268,7 @@ def tune_coefficients(
 
 
 def maybe_retune_from_paper(learning: LearningEngine) -> CryptoLearnCoefficients | None:
-    """Retune from paper_honest perp_momentum rows. No-op when N < 10."""
+    """Retune from paper_honest perp_momentum rows. Frozen until N >= 30."""
     stats = learning.outcome_stats_by_setup(SETUP_TYPE)
     rows = [
         r

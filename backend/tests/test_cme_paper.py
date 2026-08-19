@@ -70,6 +70,9 @@ def _row(
     mom_12h: float | None = 2.5,
     change_pct: float | None = 0.8,
     oi: float | None = 1_200_000.0,
+    cot_index: float | None = None,
+    cot_spec_net: float | None = None,
+    cot_effect: str | None = None,
 ) -> CmeFuturesRow:
     return CmeFuturesRow(
         id=f"cme-futures:{symbol}",
@@ -83,6 +86,9 @@ def _row(
         open_interest=oi,
         mom_12h_pct=mom_12h,
         factors=["12h +2.5%"],
+        cot_index=cot_index,
+        cot_spec_net=cot_spec_net,
+        cot_effect=cot_effect,  # type: ignore[arg-type]
     )
 
 
@@ -128,6 +134,16 @@ def test_idea_from_row_uses_change_pct_when_mom_missing() -> None:
     idea = idea_from_row(_row(mom_12h=None, change_pct=-1.2, bucket="extended", score=58.0))
     assert idea is not None
     assert idea.direction == "short"
+
+
+def test_idea_from_row_skips_crowded_cot() -> None:
+    assert idea_from_row(_row(cot_index=90.0, mom_12h=2.5)) is None
+    assert idea_from_row(_row(cot_index=10.0, mom_12h=-2.5)) is None
+    idea = idea_from_row(_row(cot_index=10.0, mom_12h=2.5, cot_effect="strengthen", cot_spec_net=-200_000))
+    assert idea is not None
+    assert idea.extras["cot_index"] == pytest.approx(10.0)
+    assert idea.extras["cot_effect"] == "strengthen"
+    assert idea.extras["cot_spec_net"] == pytest.approx(-200_000)
 
 
 def test_scan_cme_paper_ideas_filters(monkeypatch) -> None:
@@ -178,23 +194,24 @@ def test_agent_opens_mocked_es(monkeypatch) -> None:
 def test_agent_cme_daily_cap(monkeypatch) -> None:
     store = PaperTradeStore()
     now = datetime.now(UTC)
-    store.upsert(
-        PaperTrade(
-            id="t0",
-            symbol="NQ=F",
-            source=SOURCE,
-            setup_type=SETUP_TYPE,
-            direction="long",
-            fingerprint=_fingerprint(SOURCE, "NQ=F", SETUP_TYPE, "long"),
-            signal_at=now,
-            confidence=70.0,
-            opportunity_score=70.0,
-            size_usd=2500.0,
-            status="open",
-            optimistic_entry=18000.0,
-            optimistic_entry_at=now,
+    for i, sym in enumerate(("NQ=F", "YM=F", "RTY=F")):
+        store.upsert(
+            PaperTrade(
+                id=f"t{i}",
+                symbol=sym,
+                source=SOURCE,
+                setup_type=SETUP_TYPE,
+                direction="long",
+                fingerprint=_fingerprint(SOURCE, sym, SETUP_TYPE, "long"),
+                signal_at=now,
+                confidence=70.0,
+                opportunity_score=70.0,
+                size_usd=2500.0,
+                status="open",
+                optimistic_entry=18000.0,
+                optimistic_entry_at=now,
+            )
         )
-    )
     monkeypatch.setattr(
         "app.engines.paper_agent.agent.scan_cme_paper_ideas",
         lambda market, min_confidence=55.0: [_idea("ES=F")],
@@ -211,7 +228,7 @@ def test_agent_cme_daily_cap(monkeypatch) -> None:
 def test_agent_cme_respects_global_daily_cap(monkeypatch) -> None:
     store = PaperTradeStore()
     now = datetime.now(UTC)
-    for i, sym in enumerate(("BTC", "ETH", "SOL")):
+    for i, sym in enumerate(("BTC", "ETH", "SOL", "AVAX", "LINK")):
         store.upsert(
             PaperTrade(
                 id=f"c{i}",
@@ -329,12 +346,18 @@ def test_cme_stats_do_not_retune_crypto_learn() -> None:
             "mom_12h_pct": 2.5,
             "change_pct": 0.8,
             "oi": 1_200_000.0,
+            "cot_index": 18.0,
+            "cot_spec_net": -280_446.0,
+            "cot_effect": "strengthen",
+            "cot_report_date": "2026-08-11",
         },
     )
     parsed = parse_paper_notes(notes)
     assert parsed["setup"] == SETUP_TYPE
     assert parsed["group"] == "index"
     assert parsed["oi"] == pytest.approx(1_200_000.0)
+    assert parsed["cot_index"] == pytest.approx(18.0)
+    assert parsed["cot_effect"] == "strengthen"
 
     engine = LearningEngine(store=InMemorySignalStore())
     for _ in range(12):

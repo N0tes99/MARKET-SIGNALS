@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.engines.learning_engine.types import SignalOutcome, SignalRecord
+from app.engines.paper_agent.paper_policy import MIN_LOSS_RETURN_PCT, MIN_WIN_RETURN_PCT
 from app.engines.paper_agent.types import PaperTrade
 
 # Soft gates for private micro live later — Phase 1 only reports readiness.
@@ -33,9 +34,9 @@ class PaperMaturity:
 
 
 def _outcome_from_return(ret: float) -> str:
-    if ret > 0.05:
+    if ret > MIN_WIN_RETURN_PCT:
         return SignalOutcome.WIN.value
-    if ret < -0.05:
+    if ret < MIN_LOSS_RETURN_PCT:
         return SignalOutcome.LOSS.value
     return SignalOutcome.BREAKEVEN.value
 
@@ -44,6 +45,11 @@ def map_honest_close_outcome(trade: PaperTrade) -> tuple[str, float | None]:
     """Map a finished paper trade to a learning outcome (honest ledger only)."""
     if trade.honest_return_pct is None:
         return SignalOutcome.NO_TRADE.value, None
+    reason = trade.close_reason or ""
+    if reason.startswith("take_profit"):
+        return SignalOutcome.WIN.value, trade.honest_return_pct
+    if reason.startswith("stop_loss"):
+        return SignalOutcome.LOSS.value, trade.honest_return_pct
     return _outcome_from_return(trade.honest_return_pct), trade.honest_return_pct
 
 
@@ -76,7 +82,11 @@ def compute_maturity(
         for t in trades
         if t.status == "closed" and t.honest_return_pct is not None
     ]
-    wins = sum(1 for t in honest_closed if (t.honest_return_pct or 0) > 0.05)
+    wins = sum(
+        1
+        for t in honest_closed
+        if map_honest_close_outcome(t)[0] == SignalOutcome.WIN.value
+    )
     traded = len(honest_closed)
     win_rate = round((wins / traded) * 100.0, 1) if traded else 0.0
     returns = [t.honest_return_pct or 0.0 for t in honest_closed]

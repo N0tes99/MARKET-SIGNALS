@@ -53,6 +53,7 @@ class PaperTradeSchema(BaseModel):
     take_profit_pct: float = 6.0
     stop_loss_pct: float = 3.0
     stamp: str = ""
+    policy: dict = Field(default_factory=dict)
 
 
 class PaperMaturitySchema(BaseModel):
@@ -82,4 +83,4 @@ class PaperSummarySchema(BaseModel):
     tick_notes: list[str] = Field(default_factory=list)
     maturity: PaperMaturitySchema | None = None
     opens_today: int = 0
-    daily_open_cap: int = 3
+    daily_open_cap: int = 5

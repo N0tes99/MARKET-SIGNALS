@@ -58,6 +58,7 @@ class PaperTradeModel(Base):
     take_profit_pct: Mapped[float] = mapped_column(Float, nullable=False, default=6.0)
     stop_loss_pct: Mapped[float] = mapped_column(Float, nullable=False, default=3.0)
     stamp: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    policy: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     signal_record_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )

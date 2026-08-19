@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.engines.paper_agent.paper_policy import SKIP_CME_VS_CROWDED_COT
 from app.engines.paper_agent.types import PaperDirection
 from app.engines.runner_engine.cme_futures import CmeFuturesRow, scan_cme_futures
+from app.market_data.providers.cftc_cot import cot_fights_direction
 from app.market_data.service import MarketDataService
 
 SETUP_TYPE = "cme_momentum"
@@ -54,6 +56,8 @@ def idea_from_row(
     direction = direction_from_row(row)
     if direction is None:
         return None
+    if SKIP_CME_VS_CROWDED_COT and cot_fights_direction(direction, row.cot_index):
+        return None
     extras: dict[str, Any] = {
         "group": row.group,
         "bucket": row.bucket,
@@ -61,6 +65,10 @@ def idea_from_row(
         "mom_12h_pct": row.mom_12h_pct,
         "change_pct": row.change_pct,
         "oi": row.open_interest,
+        "cot_index": row.cot_index,
+        "cot_spec_net": row.cot_spec_net,
+        "cot_report_date": row.cot_as_of.isoformat() if row.cot_as_of else None,
+        "cot_effect": row.cot_effect,
     }
     factors = [f"{row.group} {row.bucket}", *list(row.factors[:4])]
     return CmeMomentumIdea(

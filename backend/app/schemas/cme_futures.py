@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 CmeFuturesBucket = Literal["trending", "extended", "quiet"]
 CmeFuturesGroup = Literal["index", "energy", "metals", "rates", "fx", "grains", "crypto"]
+CmeCotEffect = Literal["strengthen", "weaken", "neutral"]
 
 
 class CmeFuturesUniverseItem(BaseModel):
@@ -37,6 +38,10 @@ class CmeFuturesRowSchema(BaseModel):
     factors: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     as_of: datetime
+    cot_index: float | None = None
+    cot_as_of: date | None = None
+    cot_spec_net: float | None = None
+    cot_effect: CmeCotEffect | None = None
 
 
 class CmeFuturesBoardSchema(BaseModel):

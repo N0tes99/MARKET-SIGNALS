@@ -49,6 +49,21 @@ function formatExpiry(value: string | null | undefined): string {
   return day || "—";
 }
 
+function cotTone(effect: CmeFuturesRow["cot_effect"]): string {
+  if (effect === "strengthen") return "text-emerald-300/80";
+  if (effect === "weaken") return "text-rose-300/75";
+  return "text-muted-foreground/70";
+}
+
+function formatCot(row: CmeFuturesRow): string {
+  if (row.cot_index == null) return "—";
+  const idx = Math.round(row.cot_index);
+  if (row.cot_effect && row.cot_effect !== "neutral") {
+    return `${idx} ${row.cot_effect}`;
+  }
+  return String(idx);
+}
+
 function pctTone(value: number | null | undefined): string {
   if (value == null || value === 0) return "text-muted-foreground/70";
   return value > 0 ? "text-emerald-300/80" : "text-rose-300/75";
@@ -88,6 +103,8 @@ function FuturesMobileCard({ row }: { row: CmeFuturesRow }) {
         vol {formatCompact(row.volume)}
         {" · "}
         oi {formatCompact(row.open_interest)}
+        {" · "}
+        cot {formatCot(row)}
       </p>
       <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
         12h {formatPct(row.mom_12h_pct, 1)} · score {row.score.toFixed(0)} · exp{" "}
@@ -133,8 +150,10 @@ export default function FuturesPage() {
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Yahoo Finance continuous front-month contracts (ES=F, NQ=F, CL=F, GC=F, …). Quotes are
-          delayed — this is not a live CME pit or Rithmic feed. Open interest is a published
-          level when Yahoo has it, not a live pit print. Not financial advice.
+          delayed — this is not a live CME pit or Rithmic feed. Open interest is Yahoo when it
+          publishes a print; otherwise weekly CFTC COT open interest, labeled as-of Tuesday and
+          3–6 days stale. COT index is leveraged/managed-money positioning, not live pit OI. Not
+          financial advice.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -216,7 +235,7 @@ export default function FuturesPage() {
               ))}
             </ul>
             <div className="mt-6 hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[720px] border-collapse text-left">
+              <table className="w-full min-w-[800px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-white/[0.06] font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
                     <th className="py-2 pr-3 font-normal">Group</th>
@@ -225,6 +244,7 @@ export default function FuturesPage() {
                     <th className="py-2 pr-3 font-normal">Change %</th>
                     <th className="py-2 pr-3 font-normal">Volume</th>
                     <th className="py-2 pr-3 font-normal">OI</th>
+                    <th className="py-2 pr-3 font-normal">COT</th>
                     <th className="py-2 pr-3 font-normal">Expiry</th>
                     <th className="py-2 pr-3 font-normal">12h</th>
                     <th className="py-2 pr-3 font-normal">Score</th>
@@ -252,6 +272,9 @@ export default function FuturesPage() {
                       </td>
                       <td className="py-2.5 pr-3">{formatCompact(row.volume)}</td>
                       <td className="py-2.5 pr-3">{formatCompact(row.open_interest)}</td>
+                      <td className={cn("py-2.5 pr-3", cotTone(row.cot_effect))}>
+                        {formatCot(row)}
+                      </td>
                       <td className="py-2.5 pr-3">{formatExpiry(row.expiry)}</td>
                       <td className={cn("py-2.5 pr-3", pctTone(row.mom_12h_pct))}>
                         {formatPct(row.mom_12h_pct, 1)}
