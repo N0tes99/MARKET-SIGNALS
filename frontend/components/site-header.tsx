@@ -49,13 +49,13 @@ function MainNav() {
     <nav className="app-nav-scroll flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-1.5 md:min-w-0 md:flex-1 md:flex-nowrap md:overflow-x-auto">
       {user ? <NavLink href="/" label="Desk" /> : null}
       <NavLink href="/social" label="Social" />
-      <NavLink href="/chart" label="Chart" />
       {user ? (
         <>
           <NavLink href="/tape" label="Tape" />
           <NavLink href="/perps" label="Perps" />
           <NavLink href="/futures" label="Futures" />
           <NavLink href="/radar" label="Radar" />
+          <NavLink href="/chart" label="Chart" />
           <NavLink href="/request-ticker" label="Request" />
           <NavLink href="/favorites" label="Favorites" />
         </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
 import { ChartAnalyzerPanel } from "@/components/chart-analyzer-panel";
@@ -9,10 +9,17 @@ import { SiteHeader } from "@/components/site-header";
 import { fetchHealth } from "@/services/api";
 
 export default function ChartAnalyzerPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const [apiUp, setApiUp] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (loading) return;
+    if (!user) router.replace("/login?next=/chart");
+  }, [loading, user, router]);
+
+  useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     void fetchHealth(3_000)
       .then(() => {
@@ -24,7 +31,18 @@ export default function ChartAnalyzerPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
+
+  if (loading || !user) {
+    return (
+      <main className="min-h-screen">
+        <SiteHeader compact title="Chart analyst" />
+        <p className="p-8 font-mono text-[11px] uppercase tracking-widest text-muted-foreground/50">
+          Sign in to open Chart
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen">
@@ -45,15 +63,6 @@ export default function ChartAnalyzerPage() {
               Start uvicorn on 127.0.0.1:8000 in the backend folder, then refresh.
             </p>
           </div>
-        ) : null}
-        {apiUp === true && !user ? (
-          <p className="mt-5 text-sm text-muted-foreground">
-            Local scans do not need an account.{" "}
-            <Link href="/login?next=/chart" className="text-foreground/90 underline-offset-4 hover:underline">
-              Sign in
-            </Link>{" "}
-            to keep a session.
-          </p>
         ) : null}
         <div className="mt-8">
           <ChartAnalyzerPanel />
