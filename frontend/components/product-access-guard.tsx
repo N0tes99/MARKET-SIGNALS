@@ -74,7 +74,9 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
   if (loading || !ready) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+          <p className="font-mono text-[11px] text-muted-foreground/50">
+            Connecting to API…
+          </p>
       </div>
     );
   }

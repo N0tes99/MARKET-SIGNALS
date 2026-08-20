@@ -20,7 +20,9 @@ export default function ChartAnalyzerPage() {
     return (
       <main className="min-h-screen">
         <SiteHeader compact />
-        <p className="p-8 font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+        <p className="p-8 font-mono text-[11px] text-muted-foreground/50">
+          Waiting for API on localhost:8000…
+        </p>
       </main>
     );
   }

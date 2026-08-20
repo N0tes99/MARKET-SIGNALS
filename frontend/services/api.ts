@@ -1488,14 +1488,29 @@ export async function revokeMyApiKey(keyId: string): Promise<ApiKeyRecord> {
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
-  const response = await fetch(apiUrl("/api/v1/auth/me"), {
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (response.status === 401) return null;
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
+  const timeoutMs = 8_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl("/api/v1/auth/me"), {
+      credentials: FETCH_CREDENTIALS,
+      signal: controller.signal,
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) {
+      throw new Error(await readErrorDetail(response));
+    }
+    return response.json() as Promise<AuthUser>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        "API not reachable at localhost:8000. Start uvicorn in backend/, then refresh.",
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  return response.json() as Promise<AuthUser>;
 }
 
 export async function registerAccount(
