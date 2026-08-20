@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient
 from PIL import Image
 
-from app.core.auth_deps import get_current_user
+from app.core.auth_deps import get_chart_user
 from app.engines.ai_engine.chart_analyzer import (
     DISCLAIMER,
     assemble_chart_analysis,
@@ -230,7 +230,12 @@ def test_attach_decision_adds_grounding() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chart_analysis_requires_login(client: AsyncClient) -> None:
+async def test_chart_analysis_requires_login_in_production(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core import auth_deps
+
+    monkeypatch.setattr(auth_deps.settings, "app_env", "production")
     response = await client.post(
         "/api/v1/chart-analysis",
         files={"file": ("chart.png", _png(64, 64), "image/png")},
@@ -239,8 +244,16 @@ async def test_chart_analysis_requires_login(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_chart_analysis_allows_anonymous_locally(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/chart-analysis/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert "source" in body
+
+
+@pytest.mark.asyncio
 async def test_chart_analysis_rejects_tiny_image(client: AsyncClient) -> None:
-    app.dependency_overrides[get_current_user] = _user
+    app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.post(
             "/api/v1/chart-analysis",
@@ -249,7 +262,7 @@ async def test_chart_analysis_rejects_tiny_image(client: AsyncClient) -> None:
         assert response.status_code == 400
         assert "too small" in response.json()["detail"].lower()
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_chart_user, None)
 
 
 @pytest.mark.asyncio
@@ -290,7 +303,7 @@ async def test_chart_analysis_mocked_success(client: AsyncClient) -> None:
                 decision=decision,
             )
 
-    app.dependency_overrides[get_current_user] = _user
+    app.dependency_overrides[get_chart_user] = _user
     app.dependency_overrides[get_chart_analyzer] = _Fake
     try:
         response = await client.post(
@@ -305,7 +318,7 @@ async def test_chart_analysis_mocked_success(client: AsyncClient) -> None:
         assert body["engine_grounding"]["symbol"] == "BTC"
         assert "decision support" in body["disclaimer"].lower()
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_chart_user, None)
         app.dependency_overrides.pop(get_chart_analyzer, None)
 
 
@@ -319,7 +332,7 @@ async def test_chart_analysis_local_fallback_with_symbol(
     monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "")
-    app.dependency_overrides[get_current_user] = _user
+    app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.post(
             "/api/v1/chart-analysis",
@@ -332,17 +345,17 @@ async def test_chart_analysis_local_fallback_with_symbol(
         assert body["engine_grounding"]["symbol"] == "BTC"
         assert body["positions"]
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_chart_user, None)
 
 
 @pytest.mark.asyncio
 async def test_chart_analysis_requires_file_or_symbol(client: AsyncClient) -> None:
-    app.dependency_overrides[get_current_user] = _user
+    app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.post("/api/v1/chart-analysis")
         assert response.status_code == 400
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_chart_user, None)
 
 
 @pytest.mark.asyncio
@@ -356,7 +369,7 @@ async def test_chart_analysis_status_reports_local_llm(
     monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "http://127.0.0.1:1234/v1")
     monkeypatch.setattr(ai_mod.settings, "local_llm_model", "qwen2.5-vl-7b-instruct")
-    app.dependency_overrides[get_current_user] = _user
+    app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.get("/api/v1/chart-analysis/status")
         assert response.status_code == 200
@@ -364,7 +377,7 @@ async def test_chart_analysis_status_reports_local_llm(
         assert body["vision"] is True
         assert body["source"] == "local_llm"
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_chart_user, None)
 
 
 def test_openai_compat_base_url_appends_v1() -> None:

@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from app.api.tracked import is_tracked
-from app.core.auth_deps import get_current_user
+from app.core.auth_deps import get_chart_user
 from app.core.rate_limit import limit_chart_analysis
 from app.core.service_dependencies import get_chart_analyzer, get_decision_pipeline
 from app.engines.ai_engine.chart_analyzer import (
@@ -47,7 +47,7 @@ _STATUS_HINTS = {
 
 @router.get("/status", response_model=ChartAnalysisStatusSchema)
 async def chart_analysis_status(
-    _user: User = Depends(get_current_user),
+    _user: User | None = Depends(get_chart_user),
 ) -> ChartAnalysisStatusSchema:
     """Report whether screenshot vision is configured."""
     backend = get_llm_backend()
@@ -65,7 +65,7 @@ async def analyze_chart_screenshot(
     file: UploadFile | None = File(None, description="Chart or trade screenshot"),
     note: str = Form("", max_length=500),
     symbol_hint: str = Form("", max_length=16),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_chart_user),
     analyzer: ChartAnalyzer = Depends(get_chart_analyzer),
     pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
 ) -> ChartAnalysisSchema:
@@ -76,7 +76,7 @@ async def analyze_chart_screenshot(
     pass a tracked symbol and the decision pipeline still navigates
     WAIT / WATCH / EXECUTE.
     """
-    limit_chart_analysis(request, str(user.id))
+    limit_chart_analysis(request, str(user.id) if user is not None else "anon")
 
     hint = normalize_symbol_hint(symbol_hint)
     has_upload = bool(file is not None and file.filename)

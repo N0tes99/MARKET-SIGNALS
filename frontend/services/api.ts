@@ -248,8 +248,8 @@ async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): 
   }
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>("/api/v1/health");
+export async function fetchHealth(timeoutMs = 3_000): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/api/v1/health", timeoutMs);
 }
 
 export async function fetchAssets(): Promise<AssetsDashboard> {
@@ -975,6 +975,9 @@ export async function analyzeChartScreenshot(
     if (!response.ok) {
       const payload = await readErrorJson(response);
       maybeRedirectGate(payload?.code);
+      if (response.status === 401) {
+        throw new Error("Not signed in. On this machine you can still scan locally — retry after uvicorn is up.");
+      }
       const detail = typeof payload?.detail === "string" ? payload.detail : null;
       throw new Error(detail ?? `API error: ${response.status} ${response.statusText}`);
     }
@@ -1495,7 +1498,10 @@ export async function fetchMe(): Promise<AuthUser | null> {
     }
     return response.json() as Promise<AuthUser>;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    const aborted =
+      (error instanceof DOMException && error.name === "AbortError") ||
+      (error instanceof Error && error.name === "AbortError");
+    if (aborted) {
       throw new Error(
         "API not reachable at 127.0.0.1:8000. Start uvicorn in backend/, then refresh.",
       );

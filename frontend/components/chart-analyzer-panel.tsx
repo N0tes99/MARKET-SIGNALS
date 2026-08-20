@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
-import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import {
   analyzeChartScreenshot,
@@ -45,7 +44,6 @@ function sourceLabel(source: string): string {
 }
 
 export function ChartAnalyzerPanel() {
-  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -68,11 +66,10 @@ export function ChartAnalyzerPanel() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     void fetchChartAnalysisStatus()
       .then(setStatus)
       .catch(() => undefined);
-  }, [user]);
+  }, []);
 
   async function runScan(nextFile: File | null) {
     if (!nextFile && !symbolHint.trim()) return;
@@ -198,7 +195,7 @@ export function ChartAnalyzerPanel() {
 
         <button
           type="button"
-          disabled={(!file && !symbolHint.trim()) || busy || !user}
+          disabled={(!file && !symbolHint.trim()) || busy}
           onClick={() => void runScan(file)}
           className="mt-5 w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
         >
