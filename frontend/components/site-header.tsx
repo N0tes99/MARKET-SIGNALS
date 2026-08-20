@@ -67,6 +67,7 @@ function MainNav() {
       {user?.is_admin ? (
         <>
           <NavLink href="/admin/access" label="Access" />
+          <NavLink href="/admin/api-access" label="API" />
           <NavLink href="/admin/wallets" label="Wallets" />
           <NavLink href="/admin/requests" label="Requests" />
         </>
