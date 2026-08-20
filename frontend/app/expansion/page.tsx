@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+
+import { SiteHeader } from "@/components/site-header";
+import { cn } from "@/lib/utils";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -14,6 +15,19 @@ type ExpansionRow = {
   trigger: { active: boolean; volume_ratio?: number | null };
   net_score: number;
 };
+
+function stateClass(state: string): string {
+  switch (state?.toLowerCase()) {
+    case "primed":
+      return "text-amber-400";
+    case "triggering":
+      return "text-orange-400";
+    case "expanding":
+      return "text-bullish";
+    default:
+      return "text-muted-foreground";
+  }
+}
 
 export default function ExpansionPage() {
   const [rows, setRows] = useState<ExpansionRow[]>([]);
@@ -27,58 +41,49 @@ export default function ExpansionPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const stateColor = (s: string) => {
-    switch (s?.toLowerCase()) {
-      case "primed":
-        return "bg-amber-500/20 text-amber-400";
-      case "triggering":
-        return "bg-orange-500/20 text-orange-400";
-      case "expanding":
-        return "bg-green-500/20 text-green-400";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Expansion Radar</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Surface 5 — compression, squeeze fuel, breakout trigger (BTC / SOL / SUI)
-        </p>
-      </div>
-
-      {loading ? (
-        <p className="text-muted-foreground">Loading…</p>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {rows.map((r) => (
-            <Card key={r.symbol}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-lg">
-                  {r.symbol}
-                  <Badge className={stateColor(r.state)}>{r.state}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Compression</span>
-                  <span>{r.compression.score.toFixed(0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Squeeze fuel</span>
-                  <span>{r.squeeze.score.toFixed(0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Net score</span>
-                  <span>{r.net_score.toFixed(0)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+    <main className="min-h-screen">
+      <SiteHeader compact title="Expansion" />
+      <div className="container mx-auto max-w-5xl space-y-6 px-4 py-8">
+        <div>
+          <p className="label-caps">Surface 5</p>
+          <h1 className="mt-2 text-2xl font-light tracking-tight">Expansion radar</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Compression, squeeze fuel, breakout trigger (BTC / SOL / SUI)
+          </p>
         </div>
-      )}
-    </div>
+
+        {loading ? (
+          <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {rows.map((row) => (
+              <article key={row.symbol} className="surface p-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="font-mono text-sm tracking-wide">{row.symbol}</h2>
+                  <span className={cn("font-mono text-[10px] uppercase tracking-widest", stateClass(row.state))}>
+                    {row.state}
+                  </span>
+                </div>
+                <dl className="mt-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Compression</dt>
+                    <dd>{row.compression?.score?.toFixed(0) ?? "—"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Squeeze fuel</dt>
+                    <dd>{row.squeeze?.score?.toFixed(0) ?? "—"}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Net score</dt>
+                    <dd>{row.net_score?.toFixed(0) ?? "—"}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
