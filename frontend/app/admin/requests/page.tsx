@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { AdminNav } from "@/components/admin-nav";
 import { useAuth } from "@/components/auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import {
