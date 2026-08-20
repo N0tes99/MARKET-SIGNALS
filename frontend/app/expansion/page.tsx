@@ -45,14 +45,14 @@ export default function ExpansionPage() {
       <div>
         <h1 className="text-2xl font-bold">Expansion Radar</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Surface 5 — compression, squeeze fuel, breakout trigger (BTC / SOL / SUI)
+          Surface 5 — compression, squeeze fuel, breakout trigger (16 perp symbols)
         </p>
       </div>
 
       {loading ? (
         <p className="text-muted-foreground">Loading…</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {rows.map((r) => (
             <Card key={r.symbol}>
               <CardHeader className="pb-2">

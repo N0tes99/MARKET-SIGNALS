@@ -1,4 +1,4 @@
-"""Expansion feed scanner — benchmark MVP (BTC / SOL / SUI)."""
+"""Expansion feed scanner — perp v2 universe (16 symbols)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from app.engines.expansion_engine.compression import analyze_compression
 from app.engines.expansion_engine.config import (
-    BENCHMARK_UNIVERSE,
+    EXPANSION_UNIVERSE,
     ExpansionConfig,
     default_expansion_config,
 )
@@ -31,7 +31,7 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _SCAN_CACHE: TTLCache[list[ExpansionCandidate]] = TTLCache(ttl_seconds=60.0)
-_SCAN_WORKERS = 4
+_SCAN_WORKERS = 6
 _MOM_12H_BARS = 12
 
 
@@ -240,4 +240,4 @@ def scan_expansion_feed(
 ) -> list[ExpansionCandidate]:
     """Convenience wrapper for API routes."""
     scanner = ExpansionScanner(market_data=market, config=default_expansion_config())
-    return scanner.scan(symbols=symbols or BENCHMARK_UNIVERSE, use_cache=use_cache)
+    return scanner.scan(symbols=symbols or EXPANSION_UNIVERSE, use_cache=use_cache)

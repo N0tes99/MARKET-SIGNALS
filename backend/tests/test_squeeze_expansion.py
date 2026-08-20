@@ -197,23 +197,24 @@ def test_agent_squeeze_expansion_daily_cap(monkeypatch) -> None:
     )
     now = datetime.now(UTC)
     store = PaperTradeStore()
-    store.upsert(
-        PaperTrade(
-            id=str(uuid4()),
-            symbol="BTC",
-            source=SOURCE,  # type: ignore[arg-type]
-            setup_type=SETUP_TYPE,
-            direction="long",
-            fingerprint=_fingerprint(SOURCE, "BTC", SETUP_TYPE, "long"),
-            signal_at=now,
-            confidence=85.0,
-            opportunity_score=85.0,
-            size_usd=2500.0,
-            status="open",
-            optimistic_entry=100.0,
-            optimistic_entry_at=now,
+    for sym in ("BTC", "ETH"):
+        store.upsert(
+            PaperTrade(
+                id=str(uuid4()),
+                symbol=sym,
+                source=SOURCE,  # type: ignore[arg-type]
+                setup_type=SETUP_TYPE,
+                direction="long",
+                fingerprint=_fingerprint(SOURCE, sym, SETUP_TYPE, "long"),
+                signal_at=now,
+                confidence=85.0,
+                opportunity_score=85.0,
+                size_usd=2500.0,
+                status="open",
+                optimistic_entry=100.0,
+                optimistic_entry_at=now,
+            )
         )
-    )
     mem = WorkingMemory(
         tick_id="t2",
         as_of=now,

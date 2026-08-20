@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Benchmark-first universe (BTC/SOL/SUI pump miss). Full V2 list when validated.
-BENCHMARK_UNIVERSE: tuple[str, ...] = ("BTC", "SOL", "SUI")
+from app.market_data.perp_universe import BENCHMARK_UNIVERSE, PERP_V2_UNIVERSE
 
-EXPANSION_PHASE = "mvp_benchmark"
+# Live expansion + cortex scan universe (aligned with paper v2).
+EXPANSION_UNIVERSE: tuple[str, ...] = PERP_V2_UNIVERSE
+
+EXPANSION_PHASE = "perp_v2_universe"
 
 
 @dataclass(frozen=True)
 class ExpansionConfig:
     """Knobs for compression, squeeze, trigger, and scoring."""
 
-    universe: tuple[str, ...] = BENCHMARK_UNIVERSE
+    universe: tuple[str, ...] = EXPANSION_UNIVERSE
 
     # Compression
     compression_lookback: int = 20

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_expansion_scanner, get_market_data_service
-from app.engines.expansion_engine.config import BENCHMARK_UNIVERSE, EXPANSION_PHASE
+from app.engines.expansion_engine.config import BENCHMARK_UNIVERSE, EXPANSION_PHASE, EXPANSION_UNIVERSE
 from app.engines.expansion_engine.replay import replay_universe
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.types import ExpansionCandidate, ExpansionState
@@ -103,7 +103,7 @@ def get_expansion_feed(
     scanner: ExpansionScanner = Depends(get_expansion_scanner),
     use_cache: bool = Query(True, description="Use 60s scan cache"),
 ) -> ExpansionFeedResponse:
-    """Expansion radar for benchmark universe (BTC, SOL, SUI)."""
+    """Expansion radar for perp v2 universe (16 symbols)."""
     candidates = scanner.scan(use_cache=use_cache)
     schemas = [_to_schema(c) for c in candidates]
     primed = [s for s in schemas if s.state == ExpansionState.PRIMED.value]
@@ -116,7 +116,7 @@ def get_expansion_feed(
         expanding=expanding,
         scanned_at=datetime.now(UTC),
         symbols_scanned=len(candidates),
-        universe=list(scanner._config.universe),
+        universe=list(scanner._config.universe or EXPANSION_UNIVERSE),
         phase=EXPANSION_PHASE,
     )
 

@@ -9,6 +9,7 @@ from httpx import AsyncClient
 
 from app.engines.expansion_engine.compression import analyze_compression
 from app.engines.expansion_engine.config import default_expansion_config
+from app.market_data.perp_universe import BENCHMARK_UNIVERSE, PERP_V2_UNIVERSE
 from app.engines.expansion_engine.replay import replay_symbol
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.squeeze_fuel import analyze_squeeze_fuel
@@ -148,14 +149,22 @@ def test_replay_finds_earlier_primedd_than_v2() -> None:
         assert event.primed_idx <= event.v2_first_idx or event.primed_hours_before_move is not None
 
 
+def test_expansion_universe_matches_perp_v2() -> None:
+    cfg = default_expansion_config()
+    assert cfg.universe == PERP_V2_UNIVERSE
+    assert len(cfg.universe) == 16
+    assert BENCHMARK_UNIVERSE == ("BTC", "SOL", "SUI")
+    assert set(BENCHMARK_UNIVERSE).issubset(set(cfg.universe))
+
+
 @pytest.mark.asyncio
 async def test_expansion_api_feed(client: AsyncClient) -> None:
     response = await client.get("/api/v1/expansion")
     assert response.status_code == 200
     body = response.json()
     assert "candidates" in body
-    assert body["phase"] == "mvp_benchmark"
-    assert body["symbols_scanned"] >= 0
+    assert body["phase"] == "perp_v2_universe"
+    assert body["symbols_scanned"] == 16
 
 
 @pytest.mark.asyncio
