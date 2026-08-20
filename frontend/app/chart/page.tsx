@@ -21,7 +21,7 @@ export default function ChartAnalyzerPage() {
       <main className="min-h-screen">
         <SiteHeader compact />
         <p className="p-8 font-mono text-[11px] text-muted-foreground/50">
-          Waiting for API on localhost:8000…
+          Waiting for API on 127.0.0.1:8000…
         </p>
       </main>
     );

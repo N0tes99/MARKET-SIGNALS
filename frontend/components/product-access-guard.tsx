@@ -22,24 +22,24 @@ const BYPASS = new Set([
 const REQUIRE_LOGIN = process.env.NEXT_PUBLIC_REQUIRE_LOGIN === "true";
 
 /**
- * After login, route users through waitlist → authenticator → dashboard.
- * Keep this in the client tree — Next 15.5 webpack `middleware.ts` crashes
- * local `next dev` with "Cannot find the middleware module".
+ * Production UI gate: waitlist → authenticator → dashboard.
+ * Locally (REQUIRE_LOGIN unset) this is a pass-through so /chart can render
+ * even when uvicorn is down or Windows `localhost` IPv6 hangs.
  */
 export function ProductAccessGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(!REQUIRE_LOGIN);
 
   useEffect(() => {
-    if (loading) return;
-    if (BYPASS.has(pathname)) {
+    if (!REQUIRE_LOGIN || BYPASS.has(pathname)) {
       setReady(true);
       return;
     }
+    if (loading) return;
 
-    if (REQUIRE_LOGIN && !user) {
+    if (!user) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
     }
@@ -67,12 +67,7 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
         }
         setReady(true);
       } catch {
-        if (cancelled) return;
-        if (REQUIRE_LOGIN && !user) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-          return;
-        }
-        setReady(true);
+        if (!cancelled) setReady(true);
       }
     })();
 
@@ -81,16 +76,16 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     };
   }, [loading, user, pathname, router]);
 
-  if (BYPASS.has(pathname)) {
+  if (!REQUIRE_LOGIN || BYPASS.has(pathname)) {
     return <>{children}</>;
   }
 
   if (loading || !ready) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-          <p className="font-mono text-[11px] text-muted-foreground/50">
-            Connecting to API…
-          </p>
+        <p className="font-mono text-[11px] text-muted-foreground/50">
+          Waiting for API on 127.0.0.1:8000…
+        </p>
       </div>
     );
   }

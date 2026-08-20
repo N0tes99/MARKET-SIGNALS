@@ -7,7 +7,7 @@
 const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
 const API_BASE_URL = USE_API_PROXY
   ? "/api/backend"
-  : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+  : (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000");
 
 function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
@@ -1497,7 +1497,7 @@ export async function fetchMe(): Promise<AuthUser | null> {
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(
-        "API not reachable at localhost:8000. Start uvicorn in backend/, then refresh.",
+        "API not reachable at 127.0.0.1:8000. Start uvicorn in backend/, then refresh.",
       );
     }
     throw error;

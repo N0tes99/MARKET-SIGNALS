@@ -7,7 +7,7 @@ function backendBase(): string {
   return (
     process.env.API_BACKEND_URL?.replace(/\/$/, "") ||
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-    "http://localhost:8000"
+    "http://127.0.0.1:8000"
   );
 }
 
