@@ -118,6 +118,14 @@ def get_equity_options_scanner():
 
 
 @lru_cache
+def get_expansion_scanner():
+    """Singleton Surface 5 Market Expansion scanner."""
+    from app.engines.expansion_engine.scanner import ExpansionScanner
+
+    return ExpansionScanner(market_data=get_market_data_service())
+
+
+@lru_cache
 def get_runner_scanner():
     """Singleton Surface 4 Runner Detection scanner."""
     from app.engines.runner_engine import RunnerScanner

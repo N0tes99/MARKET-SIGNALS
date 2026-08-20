@@ -1,0 +1,21 @@
+# Benchmark expansion events — BTC / SOL / SUI ~10% pump miss (Aug 2026)
+events:
+  - id: btc_expansion_2026_08
+    symbol: BTC
+    expected_move_pct: 8-10
+    notes: "User-reported paper miss; ~10% move"
+
+  - id: sol_expansion_2026_08
+    symbol: SOL
+    expected_move_pct: 10-13
+    notes: "User-reported paper miss; ~12% move"
+
+  - id: sui_expansion_2026_08
+    symbol: SUI
+    expected_move_pct: 10-11
+    notes: "User-reported paper miss; ~11% move"
+
+success_criteria:
+  primed_before_v2_hours: 2
+  min_labeled_hit_rate: 0.6
+  max_false_triggers_per_symbol_week: 2
