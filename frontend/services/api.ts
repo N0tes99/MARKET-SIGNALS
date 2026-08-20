@@ -1290,6 +1290,98 @@ export async function revokeAccessGrant(grantId: string): Promise<AccessGrant> {
   return response.json() as Promise<AccessGrant>;
 }
 
+export interface ApiKeyRecord {
+  id: string;
+  user_id: string;
+  username: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface ApiKeyCreated extends ApiKeyRecord {
+  secret: string;
+}
+
+export async function fetchApiKeyScopes(): Promise<string[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/api-keys/scopes"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  const body = (await response.json()) as { scopes: string[] };
+  return body.scopes;
+}
+
+export async function fetchAdminApiKeys(): Promise<ApiKeyRecord[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/api-keys"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<ApiKeyRecord[]>;
+}
+
+export async function createAdminApiKey(body: {
+  username: string;
+  name?: string;
+  scopes: string[];
+  expires_at?: string | null;
+}): Promise<ApiKeyCreated> {
+  const response = await fetch(apiUrl("/api/v1/auth/access/api-keys"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<ApiKeyCreated>;
+}
+
+export async function revokeAdminApiKey(keyId: string): Promise<ApiKeyRecord> {
+  const response = await fetch(apiUrl(`/api/v1/auth/access/api-keys/${keyId}/revoke`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<ApiKeyRecord>;
+}
+
+export async function fetchMyApiKeys(): Promise<ApiKeyRecord[]> {
+  const response = await fetch(apiUrl("/api/v1/auth/me/api-keys"), {
+    credentials: FETCH_CREDENTIALS,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<ApiKeyRecord[]>;
+}
+
+export async function revokeMyApiKey(keyId: string): Promise<ApiKeyRecord> {
+  const response = await fetch(apiUrl(`/api/v1/auth/me/api-keys/${keyId}/revoke`), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<ApiKeyRecord>;
+}
+
 export async function fetchMe(): Promise<AuthUser | null> {
   const response = await fetch(apiUrl("/api/v1/auth/me"), {
     credentials: FETCH_CREDENTIALS,
