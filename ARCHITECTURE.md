@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.5.1 |
-| Last updated | 2026-08-12 |
-| Status | M4–M9 MVP complete; Surface 4 Runner Detection planned (M10) |
+| Version | 0.6.0 |
+| Last updated | 2026-08-20 |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A |
 
 ---
 
@@ -115,6 +115,9 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
+| Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP (BTC/SOL/SUI)** |
+| Cortex | `backend/app/cortex/` | **Phase A** |
+| Episodic memory | `backend/app/memory/episodic/` | **In-memory ring buffer** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -432,6 +435,7 @@ Surface 1 — Asset ranking          Evidence → Opportunity grade → WAIT/WAT
 Surface 2 — Crypto setups          funding_extreme / liq_flush / basis_rich (perps)
 Surface 3 — Equity options setups  momentum_continuation / breakout_convexity + option pick + staged plan
 Surface 4 — Runner detection       Fundamental inflection → discovery gap → ignition (equities)
+Surface 5 — Expansion radar        Compression → squeeze fuel → trigger (crypto perps)
 ```
 
 Surface 4 **does not** alter 13-category grades, crypto scanners, or Layer 3 options scores. It is an opportunity detector (WATCHLIST / ALERT), not an EXECUTE path in M10.
@@ -501,6 +505,33 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Backtest must measure **lead time** and forbid look-ahead bias
 
 **Status:** `PHASE 2 PREVIEW` — real daily structure (momentum + RS) and optional market-cap asymmetry. Fundamentals/catalyst still missing. Runner Score is structure-only capped. UI `/radar` is labeled preview. Ignition/running lists stay empty until Phase 3. See `docs/research/10x-runner-detection-layer.md`.
+
+---
+
+### 5.6 Surface 5 — Market Expansion Engine + Cortex
+
+**Purpose:** Early-warning radar for **volatility expansion** on crypto perps — compression → squeeze fuel → trigger — *before* paper v2’s 12h momentum gate.
+
+Does **not** fold into 13-category grades. Parallel to Surfaces 2–4. Paper consumes **TRIGGER/EXPANSION only** (`squeeze_expansion`); PRIMED is WATCH.
+
+```
+Cortex tick (120s)
+    → expansion + regime + derivatives specialists
+    → WorkingMemory (blackboard)
+    → episodic store
+    → paper squeeze_expansion (1/day, ATR exits, skip F&G/grade)
+```
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/expansion` | Benchmark feed (BTC, SOL, SUI) |
+| `GET /api/v1/expansion/{symbol}` | Decomposed scores |
+| `GET /api/v1/expansion/replay` | Lead time vs perp v2 |
+| `GET /api/v1/cortex` | Latest working memory |
+| `POST /api/v1/cortex/tick` | Run heartbeat |
+| `GET /api/v1/cortex/history` | Episodic snapshots |
+
+**Status:** `MVP` — compression/squeeze/trigger/state, cortex Phase A, paper bridge. No `/expansion` UI, no Postgres episodic store, no semantic memory, no CVD/news/macro specialists yet.
 
 ---
 
