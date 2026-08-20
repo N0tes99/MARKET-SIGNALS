@@ -6,6 +6,7 @@ from app.api.routes import (
     alerts,
     alpaca,
     analysis,
+    api_keys,
     assets,
     auth,
     backtests,
@@ -41,6 +42,7 @@ api_router.include_router(public_preview.router, tags=["public"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(wallet_auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(site_gate_router, prefix="/auth", tags=["auth"])
+api_router.include_router(api_keys.router, prefix="/auth", tags=["auth"])
 api_router.include_router(social.router, tags=["social"])
 api_router.include_router(favorites.router, prefix="/me/favorites", tags=["favorites"])
 api_router.include_router(

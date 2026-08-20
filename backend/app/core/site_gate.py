@@ -201,13 +201,34 @@ async def active_grant_for_user(
 
 
 class AccessGateMiddleware(BaseHTTPMiddleware):
-    """When gate is on: data APIs need login + grant + MFA cookie."""
+    """When gate is on: data APIs need login + grant + MFA cookie, or a scoped API key."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> StarletteResponse:
         if request.method == "OPTIONS":
             return await call_next(request)
         if not gate_enabled() or is_access_public_path(request.url.path):
             return await call_next(request)
+
+        from app.core.api_keys import authenticate_api_key, extract_api_key_from_request
+        from app.database.session import async_session_factory
+
+        if extract_api_key_from_request(request) is not None:
+            async with async_session_factory() as session:
+                api_auth, api_error = await authenticate_api_key(request, session)
+            if api_auth is not None:
+                return await call_next(request)
+            if api_error is not None:
+                detail = {
+                    "INVALID_API_KEY": "Invalid API key",
+                    "API_KEY_INACTIVE": "API key revoked or expired",
+                    "ACCESS_NOT_GRANTED": "API key user has no active access grant",
+                    "INSUFFICIENT_SCOPE": "API key missing scope for this endpoint",
+                }.get(api_error, "API key rejected")
+                return JSONResponse(
+                    status_code=401 if api_error != "INSUFFICIENT_SCOPE" else 403,
+                    content={"detail": detail, "code": api_error},
+                )
+
         # Keep-warm (GitHub Actions): valid cron secret may hit GET /assets
         # and GET /futures/board without MFA. Dashboard sessions still use cookies.
         if is_keep_warm_cron_path(request.url.path) and request_has_valid_cron_secret(request):

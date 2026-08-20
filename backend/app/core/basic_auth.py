@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.config import settings
+from app.core.api_keys import get_api_key_auth
 
 
 def auth_enabled() -> bool:
@@ -64,6 +65,8 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if request.method == "OPTIONS":
+            return await call_next(request)
+        if get_api_key_auth(request) is not None:
             return await call_next(request)
         if not auth_enabled() or is_public_path(request.url.path):
             return await call_next(request)
