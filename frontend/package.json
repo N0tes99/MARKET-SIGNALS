@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:turbo": "next dev --turbopack",
-    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev",
+    "dev": "next dev -p 3000",
+    "dev:turbo": "next dev --turbopack -p 3000",
+    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

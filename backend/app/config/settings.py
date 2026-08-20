@@ -170,8 +170,25 @@ class Settings(BaseSettings):
         return self
 
     def cors_origin_list(self) -> list[str]:
-        """Parse CORS_ORIGINS into a list of origins."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        """Parse CORS_ORIGINS into a list of origins.
+
+        Local Next.js falls back to :3001 when :3000 is already taken, so
+        development always allows those loopback origins even if .env only
+        lists http://localhost:3000.
+        """
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        if self.app_env.strip().lower() != "production":
+            seen = set(origins)
+            for extra in (
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
+            ):
+                if extra not in seen:
+                    origins.append(extra)
+                    seen.add(extra)
+        return origins
 
     def admin_username_set(self) -> set[str]:
         """Lowercased admin usernames allowed for private Outcome log."""

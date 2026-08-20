@@ -1251,14 +1251,7 @@ export interface WalletAccessUser {
 }
 
 export async function fetchGateStatus(): Promise<GateStatus> {
-  const response = await fetch(apiUrl("/api/v1/auth/gate/status"), {
-    credentials: FETCH_CREDENTIALS,
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-  return response.json() as Promise<GateStatus>;
+  return apiFetch<GateStatus>("/api/v1/auth/gate/status", 8_000);
 }
 
 export async function verifySiteGate(code: string): Promise<{
