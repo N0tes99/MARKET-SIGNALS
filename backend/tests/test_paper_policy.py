@@ -22,13 +22,16 @@ def test_l2_setups_rank_above_momentum() -> None:
             {"setup_type": "perp_momentum", "score": 90.0, "symbol": "BTC"},
             {"setup_type": "funding_extreme", "score": 58.0, "symbol": "ETH"},
             {"setup_type": "liq_flush", "score": 60.0, "symbol": "SOL"},
+            {"setup_type": "squeeze_expansion", "score": 81.0, "symbol": "SUI"},
         ]
     )
     assert [c["setup_type"] for c in ranked] == [
+        "squeeze_expansion",
         "liq_flush",
         "funding_extreme",
         "perp_momentum",
     ]
+    assert candidate_rank_tier("squeeze_expansion") == 2
     assert candidate_rank_tier("funding_extreme") == 1
     assert candidate_rank_tier("perp_momentum") == 0
 

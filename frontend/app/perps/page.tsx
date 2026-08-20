@@ -14,7 +14,11 @@ import {
   type PerpsLiquidationRow,
 } from "@/services/api";
 
-const CRYPTO_PAPER_SOURCES = new Set(["crypto_perp_v2", "crypto_setup"]);
+const CRYPTO_PAPER_SOURCES = new Set([
+  "crypto_perp_v2",
+  "crypto_setup",
+  "squeeze_expansion",
+]);
 
 function money(n: number): string {
   const sign = n > 0 ? "+" : n < 0 ? "" : "";
@@ -40,6 +44,7 @@ function pnlTone(n: number | null | undefined): string {
 function sourceLabel(source: string): string {
   if (source === "crypto_perp_v2") return "perp v2";
   if (source === "crypto_setup") return "crypto L2";
+  if (source === "squeeze_expansion") return "expansion";
   return source;
 }
 

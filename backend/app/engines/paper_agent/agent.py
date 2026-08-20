@@ -31,6 +31,7 @@ from app.engines.paper_agent.paper_policy import (
     snapshot_paper_execution,
     sort_paper_candidates,
 )
+from app.engines.paper_agent.squeeze_expansion import scan_squeeze_expansion
 from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
@@ -54,6 +55,8 @@ MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 5
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
 MAX_CME_FUTURES_OPENS_PER_DAY = 3
+MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY = 1
+SQUEEZE_EXPANSION_SOURCE = "squeeze_expansion"
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0
@@ -95,6 +98,7 @@ class PaperAgent:
         tape_scanner=None,
         starting_cash: float = STARTING_CASH,
         size_usd: float = DEFAULT_SIZE_USD,
+        cortex=None,
     ) -> None:
         self._market = market_data
         self._crypto = crypto_scanner
@@ -104,6 +108,7 @@ class PaperAgent:
         self._learning = learning
         self._pipeline = pipeline
         self._alerts = alerts
+        self._cortex = cortex
         self._starting_cash = starting_cash
         self._size_usd = size_usd
         self._last_tick_at: datetime | None = None
@@ -169,6 +174,39 @@ class PaperAgent:
         discover = self._should_discover(now)
         if discover:
             candidates: list[dict] = []
+
+            # --- Squeeze expansion (cortex TRIGGER/EXPANSION only) ---
+            if self._cortex is not None:
+                try:
+                    squeeze_ideas = scan_squeeze_expansion(self._cortex)
+                except Exception:
+                    logger.exception("Paper agent squeeze_expansion feed failed")
+                    squeeze_ideas = []
+                    notes.append("squeeze_expansion_feed_error")
+                for idea in squeeze_ideas:
+                    fp = _fingerprint(
+                        SQUEEZE_EXPANSION_SOURCE,
+                        idea.symbol,
+                        idea.setup_type,
+                        idea.direction,
+                    )
+                    if fp in active:
+                        continue
+                    candidates.append(
+                        {
+                            "source": SQUEEZE_EXPANSION_SOURCE,
+                            "symbol": idea.symbol,
+                            "setup_type": idea.setup_type,
+                            "direction": idea.direction,
+                            "fingerprint": fp,
+                            "confidence": float(idea.confidence),
+                            "opportunity_score": float(idea.confidence),
+                            "factors": list(idea.factors[:5]),
+                            "score": float(idea.confidence),
+                            "extra_note": "squeeze expansion trigger",
+                            "extras": dict(idea.extras),
+                        }
+                    )
 
             # --- Crypto Layer 2 ---
             try:
@@ -361,6 +399,10 @@ class PaperAgent:
             v2_left = max(0, MAX_CRYPTO_PERP_V2_OPENS_PER_DAY - v2_opens_today)
             cme_opens_today = self._opens_on_utc_day(now, source="cme_futures")
             cme_left = max(0, MAX_CME_FUTURES_OPENS_PER_DAY - cme_opens_today)
+            squeeze_opens_today = self._opens_on_utc_day(now, source=SQUEEZE_EXPANSION_SOURCE)
+            squeeze_left = max(
+                0, MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY - squeeze_opens_today
+            )
             if daily_left <= 0 and candidates:
                 daily_cap_hit = True
                 notes.append(f"skip:daily_cap:{MAX_NEW_OPENS_PER_DAY}")
@@ -407,6 +449,9 @@ class PaperAgent:
                     continue
                 if cand["source"] == "cme_futures" and cme_left <= 0:
                     notes.append(f"skip:cme_futures_cap:{cand['symbol']}")
+                    continue
+                if cand["source"] == SQUEEZE_EXPANSION_SOURCE and squeeze_left <= 0:
+                    notes.append(f"skip:squeeze_expansion_cap:{cand['symbol']}")
                     continue
                 symbol_key = str(cand["symbol"]).upper()
                 if symbol_key in occupied_symbols:
@@ -455,6 +500,8 @@ class PaperAgent:
                         v2_left -= 1
                     if cand["source"] == "cme_futures":
                         cme_left -= 1
+                    if cand["source"] == SQUEEZE_EXPANSION_SOURCE:
+                        squeeze_left -= 1
                     logger.info(
                         "paper_open id=%s symbol=%s setup=%s conf=%.1f score=%.1f daily_left=%d",
                         trade.id,

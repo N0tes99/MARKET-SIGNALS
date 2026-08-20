@@ -12,6 +12,7 @@ PaperSource = Literal[
     "tape_hunt",
     "crypto_perp_v2",
     "cme_futures",
+    "squeeze_expansion",
 ]
 PaperStatus = Literal["pending_honest", "open", "closing", "closed"]
 PaperDirection = Literal["long", "short"]
