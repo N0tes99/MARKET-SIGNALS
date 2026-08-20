@@ -156,8 +156,8 @@ export function EvidencePanel({ symbol }: EvidencePanelProps) {
         ) : (
           <div className="surface flex flex-col justify-center p-5 sm:col-span-2 lg:col-span-3">
             <p className="text-sm text-muted-foreground">
-              AI analysis, similar setups, backtests, and weight tuning are deferred so the page
-              loads faster.
+              Groq vs desk reasoning, similar setups, backtests, and weight tuning are deferred so
+              the page loads faster.
             </p>
             <button
               type="button"

@@ -576,10 +576,11 @@ class AIAnalyst:
 
 ### Technology
 
-- OpenAI API (GPT-4 class model) for narrative generation
+- Groq (`qwen/qwen3.6-27b`) for narrative generation when ``GROQ_API_KEY`` is set
+- Desk synthesizer always available (Fear & Greed, Reddit, tape)
+- ``GET /api/v1/assets/{symbol}/analysis?compare=true`` returns both readings
 - Structured prompt with evidence bundle as JSON input
 - Output validated against Pydantic schema before serving
-- LangGraph integration planned for multi-step reasoning chains (future)
 
 ### Design Rules
 
@@ -589,7 +590,7 @@ class AIAnalyst:
 
 ### Status
 
-`IMPLEMENTED` — OpenAI integration with local fallback; `GET /api/v1/assets/{symbol}/analysis`
+`IMPLEMENTED` — Groq + local desk compare; `GET /api/v1/assets/{symbol}/analysis?compare=true`
 
 ---
 

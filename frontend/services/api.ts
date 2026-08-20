@@ -54,6 +54,14 @@ export interface EvidenceItem {
   confidence?: number;
 }
 
+export interface AIExplanationVariant {
+  summary: string;
+  factors: string[];
+  conflicts: string[];
+  source: string;
+  generated_at: string;
+}
+
 export interface AIExplanation {
   symbol: string;
   summary: string;
@@ -62,6 +70,9 @@ export interface AIExplanation {
   conflicts: string[];
   source: string;
   generated_at: string;
+  local?: AIExplanationVariant | null;
+  groq?: AIExplanationVariant | null;
+  groq_status?: string | null;
 }
 
 export interface DecisionResult {
@@ -892,8 +903,12 @@ export async function fetchCryptoRadar(): Promise<CryptoRadarFeedResponse> {
   return apiFetch<CryptoRadarFeedResponse>("/api/v1/runners/crypto", 120_000);
 }
 
-export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
-  return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
+export async function fetchAnalysis(
+  symbol: string,
+  opts?: { compare?: boolean },
+): Promise<AIExplanation> {
+  const query = opts?.compare ? "?compare=true" : "";
+  return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis${query}`);
 }
 
 export type ChartTrend = "bullish" | "bearish" | "range" | "unclear";

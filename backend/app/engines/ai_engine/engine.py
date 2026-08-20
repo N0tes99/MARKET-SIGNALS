@@ -41,20 +41,32 @@ class AIAnalyst:
     """
 
     def explain_decision(self, decision: DecisionResult) -> AIExplanation:
-        """Generate an explanation from a full pipeline decision."""
-        backend = _llm_backend()
-        if backend is not None:
-            client, model, source = backend
-            try:
-                return self._explain_with_llm(decision, client, model, source)
-            except Exception:
-                logger.exception(
-                    "%s explanation failed for %s, using local",
-                    source,
-                    decision.symbol,
-                )
+        """Generate an explanation from a full pipeline decision.
 
-        return self._explain_locally(decision)
+        Prefers Groq when a key is set; otherwise the local synthesizer.
+        """
+        local, groq, _status = self.explain_decision_pair(decision)
+        return groq if groq is not None else local
+
+    def explain_decision_pair(
+        self, decision: DecisionResult
+    ) -> tuple[AIExplanation, AIExplanation | None, str]:
+        """Return (local, groq, groq_status) so the desk can compare readings."""
+        local = self._explain_locally(decision)
+        backend = _llm_backend()
+        if backend is None:
+            return local, None, "unavailable"
+        client, model, source = backend
+        try:
+            groq = self._explain_with_llm(decision, client, model, source)
+            return local, groq, "ok"
+        except Exception:
+            logger.exception(
+                "%s explanation failed for %s, using local",
+                source,
+                decision.symbol,
+            )
+            return local, None, "failed"
 
     def explain_evidence(
         self,

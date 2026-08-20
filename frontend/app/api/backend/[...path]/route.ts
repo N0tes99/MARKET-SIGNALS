@@ -24,6 +24,7 @@ function authHeader(): string | null {
 function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
   if (normalized === "api/v1/chart-analysis") return 180_000;
+  if (normalized.endsWith("/analysis")) return 90_000;
   const longRunning = new Set([
     "api/v1/assets",
     "api/v1/runners",

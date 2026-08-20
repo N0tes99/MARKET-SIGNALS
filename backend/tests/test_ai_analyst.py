@@ -53,7 +53,7 @@ async def test_analysis_api_endpoint(client: AsyncClient) -> None:
     data = response.json()
     assert data["symbol"] == "BTC"
     assert "summary" in data
-    assert data["source"] in {"local", "openai", "gemini"}
+    assert data["source"] in {"local", "groq"}
 
 
 def test_local_summary_uses_fear_greed_and_reddit(monkeypatch) -> None:
@@ -119,3 +119,93 @@ def test_local_summary_uses_fear_greed_and_reddit(monkeypatch) -> None:
     assert "Fear & Greed" in explanation.summary
     assert "Reddit" in explanation.summary
     assert any("crowded" in c.lower() or "chase" in c.lower() for c in explanation.conflicts)
+
+
+def _fake_groq_client(summary: str = "Groq: crowded longs vs bid tape.") -> object:
+    class _Msg:
+        content = (
+            '{"summary":"' + summary + '","factors":["funding elevated"],'
+            '"conflicts":["chase risk"]}'
+        )
+
+    class _Choice:
+        message = _Msg()
+
+    class _Resp:
+        choices = [_Choice()]
+
+    class _Completions:
+        def create(self, **_kwargs: object) -> object:
+            return _Resp()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        chat = _Chat()
+
+    return _Client()
+
+
+def test_explain_decision_pair_returns_both(monkeypatch) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(
+        ai_mod,
+        "_llm_backend",
+        lambda: (_fake_groq_client(), "qwen/qwen3.6-27b", "groq"),
+    )
+    local, groq, status = AIAnalyst().explain_decision_pair(_sample_decision())
+    assert status == "ok"
+    assert local.source == "local"
+    assert groq is not None
+    assert groq.source == "groq"
+    assert "crowded" in groq.summary.lower()
+
+
+def test_explain_decision_pair_without_key(monkeypatch) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    local, groq, status = AIAnalyst().explain_decision_pair(_sample_decision())
+    assert status == "unavailable"
+    assert local.source == "local"
+    assert groq is None
+
+
+@pytest.mark.asyncio
+async def test_analysis_compare_includes_local_and_groq(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(
+        ai_mod,
+        "_llm_backend",
+        lambda: (_fake_groq_client(), "qwen/qwen3.6-27b", "groq"),
+    )
+    response = await client.get("/api/v1/assets/BTC/analysis?compare=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "groq"
+    assert data["groq_status"] == "ok"
+    assert data["local"]["source"] == "local"
+    assert data["groq"]["source"] == "groq"
+    assert data["local"]["summary"]
+    assert data["groq"]["summary"]
+
+
+@pytest.mark.asyncio
+async def test_analysis_compare_without_groq_key(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    response = await client.get("/api/v1/assets/BTC/analysis?compare=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "local"
+    assert data["groq_status"] == "unavailable"
+    assert data["local"]["source"] == "local"
+    assert data["groq"] is None
