@@ -19,8 +19,12 @@ const BYPASS = new Set([
   "/admin/requests",
 ]);
 
+const REQUIRE_LOGIN = process.env.NEXT_PUBLIC_REQUIRE_LOGIN === "true";
+
 /**
  * After login, route users through waitlist → authenticator → dashboard.
+ * Keep this in the client tree — Next 15.5 webpack `middleware.ts` crashes
+ * local `next dev` with "Cannot find the middleware module".
  */
 export function ProductAccessGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -32,6 +36,11 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     if (loading) return;
     if (BYPASS.has(pathname)) {
       setReady(true);
+      return;
+    }
+
+    if (REQUIRE_LOGIN && !user) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
     }
 
@@ -58,7 +67,12 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
         }
         setReady(true);
       } catch {
-        if (!cancelled) setReady(true);
+        if (cancelled) return;
+        if (REQUIRE_LOGIN && !user) {
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          return;
+        }
+        setReady(true);
       }
     })();
 
