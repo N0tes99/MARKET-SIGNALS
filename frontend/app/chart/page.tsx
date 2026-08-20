@@ -29,31 +29,30 @@ export default function ChartAnalyzerPage() {
   return (
     <main className="min-h-screen">
       <SiteHeader compact title="Chart analyst" />
-      <div className="container mx-auto max-w-3xl px-4 py-10">
+      <div className="container mx-auto max-w-3xl px-4 py-10 sm:py-14">
         <p className="label-caps">Vision</p>
-        <h1 className="mt-2 text-2xl font-light tracking-tight">Chart screenshot</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Drop a screenshot and the local Qwen scan ranks the best setups
-          automatically. Gemini is not required.
+        <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Chart screenshot</h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Drop a trade screenshot. The analyst ranks the best long, best short,
+          and a stand-aside. Desk engines still decide — this does not place orders.
         </p>
         {apiUp === false ? (
-          <p className="mt-4 font-mono text-[11px] leading-relaxed text-muted-foreground">
-            API is not running. In a second PowerShell window:
-            <br />
-            cd backend
-            <br />
-            py -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-            <br />
-            Then refresh this page.
-          </p>
+          <div className="surface mt-6 px-4 py-3">
+            <p className="font-mono text-[11px] uppercase tracking-widest text-neutral">
+              API offline
+            </p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Start uvicorn on 127.0.0.1:8000 in the backend folder, then refresh.
+            </p>
+          </div>
         ) : null}
         {apiUp === true && !user ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Local scans work without an account.{" "}
-            <Link href="/login?next=/chart" className="underline-offset-4 hover:underline">
+          <p className="mt-5 text-sm text-muted-foreground">
+            Local scans do not need an account.{" "}
+            <Link href="/login?next=/chart" className="text-foreground/90 underline-offset-4 hover:underline">
               Sign in
             </Link>{" "}
-            if you want a saved session.
+            to keep a session.
           </p>
         ) : null}
         <div className="mt-8">

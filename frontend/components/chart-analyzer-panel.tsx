@@ -106,16 +106,16 @@ export function ChartAnalyzerPanel() {
 
   return (
     <div className="space-y-8">
-      <section className="surface p-5 sm:p-6">
+      <section className="surface p-5 sm:p-7">
         <p className="label-caps">Upload</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Screenshot of a chart, tape, options chain, or ticket. Drop it and
-          Qwen auto-scans for the best long, best short, and a stand-aside.
-          Engines still decide — this does not place orders.
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Chart, tape, options chain, or ticket. Drop it and the scan ranks
+          setups automatically. Sitting out is a valid outcome.
         </p>
         {status ? (
-          <p className="mt-3 font-mono text-[10px] leading-relaxed text-muted-foreground/70">
-            Backend · {sourceLabel(status.source)}. {status.hint}
+          <p className="mt-3 inline-flex rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/80">
+            {sourceLabel(status.source)}
+            {status.vision ? " · vision" : " · desk engines"}
           </p>
         ) : null}
 
@@ -129,10 +129,10 @@ export function ChartAnalyzerPanel() {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           className={cn(
-            "mt-5 flex min-h-40 w-full flex-col items-center justify-center border border-dashed px-4 py-8 text-center transition-colors",
+            "mt-5 flex min-h-44 w-full flex-col items-center justify-center rounded-xl border border-dashed px-4 py-8 text-center transition-[border-color,background-color,box-shadow]",
             dragging
-              ? "border-white/30 bg-white/[0.04]"
-              : "border-white/[0.12] hover:border-white/20 hover:bg-white/[0.02]",
+              ? "border-white/35 bg-white/[0.06] shadow-[inset_0_1px_0_0_hsl(186_40%_90%/0.12)]"
+              : "border-white/[0.14] bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.04]",
           )}
         >
           {preview ? (
@@ -140,7 +140,7 @@ export function ChartAnalyzerPanel() {
             <img
               src={preview}
               alt="Chart screenshot preview"
-              className="max-h-64 w-auto object-contain"
+              className="max-h-64 w-auto rounded-lg object-contain"
             />
           ) : (
             <>
@@ -175,7 +175,7 @@ export function ChartAnalyzerPanel() {
               onChange={(event) => setSymbolHint(event.target.value.toUpperCase())}
               placeholder="BTC"
               maxLength={16}
-              className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 font-mono text-sm uppercase outline-none focus:border-white/[0.22]"
+              className="glass-field mt-2 font-mono uppercase"
             />
           </label>
           <label className="block sm:col-span-2">
@@ -186,7 +186,7 @@ export function ChartAnalyzerPanel() {
               rows={3}
               maxLength={500}
               placeholder="I was thinking a long if this high holds…"
-              className="mt-2 w-full resize-y border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+              className="glass-field mt-2 resize-y"
             />
           </label>
         </div>
@@ -197,7 +197,7 @@ export function ChartAnalyzerPanel() {
           type="button"
           disabled={(!file && !symbolHint.trim()) || busy}
           onClick={() => void runScan(file)}
-          className="mt-5 w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+          className="btn-glass mt-5 w-full"
         >
           {busy ? "Scanning setups…" : "Scan again"}
         </button>
@@ -212,7 +212,7 @@ function AnalysisResult({ data }: { data: ChartAnalysis }) {
   const { reading, engine_grounding: grounding } = data;
   return (
     <div className="space-y-6">
-      <section className="surface p-5 sm:p-6">
+      <section className="surface p-5 sm:p-7">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="label-caps">Reading</h2>
           <span className="font-mono text-[10px] text-muted-foreground">
@@ -262,14 +262,18 @@ function AnalysisResult({ data }: { data: ChartAnalysis }) {
           Best first · analysis, not an order
         </p>
         <div className="grid gap-4 lg:grid-cols-2">
-          {data.positions.map((position) => (
-            <PositionCard key={`${position.bias}-${position.setup_name}`} idea={position} />
+          {data.positions.map((position, index) => (
+            <PositionCard
+              key={`${position.bias}-${position.setup_name}`}
+              idea={position}
+              rank={index + 1}
+            />
           ))}
         </div>
       </section>
 
       {grounding ? (
-        <section className="surface p-5 sm:p-6">
+        <section className="surface p-5 sm:p-7">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="label-caps">Desk evidence</h2>
             <span
@@ -330,12 +334,17 @@ function AnalysisResult({ data }: { data: ChartAnalysis }) {
   );
 }
 
-function PositionCard({ idea }: { idea: ChartPositionIdea }) {
+function PositionCard({ idea, rank }: { idea: ChartPositionIdea; rank: number }) {
   return (
-    <article className="surface p-5">
+    <article className={cn("surface p-5", rank === 1 && "border-white/[0.14]")}>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="label-caps">{idea.setup_name}</h3>
-        <span className="shrink-0 font-mono text-sm">{idea.confidence.toFixed(0)}</span>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+            {rank === 1 ? "Best" : `0${rank}`}
+          </span>
+          <h3 className="label-caps truncate">{idea.setup_name}</h3>
+        </div>
+        <span className="shrink-0 font-mono text-sm tabular-nums">{idea.confidence.toFixed(0)}</span>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
         <Meta label="Bias" value={idea.bias.replace("_", " ")} className={biasColor(idea.bias)} />

@@ -59,14 +59,14 @@ export default function ForgotPasswordPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+                className="glass-field mt-2"
               />
             </label>
             {error ? <p className="text-sm text-bearish">{error}</p> : null}
             <button
               type="submit"
               disabled={submitting}
-              className="w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+              className="btn-glass w-full"
             >
               {submitting ? "Sending…" : "Send reset link"}
             </button>
