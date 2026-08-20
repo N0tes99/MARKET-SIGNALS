@@ -42,6 +42,7 @@
 - [x] Live dashboard auto-refresh (30s polling)
 - [x] WebSocket dashboard endpoint
 - [x] Asset detail views with decision banner + AI explanation
+- [x] Chart screenshot analyzer (`POST /api/v1/chart-analysis`, `/chart`)
 
 ## Milestone 6 — Learning & Backtesting
 

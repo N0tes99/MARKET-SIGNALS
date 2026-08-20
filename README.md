@@ -37,6 +37,7 @@ Evidence Engine → Opportunity Engine → Execution Engine → Risk Engine → 
 | Regime Engine | Market regime classification |
 | Learning Engine | Signal/trade/outcome storage for future weight tuning |
 | AI Analyst | Human-readable reasoning from numerical evidence |
+| Chart Screenshot Analyzer | Vision read of a trade/chart screenshot → thesis, locations, execution hints |
 
 ## Tech Stack
 

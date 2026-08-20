@@ -896,6 +896,101 @@ export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }
 
+export type ChartTrend = "bullish" | "bearish" | "range" | "unclear";
+export type ChartBias = "long" | "short" | "no_trade";
+export type ChartExecutionHint = "WAIT" | "WATCH" | "EXECUTE";
+export type ChartAlignment = "agrees" | "conflicts" | "incomplete";
+export type ChartImageQuality = "good" | "partial" | "unreadable";
+
+export interface ChartReading {
+  symbol: string | null;
+  asset_class: string | null;
+  timeframe: string | null;
+  chart_type: string | null;
+  last_price: number | null;
+  trend: ChartTrend;
+  structure: string;
+  key_levels: string[];
+  indicators_visible: string[];
+  observations: string[];
+  image_quality: ChartImageQuality;
+}
+
+export interface ChartPositionIdea {
+  bias: ChartBias;
+  setup_name: string;
+  thesis: string;
+  entry_zone: string | null;
+  invalidation: string | null;
+  targets: string[];
+  risk_notes: string;
+  execution_hint: ChartExecutionHint;
+  confidence: number;
+  chart_derived: boolean;
+}
+
+export interface ChartEngineGrounding {
+  symbol: string;
+  tracked: boolean;
+  trade_state: string;
+  trade_grade: string;
+  execution_signal: string;
+  opportunity_score: number;
+  summary: string;
+  alignment: ChartAlignment;
+  alignment_notes: string[];
+  asset_path: string | null;
+}
+
+export interface ChartAnalysis {
+  reading: ChartReading;
+  thesis: string;
+  positions: ChartPositionIdea[];
+  conflicts: string[];
+  engine_grounding: ChartEngineGrounding | null;
+  source: string;
+  disclaimer: string;
+  generated_at: string;
+}
+
+export async function analyzeChartScreenshot(
+  file: File,
+  opts?: { note?: string; symbolHint?: string },
+): Promise<ChartAnalysis> {
+  const form = new FormData();
+  form.append("file", file);
+  if (opts?.note?.trim()) form.append("note", opts.note.trim());
+  if (opts?.symbolHint?.trim()) form.append("symbol_hint", opts.symbolHint.trim());
+
+  const timeoutMs = 100_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl("/api/v1/chart-analysis"), {
+      method: "POST",
+      body: form,
+      credentials: FETCH_CREDENTIALS,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const payload = await readErrorJson(response);
+      maybeRedirectGate(payload?.code);
+      const detail = typeof payload?.detail === "string" ? payload.detail : null;
+      throw new Error(detail ?? `API error: ${response.status} ${response.statusText}`);
+    }
+    return response.json() as Promise<ChartAnalysis>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Vision analysis can take a minute — retry.`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchDecision(symbol: string): Promise<DecisionResult> {
   return apiFetch<DecisionResult>(`/api/v1/assets/${symbol}/decision`);
 }

@@ -356,6 +356,11 @@ def _decision_payload(decision: DecisionResult) -> dict:
     }
 
 
+def get_llm_backend() -> tuple[OpenAI, str, str] | None:
+    """Return (client, model, source). OpenAI if paid key set, else free Gemini."""
+    return _llm_backend()
+
+
 def _llm_backend() -> tuple[OpenAI, str, str] | None:
     """Return (client, model, source). OpenAI if paid key set, else free Gemini."""
     openai_key = settings.openai_api_key.strip()
