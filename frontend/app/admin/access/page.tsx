@@ -4,23 +4,18 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { AdminNav } from "@/components/admin-nav";
 import { useAuth } from "@/components/auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import {
   createAccessGrant,
-  createAdminApiKey,
   fetchAccessGrants,
   fetchAccessHealth,
-  fetchAdminApiKeys,
-  fetchApiKeyScopes,
   fetchWaitlistUsers,
   revokeAccessGrant,
-  revokeAdminApiKey,
   sendAlertTest,
   type AccessGrant,
   type AccessHealth,
-  type ApiKeyCreated,
-  type ApiKeyRecord,
   type WaitlistUser,
 } from "@/services/api";
 
@@ -41,27 +36,16 @@ export default function AdminAccessPage() {
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<AccessHealth | null>(null);
   const [discordNote, setDiscordNote] = useState<string | null>(null);
-  const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
-  const [apiScopes, setApiScopes] = useState<string[]>([]);
-  const [keyUsername, setKeyUsername] = useState("");
-  const [keyName, setKeyName] = useState("");
-  const [keyScopes, setKeyScopes] = useState<string[]>(["expansion:read", "cortex:read"]);
-  const [keyExpiresAt, setKeyExpiresAt] = useState("");
-  const [issuedSecret, setIssuedSecret] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const [rows, waiting, env, keys, scopes] = await Promise.all([
+    const [rows, waiting, env] = await Promise.all([
       fetchAccessGrants(),
       fetchWaitlistUsers(),
       fetchAccessHealth(),
-      fetchAdminApiKeys(),
-      fetchApiKeyScopes(),
     ]);
     setGrants(rows);
     setWaitlist(waiting);
     setHealth(env);
-    setApiKeys(keys);
-    setApiScopes(scopes.filter((s) => s !== "*:read"));
   }, []);
 
   useEffect(() => {
@@ -101,34 +85,6 @@ export default function AdminAccessPage() {
     }
   }
 
-  function toggleKeyScope(scope: string) {
-    setKeyScopes((prev) =>
-      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
-    );
-  }
-
-  async function onCreateKey(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setIssuedSecret(null);
-    try {
-      const created: ApiKeyCreated = await createAdminApiKey({
-        username: keyUsername.trim(),
-        name: keyName.trim(),
-        scopes: keyScopes,
-        expires_at: keyExpiresAt ? new Date(keyExpiresAt).toISOString() : null,
-      });
-      setIssuedSecret(created.secret);
-      setKeyName("");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "API key issue failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (loading || !user?.is_admin) {
     return (
       <main className="min-h-screen">
@@ -145,21 +101,14 @@ export default function AdminAccessPage() {
         <p className="label-caps">Admin</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Who can unlock</h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
-          Grant by username for dashboard access. Issue API keys separately for builders —
-          keys bypass TOTP but still require an active grant and scoped read access.
-          <Link href="/admin/wallets" className="underline-offset-2 hover:underline">
-            Wallets
-          </Link>
-          {" · "}
-          <Link href="/admin/requests" className="underline-offset-2 hover:underline">
-            Ticker requests
-          </Link>
-          {" · "}
-          <Link href="/unlock" className="underline-offset-2 hover:underline">
-            Unlock
-          </Link>
-          . Dashboard users still set up a personal authenticator after grant.
+          Grant dashboard access by username. For builder API keys, use the{" "}
+          <Link href="/admin/api-access" className="underline-offset-2 hover:underline">
+            API keys
+          </Link>{" "}
+          tab.
         </p>
+
+        <AdminNav />
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <p className="break-words font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
@@ -288,118 +237,6 @@ export default function AdminAccessPage() {
             {busy ? "Saving…" : "Grant access"}
           </button>
         </form>
-
-        <div className="surface mt-10 p-5">
-          <p className="label-caps text-muted-foreground/55">Builder API keys</p>
-          <p className="mt-2 text-sm text-muted-foreground/70">
-            Issue to granted users only. Use{" "}
-            <span className="font-mono text-foreground/80">Authorization: Bearer se_live_…</span>{" "}
-            or <span className="font-mono text-foreground/80">X-API-Key</span>. Read-only scopes
-            in Phase 1.
-          </p>
-
-          <form onSubmit={onCreateKey} className="mt-5 grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="label-caps text-muted-foreground/55">Username</span>
-              <input
-                value={keyUsername}
-                onChange={(e) => setKeyUsername(e.target.value)}
-                className="mt-2 w-full border border-white/[0.08] bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-white/[0.18]"
-                required
-              />
-            </label>
-            <label className="block">
-              <span className="label-caps text-muted-foreground/55">Label</span>
-              <input
-                value={keyName}
-                onChange={(e) => setKeyName(e.target.value)}
-                placeholder="discord bot"
-                className="mt-2 w-full border border-white/[0.08] bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-white/[0.18]"
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="label-caps text-muted-foreground/55">Expires (optional)</span>
-              <input
-                type="datetime-local"
-                value={keyExpiresAt}
-                onChange={(e) => setKeyExpiresAt(e.target.value)}
-                className="mt-2 w-full border border-white/[0.08] bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-white/[0.18]"
-              />
-            </label>
-            <div className="sm:col-span-2">
-              <span className="label-caps text-muted-foreground/55">Scopes</span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {apiScopes.map((scope) => (
-                  <button
-                    key={scope}
-                    type="button"
-                    onClick={() => toggleKeyScope(scope)}
-                    className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-widest ${
-                      keyScopes.includes(scope)
-                        ? "border-foreground/30 bg-foreground/10 text-foreground/90"
-                        : "border-white/[0.08] text-muted-foreground/60"
-                    }`}
-                  >
-                    {scope}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={busy || keyScopes.length === 0}
-              className="sm:col-span-2 border border-white/[0.1] bg-foreground/90 py-2.5 font-mono text-[11px] uppercase tracking-widest text-background disabled:opacity-40"
-            >
-              {busy ? "Issuing…" : "Issue API key"}
-            </button>
-          </form>
-
-          {issuedSecret ? (
-            <div className="mt-4 border border-amber-500/30 bg-amber-500/10 p-4">
-              <p className="label-caps text-amber-400/90">Copy now — shown once</p>
-              <p className="mt-2 break-all font-mono text-xs text-foreground/90">{issuedSecret}</p>
-            </div>
-          ) : null}
-
-          <ul className="mt-6 divide-y divide-white/[0.05]">
-            {apiKeys.length === 0 ? (
-              <li className="py-3 font-mono text-[11px] text-muted-foreground/45">No API keys yet</li>
-            ) : (
-              apiKeys.map((k) => (
-                <li key={k.id} className="flex flex-wrap items-baseline justify-between gap-3 py-3">
-                  <div>
-                    <p className="font-mono text-sm text-foreground/90">
-                      @{k.username}
-                      {k.name ? ` · ${k.name}` : ""}
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-muted-foreground/50">
-                      {k.key_prefix}… · {k.scopes.join(", ")} ·{" "}
-                      {k.active ? "active" : "revoked/expired"}
-                      {k.last_used_at
-                        ? ` · used ${new Date(k.last_used_at).toLocaleString()}`
-                        : ""}
-                    </p>
-                  </div>
-                  {k.active ? (
-                    <button
-                      type="button"
-                      className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
-                      onClick={() =>
-                        void revokeAdminApiKey(k.id)
-                          .then(reload)
-                          .catch((err) =>
-                            setError(err instanceof Error ? err.message : "Revoke failed"),
-                          )
-                      }
-                    >
-                      Revoke
-                    </button>
-                  ) : null}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
 
         <ul className="mt-8 divide-y divide-white/[0.05]">
           {grants.length === 0 ? (

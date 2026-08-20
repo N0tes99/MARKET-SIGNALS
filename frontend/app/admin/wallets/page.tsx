@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { AdminNav } from "@/components/admin-nav";
 import { useAuth } from "@/components/auth-provider";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -94,6 +95,8 @@ export default function AdminWalletsPage() {
             Access
           </Link>
         </p>
+
+        <AdminNav />
 
         {error ? (
           <p className="mt-6 font-mono text-[11px] text-bearish/80">{error}</p>

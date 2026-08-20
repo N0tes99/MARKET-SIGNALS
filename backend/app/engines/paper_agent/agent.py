@@ -31,7 +31,11 @@ from app.engines.paper_agent.paper_policy import (
     snapshot_paper_execution,
     sort_paper_candidates,
 )
-from app.engines.paper_agent.squeeze_expansion import scan_squeeze_expansion
+from app.engines.paper_agent.squeeze_expansion import (
+    SOURCE,
+    active_expansion_alert,
+    scan_squeeze_expansion,
+)
 from app.engines.paper_agent.stamps import mint_stamp, paper_discord_payload
 from app.engines.paper_agent.store import PaperTradeStore
 from app.engines.paper_agent.types import (
@@ -55,8 +59,8 @@ MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 5
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
 MAX_CME_FUTURES_OPENS_PER_DAY = 3
-MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY = 1
-SQUEEZE_EXPANSION_SOURCE = "squeeze_expansion"
+MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY = 2
+SQUEEZE_EXPANSION_SOURCE = SOURCE
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
 _DISCOVER_INTERVAL_SECONDS = 90.0
@@ -257,6 +261,13 @@ class PaperAgent:
                 notes.append("crypto_perp_v2_feed_error")
 
             for idea in v2_ideas:
+                if active_expansion_alert(self._cortex, idea.symbol):
+                    notes.append(f"skip:expansion_active:{idea.symbol}")
+                    logger.info(
+                        "paper_skip expansion_active %s — defer perp_v2 to expansion path",
+                        idea.symbol,
+                    )
+                    continue
                 fp = _fingerprint(
                     "crypto_perp_v2", idea.symbol, idea.setup_type, idea.direction
                 )
@@ -423,6 +434,9 @@ class PaperAgent:
                     hit_cap = True
                     break
                 if cand["source"] == "crypto_perp_v2":
+                    if active_expansion_alert(self._cortex, cand["symbol"]):
+                        notes.append(f"skip:expansion_active:{cand['symbol']}")
+                        continue
                     extras = cand.get("extras") or {}
                     funding = extras.get("funding_bps")
                     try:

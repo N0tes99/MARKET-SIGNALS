@@ -15,6 +15,7 @@ const BYPASS = new Set([
   "/unlock",
   "/pending",
   "/admin/access",
+  "/admin/api-access",
   "/admin/wallets",
   "/admin/requests",
 ]);

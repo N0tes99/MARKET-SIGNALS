@@ -18,7 +18,7 @@ from app.cortex.synthesis import (
     synthesize_symbol_notes,
 )
 from app.cortex.types import SymbolContext, WorkingMemory
-from app.engines.expansion_engine.config import BENCHMARK_UNIVERSE, default_expansion_config
+from app.engines.expansion_engine.config import EXPANSION_UNIVERSE, default_expansion_config
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.types import ExpansionState
 from app.market_data.service import MarketDataService
@@ -59,7 +59,7 @@ class CortexOrchestrator:
         persist: bool = True,
     ) -> WorkingMemory:
         """Execute one cortex cycle across the universe."""
-        universe = symbols or default_expansion_config().universe or BENCHMARK_UNIVERSE
+        universe = symbols or default_expansion_config().universe or EXPANSION_UNIVERSE
         tick_id = uuid4().hex[:12]
         as_of = datetime.now(UTC)
         notes: list[str] = []

@@ -24,25 +24,10 @@ SETUP_TYPE = "perp_momentum"
 MIN_CONFIDENCE = 55.0
 
 # Focused slice — keeps discover under the 90s paper cadence.
-# Same source of truth as Radar futures + perps board funding.
-V2_UNIVERSE: tuple[str, ...] = (
-    "BTC",
-    "ETH",
-    "SOL",
-    "XRP",
-    "AVAX",
-    "LINK",
-    "DOGE",
-    "NEAR",
-    "ARB",
-    "APT",
-    "INJ",
-    "OP",
-    "SUI",
-    "ADA",
-    "LTC",
-    "DOT",
-)
+# Same source of truth as expansion radar + perps board funding.
+from app.market_data.perp_universe import PERP_V2_UNIVERSE
+
+V2_UNIVERSE: tuple[str, ...] = PERP_V2_UNIVERSE
 
 _MOMENTUM_BARS = 12  # ~12h on 1h candles
 # safe_get_ohlcv always validates min_rows=20 — never request fewer.

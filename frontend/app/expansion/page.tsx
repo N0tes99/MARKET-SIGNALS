@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { cn } from "@/lib/utils";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 type ExpansionRow = {
   symbol: string;
@@ -44,19 +44,19 @@ export default function ExpansionPage() {
   return (
     <main className="min-h-screen">
       <SiteHeader compact title="Expansion" />
-      <div className="container mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div>
           <p className="label-caps">Surface 5</p>
-          <h1 className="mt-2 text-2xl font-light tracking-tight">Expansion radar</h1>
+          <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Expansion radar</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compression, squeeze fuel, breakout trigger (BTC / SOL / SUI)
+            Compression, squeeze fuel, breakout trigger (16 perp symbols)
           </p>
         </div>
 
         {loading ? (
           <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {rows.map((row) => (
               <article key={row.symbol} className="surface p-4">
                 <div className="flex items-baseline justify-between gap-2">
