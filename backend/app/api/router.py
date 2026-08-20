@@ -9,6 +9,7 @@ from app.api.routes import (
     assets,
     auth,
     backtests,
+    cortex,
     decision,
     equity_setups,
     evidence,
@@ -59,6 +60,7 @@ api_router.include_router(
 )
 api_router.include_router(runners.router, prefix="/runners", tags=["runners"])
 api_router.include_router(expansion.router, prefix="/expansion", tags=["expansion"])
+api_router.include_router(cortex.router, prefix="/cortex", tags=["cortex"])
 api_router.include_router(options_tape.router, prefix="/options-tape", tags=["options-tape"])
 api_router.include_router(perps.router, prefix="/perps", tags=["perps"])
 api_router.include_router(futures.router, prefix="/futures", tags=["futures"])

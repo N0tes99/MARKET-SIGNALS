@@ -126,6 +126,19 @@ def get_expansion_scanner():
 
 
 @lru_cache
+def get_cortex_orchestrator():
+    """Singleton cortex orchestrator (shared episodic memory)."""
+    from app.cortex.orchestrator import CortexOrchestrator
+    from app.memory.episodic.store import InMemoryEpisodicStore
+
+    return CortexOrchestrator(
+        market_data=get_market_data_service(),
+        expansion_scanner=get_expansion_scanner(),
+        episodic=InMemoryEpisodicStore(max_records=200),
+    )
+
+
+@lru_cache
 def get_runner_scanner():
     """Singleton Surface 4 Runner Detection scanner."""
     from app.engines.runner_engine import RunnerScanner
