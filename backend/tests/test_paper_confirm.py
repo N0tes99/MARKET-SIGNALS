@@ -253,3 +253,26 @@ def test_confirm_cme_ignores_fng_and_skips_pipeline(monkeypatch) -> None:
     assert tp == 6.0
     assert sl == 3.0
     assert "cme" in note
+
+
+def test_confirm_expansion_skips_fng_and_pipeline(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (82, "Extreme Greed"),
+    )
+
+    class _Pipe:
+        def evaluate(self, symbol, timeframe="1h"):
+            raise AssertionError("pipeline should not evaluate squeeze expansion")
+
+    skip, tp, sl, note = confirm_open(
+        symbol="SOL",
+        direction="long",
+        pipeline=_Pipe(),
+        entry_price=150.0,
+        source="squeeze_expansion",
+    )
+    assert skip is None
+    assert tp == 6.0
+    assert sl == 3.0
+    assert "expansion" in note

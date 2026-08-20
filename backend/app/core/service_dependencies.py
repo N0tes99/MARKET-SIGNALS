@@ -169,6 +169,7 @@ def get_paper_agent():
         pipeline=get_decision_pipeline(),
         alerts=get_alert_service(),
         tape_scanner=get_options_tape_scanner(),
+        cortex=get_cortex_orchestrator(),
     )
 
 
