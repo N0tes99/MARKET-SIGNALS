@@ -37,28 +37,30 @@ _ALLOWED_CLASSES = frozenset(
 )
 
 _SYSTEM_PROMPT = (
-    "You are Signal Engine's Chart Analyst. You read trading screenshots "
-    "(candlestick charts, DOM, options chains, PnL, order tickets) and explain "
-    "what is visible. You NEVER give buy/sell commands. Sitting out is a "
-    "first-class outcome. Label everything as analysis, not a recommendation. "
-    "Protect capital first. If the image is not a market screenshot, say so "
-    "and return a single no_trade position with WAIT. "
-    "If live desk evidence is provided, treat engines as the decision layer: "
-    "the chart is visual context. Do not upgrade engine WAIT/WATCH/IGNORE to "
-    "EXECUTE. You may still describe a setup the chart shows, but "
-    "execution_hint must stay WAIT or WATCH unless engines are already EXECUTE "
-    "and the chart agrees. Always include at least one position. Prefer "
-    "explicit invalidation and a no_trade alternative when structure is messy. "
+    "You are Signal Engine's Chart Analyst. On every screenshot you MUST "
+    "automatically scan for the best possible setups — the user does not type "
+    "a prompt. Read candlesticks, levels, volume, indicators, DOM, or tickets. "
+    "Rank locations. Return 2–3 positions ordered best-first: (1) the highest "
+    "quality long OR short location the chart actually shows, (2) the opposite "
+    "side if a real location exists, (3) a no_trade / WAIT stand-aside. "
+    "Scan for: range fade, breakout/hold, pullback to VWAP/EMA/level, "
+    "liquidity sweep / stop run, failed auction, compression → expansion. "
+    "Every setup needs entry_zone, invalidation, targets, and WAIT/WATCH/EXECUTE. "
+    "You NEVER give buy/sell commands. Sitting out is first-class. Label "
+    "analysis, not a recommendation. Protect capital first. If the image is "
+    "not a market screenshot or structure is messy, a single no_trade WAIT. "
+    "If live desk evidence is provided, engines decide: do not upgrade engine "
+    "WAIT/WATCH/IGNORE to EXECUTE. You may still describe the chart setup. "
     "Respond in JSON with keys: symbol (string or null), asset_class "
     "(crypto|stock|etf|futures|options|unknown), timeframe (string or null), "
     "chart_type, last_price (number or null), trend "
     "(bullish|bearish|range|unclear), structure (string), key_levels "
     "(array of strings), indicators_visible (array of strings), observations "
-    "(array of short bullets), thesis (2-4 sentences), positions (array of "
-    "objects with bias long|short|no_trade, setup_name, thesis, entry_zone, "
-    "invalidation, targets array, risk_notes, execution_hint WAIT|WATCH|EXECUTE, "
-    "confidence 0-100), conflicts (array of strings), image_quality "
-    "(good|partial|unreadable)."
+    "(array of short bullets), thesis (2-4 sentences naming the best setup), "
+    "positions (array, best first, objects with bias long|short|no_trade, "
+    "setup_name, thesis, entry_zone, invalidation, targets array, risk_notes, "
+    "execution_hint WAIT|WATCH|EXECUTE, confidence 0-100), conflicts "
+    "(array of strings), image_quality (good|partial|unreadable)."
 )
 
 _SYMBOL_STRIP = ("USDT", "USDC", "BUSD", "PERP")
@@ -127,7 +129,7 @@ class ChartAnalyzer:
                 ],
             },
         ]
-        content = _vision_completion(client, model, messages, prefer_json=source != "local_llm")
+        content = _vision_completion(client, model, messages, prefer_json=True)
         parsed = _parse_llm_json(content)
         return assemble_chart_analysis(parsed, source=source, decision=decision)
 
@@ -203,7 +205,7 @@ def _vision_completion(
         "model": model,
         "messages": messages,
         "temperature": 0.2,
-        "max_tokens": 1600,
+        "max_tokens": 2000,
     }
     if prefer_json:
         try:
@@ -294,6 +296,7 @@ def assemble_chart_analysis(
         for item in _as_list(parsed.get("positions"))
     ]
     positions = [p for p in positions if p is not None]
+    positions.sort(key=lambda item: item.confidence, reverse=True)
     if not positions:
         positions = [
             PositionIdeaSchema(
@@ -550,9 +553,11 @@ def _user_payload(
     decision: DecisionResult | None,
 ) -> str:
     parts = [
-        "Analyze this trading screenshot. Extract structure, levels, and "
-        "possible positions with a thesis and execution timing "
-        "(WAIT / WATCH / EXECUTE). Include invalidation."
+        "Automatic setup scan. Do not wait for a user question. Read this "
+        "screenshot and rank the best possible locations on the tape: "
+        "structure, key levels, best long if any, best short if any, and a "
+        "stand-aside. Put the highest-confidence setup first. Include "
+        "entry_zone, invalidation, targets, and WAIT / WATCH / EXECUTE."
     ]
     if symbol_hint:
         parts.append(f"User symbol hint: {symbol_hint}.")

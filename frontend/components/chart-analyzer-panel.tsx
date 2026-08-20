@@ -74,23 +74,12 @@ export function ChartAnalyzerPanel() {
       .catch(() => undefined);
   }, [user]);
 
-  function onPick(event: ChangeEvent<HTMLInputElement>) {
-    assignFile(event.target.files?.[0] ?? null);
-  }
-
-  function onDrop(event: DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    setDragging(false);
-    const dropped = event.dataTransfer.files?.[0];
-    if (dropped) assignFile(dropped);
-  }
-
-  async function onAnalyze() {
-    if (!file && !symbolHint.trim()) return;
+  async function runScan(nextFile: File | null) {
+    if (!nextFile && !symbolHint.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      const analysis = await analyzeChartScreenshot(file, {
+      const analysis = await analyzeChartScreenshot(nextFile, {
         note,
         symbolHint,
       });
@@ -102,15 +91,30 @@ export function ChartAnalyzerPanel() {
     }
   }
 
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const next = event.target.files?.[0] ?? null;
+    assignFile(next);
+    if (next) void runScan(next);
+  }
+
+  function onDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files?.[0];
+    if (dropped) {
+      assignFile(dropped);
+      void runScan(dropped);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <section className="surface p-5 sm:p-6">
         <p className="label-caps">Upload</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Screenshot of a chart, tape, options chain, or ticket. With LM Studio
-          running, the local Qwen vision model reads the image. Without it, type
-          a tracked ticker and desk engines still map locations. Engines decide —
-          this does not place orders.
+          Screenshot of a chart, tape, options chain, or ticket. Drop it and
+          Qwen auto-scans for the best long, best short, and a stand-aside.
+          Engines still decide — this does not place orders.
         </p>
         {status ? (
           <p className="mt-3 font-mono text-[10px] leading-relaxed text-muted-foreground/70">
@@ -144,7 +148,7 @@ export function ChartAnalyzerPanel() {
           ) : (
             <>
               <span className="font-mono text-[11px] uppercase tracking-widest text-foreground/80">
-                Drop a screenshot
+                Drop a screenshot — auto-scans setups
               </span>
               <span className="mt-2 font-mono text-[10px] text-muted-foreground/60">
                 PNG, JPEG, WebP · max 8MB
@@ -195,10 +199,10 @@ export function ChartAnalyzerPanel() {
         <button
           type="button"
           disabled={(!file && !symbolHint.trim()) || busy || !user}
-          onClick={() => void onAnalyze()}
+          onClick={() => void runScan(file)}
           className="mt-5 w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
         >
-          {busy ? "Reading…" : "Analyze"}
+          {busy ? "Scanning setups…" : "Scan again"}
         </button>
       </section>
 
@@ -256,9 +260,9 @@ function AnalysisResult({ data }: { data: ChartAnalysis }) {
       </section>
 
       <section>
-        <h2 className="label-caps">Possible positions</h2>
+        <h2 className="label-caps">Ranked setups</h2>
         <p className="mt-1 mb-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
-          Analysis, not an order
+          Best first · analysis, not an order
         </p>
         <div className="grid gap-4 lg:grid-cols-2">
           {data.positions.map((position) => (

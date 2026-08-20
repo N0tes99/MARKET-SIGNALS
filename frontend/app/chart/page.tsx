@@ -32,8 +32,8 @@ export default function ChartAnalyzerPage() {
         <p className="label-caps">Vision</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Chart screenshot</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Point this desk at your LM Studio Qwen (vision) server, or type a
-          tracked ticker and use live engines. Gemini is not required.
+          Drop a screenshot and the local Qwen scan ranks the best setups
+          automatically. Gemini is not required.
         </p>
         <div className="mt-8">
           <ChartAnalyzerPanel />

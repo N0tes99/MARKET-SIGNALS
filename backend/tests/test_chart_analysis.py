@@ -177,6 +177,35 @@ def test_ignore_state_forces_wait() -> None:
     assert result.engine_grounding.alignment == "conflicts"
 
 
+def test_positions_ranked_best_first() -> None:
+    result = assemble_chart_analysis(
+        {
+            "symbol": "BTC",
+            "trend": "range",
+            "thesis": "Fade the range high first.",
+            "positions": [
+                {
+                    "bias": "long",
+                    "setup_name": "Weak long",
+                    "thesis": "Hope bid.",
+                    "execution_hint": "WATCH",
+                    "confidence": 32,
+                },
+                {
+                    "bias": "short",
+                    "setup_name": "Range fade",
+                    "thesis": "Rejection at supply.",
+                    "execution_hint": "WATCH",
+                    "confidence": 71,
+                },
+            ],
+        },
+        source="local_llm",
+    )
+    assert result.positions[0].setup_name == "Range fade"
+    assert result.positions[0].confidence == 71
+
+
 def test_attach_decision_adds_grounding() -> None:
     result = assemble_chart_analysis(
         {
