@@ -9,13 +9,13 @@ from httpx import AsyncClient
 
 from app.engines.expansion_engine.compression import analyze_compression
 from app.engines.expansion_engine.config import default_expansion_config
-from app.market_data.perp_universe import BENCHMARK_UNIVERSE, PERP_V2_UNIVERSE
 from app.engines.expansion_engine.replay import replay_symbol
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.squeeze_fuel import analyze_squeeze_fuel
 from app.engines.expansion_engine.state import resolve_state
 from app.engines.expansion_engine.trigger import analyze_trigger
 from app.engines.expansion_engine.types import CompressionResult, ExpansionState
+from app.market_data.perp_universe import BENCHMARK_UNIVERSE, PERP_V2_UNIVERSE
 from app.market_data.providers.bybit_derivatives import DerivativesDepth
 from app.market_data.providers.mock import MockMarketDataProvider
 from app.market_data.service import MarketDataService

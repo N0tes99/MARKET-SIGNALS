@@ -985,7 +985,7 @@ export async function analyzeChartScreenshot(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(
-        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Local vision can take a few minutes — retry.`,
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Groq vision can take up to a minute — retry.`,
       );
     }
     throw error;

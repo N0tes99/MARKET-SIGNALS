@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from tests.test_squeeze_expansion import _candidate, _Cortex, _EmptyFeed, _Market
+
 from app.cortex.types import SymbolContext, WorkingMemory
 from app.engines.expansion_engine.types import ExpansionState
 from app.engines.paper_agent.agent import PaperAgent
 from app.engines.paper_agent.crypto_perp_v2 import CryptoPerpV2Idea
 from app.engines.paper_agent.squeeze_expansion import active_expansion_alert
 from app.services.expansion_alert_service import ExpansionAlertService
-from tests.test_squeeze_expansion import _Cortex, _EmptyFeed, _Market, _candidate
 
 
 def test_active_expansion_alert_reads_cortex() -> None:

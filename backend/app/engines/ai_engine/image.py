@@ -8,7 +8,7 @@ from io import BytesIO
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
-MAX_EDGE_PX = 2048
+MAX_EDGE_PX = 1280
 MAX_PIXELS = 25_000_000
 ALLOWED_MIME = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
 
@@ -79,11 +79,13 @@ def prepare_chart_image(data: bytes, content_type: str | None) -> PreparedImage:
         )
         width, height = image.size
 
-    out_format = "JPEG" if source_format in {"JPEG", "JPG", "WEBP"} else "PNG"
+    # JPEG is smaller over the wire; Groq vision does not need lossless PNG.
+    prefer_jpeg = source_format in {"JPEG", "JPG", "WEBP"} or longest > MAX_EDGE_PX
+    out_format = "JPEG" if prefer_jpeg else "PNG"
     buf = BytesIO()
     save_kwargs: dict[str, object] = {"optimize": True}
     if out_format == "JPEG":
-        save_kwargs["quality"] = 85
+        save_kwargs["quality"] = 78
         if image.mode != "RGB":
             image = image.convert("RGB")
     image.save(buf, format=out_format, **save_kwargs)

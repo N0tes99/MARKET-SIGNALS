@@ -599,7 +599,7 @@ class AIAnalyst:
 
 ### Responsibilities
 
-- Accept a PNG/JPEG/WebP/GIF screenshot (max 8MB) and downscale for vision
+- Accept a PNG/JPEG/WebP/GIF screenshot (max 8MB) and downscale to 1280px for vision
 - Extract visible structure: symbol, timeframe, trend, key levels, indicators
 - Propose 1–4 possible positions (`long` / `short` / `no_trade`) with thesis, entry zone, invalidation, targets, and `WAIT` / `WATCH` / `EXECUTE` hints
 - Treat **no trade** as a first-class outcome
@@ -621,6 +621,7 @@ Response: `ChartAnalysisSchema` (`reading`, `thesis`, `positions`, `conflicts`, 
 - Vision LLM reads the image; engines remain the decision layer
 - A screenshot can be stale, cropped, or missing context — quality is flagged (`good` / `partial` / `unreadable`)
 - Requires ``GROQ_API_KEY`` for screenshot vision. If it is empty, Chart still runs from desk engines when the user types a tracked ticker.
+- Groq Qwen 3.6 is called with ``reasoning_effort=none`` so thinking tokens do not stall or truncate JSON.
 
 ### Status
 

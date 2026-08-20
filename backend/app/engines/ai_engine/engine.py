@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 _GROQ_OPENAI_BASE = "https://api.groq.com/openai/v1"
 _GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+_GROQ_TIMEOUT_S = 120.0
+# Qwen 3.6 thinks by default; that burns tokens and often times out on charts.
+_GROQ_EXTRA_BODY = {"reasoning_effort": "none"}
 
 
 @dataclass
@@ -135,6 +138,7 @@ class AIAnalyst:
             response_format={"type": "json_object"},
             temperature=0.3,
             max_tokens=600,
+            extra_body=_GROQ_EXTRA_BODY,
         )
 
         content = response.choices[0].message.content or "{}"
@@ -365,7 +369,12 @@ def _llm_backend() -> tuple[OpenAI, str, str] | None:
     groq_key = settings.groq_api_key.strip()
     if groq_key:
         return (
-            OpenAI(api_key=groq_key, base_url=_GROQ_OPENAI_BASE),
+            OpenAI(
+                api_key=groq_key,
+                base_url=_GROQ_OPENAI_BASE,
+                timeout=_GROQ_TIMEOUT_S,
+                max_retries=1,
+            ),
             _GROQ_VISION_MODEL,
             "groq",
         )

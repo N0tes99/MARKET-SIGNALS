@@ -76,7 +76,9 @@ def active_expansion_alert(cortex: _CortexLike | None, symbol: str) -> str | Non
     return None
 
 
-def refresh_cortex_if_stale(cortex: _CortexLike, *, max_age_seconds: float = CORTEX_STALE_SECONDS) -> None:
+def refresh_cortex_if_stale(
+    cortex: _CortexLike, *, max_age_seconds: float = CORTEX_STALE_SECONDS
+) -> None:
     """Run a cortex tick when memory is missing or older than the beat interval."""
     from datetime import UTC, datetime
 

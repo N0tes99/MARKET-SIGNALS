@@ -8,10 +8,11 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_expansion_scanner, get_market_data_service
-from app.engines.expansion_engine.config import BENCHMARK_UNIVERSE, EXPANSION_PHASE, EXPANSION_UNIVERSE
+from app.engines.expansion_engine.config import EXPANSION_PHASE, EXPANSION_UNIVERSE
 from app.engines.expansion_engine.replay import replay_universe
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.types import ExpansionCandidate, ExpansionState
+from app.market_data.perp_universe import BENCHMARK_UNIVERSE
 from app.schemas.expansion import (
     CompressionSchema,
     ExpansionCandidateSchema,

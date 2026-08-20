@@ -52,7 +52,8 @@ export default function ChartAnalyzerPage() {
         <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Chart screenshot</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Drop a trade screenshot. The analyst ranks the best long, best short,
-          and a stand-aside. Desk engines still decide — this does not place orders.
+          and a stand-aside. A Groq scan is often 15–45 seconds, not instant.
+          Desk engines still decide — this does not place orders.
         </p>
         {apiUp === false ? (
           <div className="surface mt-6 px-4 py-3">

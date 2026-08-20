@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _STATUS_HINTS = {
-    "groq": "Using Groq vision. Set GROQ_API_KEY on the API.",
+    "groq": "Groq vision is on. A screenshot scan usually takes 15–45 seconds.",
     "local": (
         "No Groq key. Enter a tracked ticker — desk engines still map "
         "WAIT / WATCH / EXECUTE."
@@ -62,8 +62,7 @@ async def analyze_chart_screenshot(
 ) -> ChartAnalysisSchema:
     """Read a chart screenshot and return possible positions with a thesis.
 
-    Vision models explain what is on the image when a key or local node is
-    configured. Without vision (Gemini geo-blocked, no Groq/OpenAI/local LLM),
+    Groq vision reads the screenshot when GROQ_API_KEY is set. Without a key,
     pass a tracked symbol and the decision pipeline still navigates
     WAIT / WATCH / EXECUTE.
     """

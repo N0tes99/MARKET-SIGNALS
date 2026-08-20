@@ -103,6 +103,13 @@ def test_prepare_accepts_png() -> None:
     assert prepared.data[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_prepare_downscales_large_charts_to_jpeg() -> None:
+    prepared = prepare_chart_image(_png(2400, 1600), "image/png")
+    assert prepared.mime == "image/jpeg"
+    assert prepared.data[:3] == b"\xff\xd8\xff"
+    assert max(prepared.width, prepared.height) == 1280
+
+
 def test_normalize_symbol_hint_strips_quote() -> None:
     assert normalize_symbol_hint("btcusdt") == "BTC"
     assert normalize_symbol_hint("ETH/USD") == "ETH"
@@ -381,9 +388,45 @@ def test_groq_backend_selected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ai_mod.settings, "groq_api_key", "gsk_test")
     backend = ai_mod.get_llm_backend()
     assert backend is not None
-    _client, model, source = backend
+    client, model, source = backend
     assert source == "groq"
     assert model == "qwen/qwen3.6-27b"
+    assert client.timeout == 120.0
+    assert client.max_retries == 1
+
+
+def test_vision_completion_disables_qwen_thinking() -> None:
+    from app.engines.ai_engine.chart_analyzer import _vision_completion
+
+    class _FakeCompletions:
+        def __init__(self) -> None:
+            self.kwargs: dict | None = None
+
+        def create(self, **kwargs: object) -> object:
+            self.kwargs = kwargs
+
+            class _Msg:
+                content = '{"symbol":"BTC"}'
+
+            class _Choice:
+                message = _Msg()
+
+            class _Resp:
+                choices = [_Choice()]
+
+            return _Resp()
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.chat = type("Chat", (), {})()
+            self.chat.completions = _FakeCompletions()
+
+    client = _FakeClient()
+    content = _vision_completion(client, "qwen/qwen3.6-27b", [], prefer_json=True)
+    assert content == '{"symbol":"BTC"}'
+    assert client.chat.completions.kwargs is not None
+    assert client.chat.completions.kwargs["extra_body"] == {"reasoning_effort": "none"}
+    assert client.chat.completions.kwargs["response_format"] == {"type": "json_object"}
 
 
 def test_no_backend_without_groq(monkeypatch: pytest.MonkeyPatch) -> None:

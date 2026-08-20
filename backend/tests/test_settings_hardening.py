@@ -45,7 +45,9 @@ def test_production_forces_debug_off(isolated_env: None) -> None:
     assert loaded.secret_key == "unit-test-secret-key-not-default"
 
 
-def test_development_cors_includes_local_next_ports(isolated_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_development_cors_includes_local_next_ports(
+    isolated_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     loaded = Settings(_env_file=None, app_env="development", cors_origins="http://localhost:3000")
     origins = loaded.cors_origin_list()
@@ -55,7 +57,9 @@ def test_development_cors_includes_local_next_ports(isolated_env: None, monkeypa
     assert "http://127.0.0.1:3001" in origins
 
 
-def test_production_cors_does_not_inject_local_ports(isolated_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_production_cors_does_not_inject_local_ports(
+    isolated_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     loaded = Settings(
         _env_file=None,

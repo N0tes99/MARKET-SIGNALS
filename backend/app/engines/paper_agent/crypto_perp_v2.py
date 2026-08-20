@@ -11,6 +11,7 @@ from app.engines.paper_agent.types import PaperDirection
 from app.engines.runner_engine.crypto_learn import get_crypto_learn_coefficients
 from app.engines.sentiment_engine.engine import fetch_fear_greed
 from app.engines.sentiment_engine.reddit_social import analyze_reddit_social
+from app.market_data.perp_universe import PERP_V2_UNIVERSE
 from app.market_data.providers.bybit_derivatives import (
     fetch_derivatives_depth,
     oi_change_pct,
@@ -25,8 +26,6 @@ MIN_CONFIDENCE = 55.0
 
 # Focused slice — keeps discover under the 90s paper cadence.
 # Same source of truth as expansion radar + perps board funding.
-from app.market_data.perp_universe import PERP_V2_UNIVERSE
-
 V2_UNIVERSE: tuple[str, ...] = PERP_V2_UNIVERSE
 
 _MOMENTUM_BARS = 12  # ~12h on 1h candles

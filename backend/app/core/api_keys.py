@@ -164,7 +164,11 @@ async def authenticate_api_key(
     if not secrets.compare_digest(api_key.key_hash, key_hash):
         return None, "INVALID_API_KEY"
     if api_key.expires_at is not None:
-        exp = api_key.expires_at if api_key.expires_at.tzinfo else api_key.expires_at.replace(tzinfo=UTC)
+        exp = (
+            api_key.expires_at
+            if api_key.expires_at.tzinfo
+            else api_key.expires_at.replace(tzinfo=UTC)
+        )
         if exp <= now:
             return None, "API_KEY_INACTIVE"
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.market_data.perp_universe import BENCHMARK_UNIVERSE, PERP_V2_UNIVERSE
+from app.market_data.perp_universe import PERP_V2_UNIVERSE
 
 # Live expansion + cortex scan universe (aligned with paper v2).
 EXPANSION_UNIVERSE: tuple[str, ...] = PERP_V2_UNIVERSE
