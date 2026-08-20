@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.6.0 |
+| Version | 0.6.1 |
 | Last updated | 2026-08-20 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A; chart screenshot analyzer |
 
 ---
 
@@ -121,6 +121,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
+| Chart Screenshot Analyzer | `backend/app/engines/ai_engine/chart_analyzer.py` | **Implemented** |
 | Backtesting | `backend/app/backtesting/` | **Implemented** |
 | Broker Adapters | `backend/app/adapters/brokers/` | **Not yet created** |
 
@@ -589,6 +590,43 @@ class AIAnalyst:
 ### Status
 
 `IMPLEMENTED` — OpenAI integration with local fallback; `GET /api/v1/assets/{symbol}/analysis`
+
+---
+
+## 6.1 Chart Screenshot Analyzer
+
+**Purpose:** Read a user-uploaded trade or chart screenshot and turn it into **explainable position navigation** — structure, thesis, possible locations, execution timing. **Explains; does not decide or place orders.**
+
+### Responsibilities
+
+- Accept a PNG/JPEG/WebP/GIF screenshot (max 8MB) and downscale for vision
+- Extract visible structure: symbol, timeframe, trend, key levels, indicators
+- Propose 1–4 possible positions (`long` / `short` / `no_trade`) with thesis, entry zone, invalidation, targets, and `WAIT` / `WATCH` / `EXECUTE` hints
+- Treat **no trade** as a first-class outcome
+- When the symbol is tracked, ground against the live decision pipeline and **never upgrade** engine `WAIT` / `WATCH` / `IGNORE` to `EXECUTE`
+- Label output as analysis, not a recommendation
+
+### Interface
+
+```python
+POST /api/v1/chart-analysis
+# multipart: file, optional note, optional symbol_hint
+# requires login; rate-limited (8 / user / 15m)
+```
+
+Response: `ChartAnalysisSchema` (`reading`, `thesis`, `positions`, `conflicts`, `engine_grounding`, `disclaimer`).
+
+### Design Rules
+
+- Vision LLM reads the image; engines remain the decision layer
+- A screenshot can be stale, cropped, or missing context — quality is flagged (`good` / `partial` / `unreadable`)
+- Requires a vision backend: `OPENAI_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, or `LOCAL_LLM_BASE_URL` (LM Studio / Ollama / vLLM). If none are set, Chart still runs from desk engines when the user types a tracked ticker.
+- `LOCAL_LLM_BASE_URL` is **this API process’s** backend. Other clones of the repo do not use your machine. If this API is public and pointed at your home LM Studio, every logged-in user of **this** instance would send screenshots to your GPU — do not do that.
+- Token-expensive when using paid OpenAI; local LM is electricity + VRAM on the node you run
+
+### Status
+
+`IMPLEMENTED` — `POST /api/v1/chart-analysis` + `/chart` desk page
 
 ---
 

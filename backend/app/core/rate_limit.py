@@ -105,3 +105,18 @@ def limit_totp(user_id: str) -> None:
         limit=settings.auth_totp_limit,
         window_seconds=settings.auth_rate_window_seconds,
     )
+
+
+def limit_chart_analysis(request: Request, user_id: str) -> None:
+    """Cap vision screenshot analysis per user and IP (token-expensive)."""
+    window = settings.auth_rate_window_seconds
+    check_rate_limit(
+        f"chart:user:{user_id}",
+        limit=8,
+        window_seconds=window,
+    )
+    check_rate_limit(
+        f"chart:ip:{client_ip(request)}",
+        limit=20,
+        window_seconds=window,
+    )

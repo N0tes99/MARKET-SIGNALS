@@ -48,6 +48,22 @@ async def get_optional_user(
     return await _user_from_cookie(request, session)
 
 
+async def get_chart_user(
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> User | None:
+    """Require login in production; local uvicorn can scan without an account."""
+    user = await _user_from_cookie(request, session)
+    if user is not None:
+        return user
+    if settings.app_env.strip().lower() == "production":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return None
+
+
 async def require_verified_user(
     user: User = Depends(get_current_user),
 ) -> User:

@@ -57,7 +57,7 @@ export default function RegisterPage() {
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-14 xl:grid-cols-[minmax(0,24rem)_minmax(0,28rem)] xl:justify-center">
           <div>
             <p className="label-caps">Account</p>
-            <h1 className="mt-2 text-2xl font-light tracking-tight">Create account</h1>
+            <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Create account</h1>
 
             {checkEmail ? (
               <div className="surface mt-8 space-y-4 p-5">
@@ -108,7 +108,7 @@ export default function RegisterPage() {
                       autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+                      className="glass-field mt-2"
                     />
                   </label>
                   <label className="block">
@@ -122,7 +122,7 @@ export default function RegisterPage() {
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-white/[0.22]"
+                      className="glass-field mt-2 font-mono"
                     />
                   </label>
                   <label className="block">
@@ -152,7 +152,7 @@ export default function RegisterPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                    className="btn-glass w-full"
                   >
                     {submitting ? "Creating…" : "Create account"}
                   </button>

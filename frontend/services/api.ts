@@ -7,7 +7,7 @@
 const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true";
 const API_BASE_URL = USE_API_PROXY
   ? "/api/backend"
-  : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+  : (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000");
 
 function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
@@ -248,8 +248,8 @@ async function apiFetch<T>(path: string, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): 
   }
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>("/api/v1/health");
+export async function fetchHealth(timeoutMs = 3_000): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/api/v1/health", timeoutMs);
 }
 
 export async function fetchAssets(): Promise<AssetsDashboard> {
@@ -896,6 +896,114 @@ export async function fetchAnalysis(symbol: string): Promise<AIExplanation> {
   return apiFetch<AIExplanation>(`/api/v1/assets/${symbol}/analysis`);
 }
 
+export type ChartTrend = "bullish" | "bearish" | "range" | "unclear";
+export type ChartBias = "long" | "short" | "no_trade";
+export type ChartExecutionHint = "WAIT" | "WATCH" | "EXECUTE";
+export type ChartAlignment = "agrees" | "conflicts" | "incomplete";
+export type ChartImageQuality = "good" | "partial" | "unreadable";
+
+export interface ChartReading {
+  symbol: string | null;
+  asset_class: string | null;
+  timeframe: string | null;
+  chart_type: string | null;
+  last_price: number | null;
+  trend: ChartTrend;
+  structure: string;
+  key_levels: string[];
+  indicators_visible: string[];
+  observations: string[];
+  image_quality: ChartImageQuality;
+}
+
+export interface ChartPositionIdea {
+  bias: ChartBias;
+  setup_name: string;
+  thesis: string;
+  entry_zone: string | null;
+  invalidation: string | null;
+  targets: string[];
+  risk_notes: string;
+  execution_hint: ChartExecutionHint;
+  confidence: number;
+  chart_derived: boolean;
+}
+
+export interface ChartEngineGrounding {
+  symbol: string;
+  tracked: boolean;
+  trade_state: string;
+  trade_grade: string;
+  execution_signal: string;
+  opportunity_score: number;
+  summary: string;
+  alignment: ChartAlignment;
+  alignment_notes: string[];
+  asset_path: string | null;
+}
+
+export interface ChartAnalysis {
+  reading: ChartReading;
+  thesis: string;
+  positions: ChartPositionIdea[];
+  conflicts: string[];
+  engine_grounding: ChartEngineGrounding | null;
+  source: string;
+  disclaimer: string;
+  generated_at: string;
+}
+
+export async function analyzeChartScreenshot(
+  file: File | null,
+  opts?: { note?: string; symbolHint?: string },
+): Promise<ChartAnalysis> {
+  const form = new FormData();
+  if (file) form.append("file", file);
+  if (opts?.note?.trim()) form.append("note", opts.note.trim());
+  if (opts?.symbolHint?.trim()) form.append("symbol_hint", opts.symbolHint.trim());
+
+  const timeoutMs = 180_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl("/api/v1/chart-analysis"), {
+      method: "POST",
+      body: form,
+      credentials: FETCH_CREDENTIALS,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const payload = await readErrorJson(response);
+      maybeRedirectGate(payload?.code);
+      if (response.status === 401) {
+        throw new Error("Not signed in. On this machine you can still scan locally — retry after uvicorn is up.");
+      }
+      const detail = typeof payload?.detail === "string" ? payload.detail : null;
+      throw new Error(detail ?? `API error: ${response.status} ${response.statusText}`);
+    }
+    return response.json() as Promise<ChartAnalysis>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Local vision can take a few minutes — retry.`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface ChartAnalysisStatus {
+  vision: boolean;
+  source: string;
+  hint: string;
+}
+
+export async function fetchChartAnalysisStatus(): Promise<ChartAnalysisStatus> {
+  return apiFetch<ChartAnalysisStatus>("/api/v1/chart-analysis/status");
+}
+
 export async function fetchDecision(symbol: string): Promise<DecisionResult> {
   return apiFetch<DecisionResult>(`/api/v1/assets/${symbol}/decision`);
 }
@@ -1146,14 +1254,7 @@ export interface WalletAccessUser {
 }
 
 export async function fetchGateStatus(): Promise<GateStatus> {
-  const response = await fetch(apiUrl("/api/v1/auth/gate/status"), {
-    credentials: FETCH_CREDENTIALS,
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
-  }
-  return response.json() as Promise<GateStatus>;
+  return apiFetch<GateStatus>("/api/v1/auth/gate/status", 8_000);
 }
 
 export async function verifySiteGate(code: string): Promise<{
@@ -1383,14 +1484,32 @@ export async function revokeMyApiKey(keyId: string): Promise<ApiKeyRecord> {
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
-  const response = await fetch(apiUrl("/api/v1/auth/me"), {
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (response.status === 401) return null;
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response));
+  const timeoutMs = 8_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(apiUrl("/api/v1/auth/me"), {
+      credentials: FETCH_CREDENTIALS,
+      signal: controller.signal,
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) {
+      throw new Error(await readErrorDetail(response));
+    }
+    return response.json() as Promise<AuthUser>;
+  } catch (error) {
+    const aborted =
+      (error instanceof DOMException && error.name === "AbortError") ||
+      (error instanceof Error && error.name === "AbortError");
+    if (aborted) {
+      throw new Error(
+        "API not reachable at 127.0.0.1:8000. Start uvicorn in backend/, then refresh.",
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-  return response.json() as Promise<AuthUser>;
 }
 
 export async function registerAccount(

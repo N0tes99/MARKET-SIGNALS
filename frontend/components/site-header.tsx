@@ -36,12 +36,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className={cn(
-        "shrink-0 font-mono text-[11px] uppercase tracking-widest transition-colors",
-        active
-          ? "text-foreground"
-          : "text-muted-foreground hover:text-foreground",
-      )}
+      className={cn("nav-link", active ? "nav-link-active" : "text-muted-foreground hover:text-foreground")}
     >
       {label}
     </Link>
@@ -51,7 +46,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 function MainNav() {
   const { user } = useAuth();
   return (
-    <nav className="app-nav-scroll flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:gap-x-4 md:min-w-0 md:flex-1 md:flex-nowrap md:gap-y-0 md:overflow-x-auto">
+    <nav className="app-nav-scroll flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-1.5 md:min-w-0 md:flex-1 md:flex-nowrap md:overflow-x-auto">
       {user ? <NavLink href="/" label="Desk" /> : null}
       <NavLink href="/social" label="Social" />
       {user ? (
@@ -60,6 +55,7 @@ function MainNav() {
           <NavLink href="/perps" label="Perps" />
           <NavLink href="/futures" label="Futures" />
           <NavLink href="/radar" label="Radar" />
+          <NavLink href="/chart" label="Chart" />
           <NavLink href="/request-ticker" label="Request" />
           <NavLink href="/favorites" label="Favorites" />
         </>
@@ -113,7 +109,7 @@ export function SiteHeader({
 }: SiteHeaderProps) {
   if (compact) {
     return (
-      <header className="sticky top-0 z-40 border-b border-white/[0.05] bg-card/20 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/15">
+      <header className="app-header sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="container mx-auto flex flex-col gap-2 px-3 py-3 sm:px-4 sm:py-3.5 md:hidden">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
@@ -139,7 +135,7 @@ export function SiteHeader({
   }
 
   return (
-    <header className="border-b border-white/[0.05] bg-card/18 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:sticky md:top-0 md:z-40">
+    <header className="app-header border-b border-white/[0.05] pt-[env(safe-area-inset-top)] md:sticky md:top-0 md:z-40">
       <div className="container mx-auto flex flex-col gap-3 px-3 py-4 sm:px-4 sm:py-7 md:hidden">
         <div className="min-w-0 overflow-visible">
           <SignalEngineLogo size="lg" href={false} />

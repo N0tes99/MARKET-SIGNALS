@@ -47,8 +47,17 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/1"
 
     openai_api_key: str = ""
-    # Google AI Studio (free quota). Used when OPENAI_API_KEY is empty.
+    # GroqCloud free tier (OpenAI-compatible). Used when OPENAI_API_KEY is empty.
+    # Often available where Google AI Studio is geo-blocked.
+    groq_api_key: str = ""
+    # Google AI Studio (free quota). Used when OpenAI and Groq keys are empty.
     gemini_api_key: str = ""
+    # Self-hosted OpenAI-compatible server (Ollama, LM Studio, vLLM, llama.cpp).
+    # Example: http://192.168.1.20:11434/v1 or http://host.docker.internal:11434/v1
+    local_llm_base_url: str = ""
+    local_llm_api_key: str = "lm-studio"
+    local_llm_model: str = ""
+    local_llm_timeout_seconds: float = 180.0
 
     binance_spot_url: str = "https://api.binance.com"
     binance_futures_url: str = "https://fapi.binance.com"
@@ -161,8 +170,25 @@ class Settings(BaseSettings):
         return self
 
     def cors_origin_list(self) -> list[str]:
-        """Parse CORS_ORIGINS into a list of origins."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        """Parse CORS_ORIGINS into a list of origins.
+
+        Local Next.js falls back to :3001 when :3000 is already taken, so
+        development always allows those loopback origins even if .env only
+        lists http://localhost:3000.
+        """
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        if self.app_env.strip().lower() != "production":
+            seen = set(origins)
+            for extra in (
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
+            ):
+                if extra not in seen:
+                    origins.append(extra)
+                    seen.add(extra)
+        return origins
 
     def admin_username_set(self) -> set[str]:
         """Lowercased admin usernames allowed for private Outcome log."""

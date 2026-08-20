@@ -67,6 +67,13 @@ def get_ai_analyst():
     return AIAnalyst()
 
 
+def get_chart_analyzer():
+    """Return a chart screenshot analyzer."""
+    from app.engines.ai_engine.chart_analyzer import ChartAnalyzer
+
+    return ChartAnalyzer()
+
+
 @lru_cache
 def get_learning_engine() -> LearningEngine:
     """Singleton learning engine (Postgres when available, else memory)."""

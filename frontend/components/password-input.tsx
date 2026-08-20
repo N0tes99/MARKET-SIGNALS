@@ -2,8 +2,7 @@
 
 import { useId, useState } from "react";
 
-const inputClassName =
-  "w-full border border-white/[0.1] bg-transparent py-2 pl-3 pr-10 text-sm outline-none focus:border-white/[0.22]";
+const inputClassName = "glass-field pr-10";
 
 type PasswordInputProps = {
   value: string;

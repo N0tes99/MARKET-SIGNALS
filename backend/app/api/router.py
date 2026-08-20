@@ -10,6 +10,7 @@ from app.api.routes import (
     assets,
     auth,
     backtests,
+    chart_analysis,
     cortex,
     decision,
     equity_setups,
@@ -52,6 +53,9 @@ api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
 api_router.include_router(quotes.router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(decision.router, prefix="/assets", tags=["decision"])
 api_router.include_router(analysis.router, prefix="/assets", tags=["analysis"])
+api_router.include_router(
+    chart_analysis.router, prefix="/chart-analysis", tags=["chart-analysis"]
+)
 api_router.include_router(learning.router, prefix="/assets", tags=["learning"])
 api_router.include_router(evidence.router, prefix="/assets", tags=["evidence"])
 api_router.include_router(setups.router, prefix="/assets", tags=["setups"])

@@ -20,13 +20,13 @@ export function AuthNav() {
       <div className="flex items-center gap-3">
         <Link
           href="/login"
-          className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          className="nav-link text-muted-foreground hover:text-foreground"
         >
           Sign in
         </Link>
         <Link
           href="/register"
-          className="border border-white/[0.12] px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-widest text-foreground transition-colors hover:bg-white/[0.06]"
+          className="btn-glass px-3 py-1.5"
         >
           Create account
         </Link>

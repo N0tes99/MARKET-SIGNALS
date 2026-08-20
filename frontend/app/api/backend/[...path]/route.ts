@@ -7,7 +7,7 @@ function backendBase(): string {
   return (
     process.env.API_BACKEND_URL?.replace(/\/$/, "") ||
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-    "http://localhost:8000"
+    "http://127.0.0.1:8000"
   );
 }
 
@@ -23,6 +23,7 @@ function authHeader(): string | null {
 
 function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
+  if (normalized === "api/v1/chart-analysis") return 180_000;
   const longRunning = new Set([
     "api/v1/assets",
     "api/v1/runners",

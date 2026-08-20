@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 _GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _GEMINI_MODEL = "gemini-2.0-flash"
+_GROQ_OPENAI_BASE = "https://api.groq.com/openai/v1"
+_GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
 
 
 @dataclass
@@ -26,16 +28,16 @@ class AIExplanation:
     confidence: float
     factors: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
-    source: str = "local"  # local | openai | gemini
+    source: str = "local"  # local | openai | groq | gemini | local_llm
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class AIAnalyst:
     """Generates explainable, human-readable analysis from evidence and decisions.
 
-    Uses OpenAI when ``OPENAI_API_KEY`` is set, else Gemini when
-    ``GEMINI_API_KEY`` is set (free AI Studio quota). Otherwise a local
-    synthesizer over the same evidence (Fear & Greed, Reddit, tape).
+    Uses OpenAI when ``OPENAI_API_KEY`` is set, else Groq, else Gemini,
+    else a self-hosted OpenAI-compatible node (``LOCAL_LLM_BASE_URL``).
+    Otherwise a local synthesizer over the same evidence (Fear & Greed, Reddit, tape).
     """
 
     def explain_decision(self, decision: DecisionResult) -> AIExplanation:
@@ -356,16 +358,50 @@ def _decision_payload(decision: DecisionResult) -> dict:
     }
 
 
+def get_llm_backend() -> tuple[OpenAI, str, str] | None:
+    """Return (client, model, source). Cloud keys first, then a local node."""
+    return _llm_backend()
+
+
+def openai_compat_base_url(url: str) -> str:
+    """Normalize an OpenAI-compatible root so it ends with ``/v1``."""
+    base = url.strip().rstrip("/")
+    if base.endswith("/v1"):
+        return base
+    return f"{base}/v1"
+
+
 def _llm_backend() -> tuple[OpenAI, str, str] | None:
-    """Return (client, model, source). OpenAI if paid key set, else free Gemini."""
+    """Paid OpenAI, else Groq, else Gemini, else self-hosted OpenAI-compatible."""
     openai_key = settings.openai_api_key.strip()
     if openai_key:
         return OpenAI(api_key=openai_key), "gpt-4o-mini", "openai"
+    groq_key = settings.groq_api_key.strip()
+    if groq_key:
+        return (
+            OpenAI(api_key=groq_key, base_url=_GROQ_OPENAI_BASE),
+            _GROQ_VISION_MODEL,
+            "groq",
+        )
     gemini_key = settings.gemini_api_key.strip()
     if gemini_key:
         return (
             OpenAI(api_key=gemini_key, base_url=_GEMINI_OPENAI_BASE),
             _GEMINI_MODEL,
             "gemini",
+        )
+    local_base = settings.local_llm_base_url.strip()
+    if local_base:
+        timeout = max(30.0, float(settings.local_llm_timeout_seconds or 180.0))
+        key = settings.local_llm_api_key.strip() or "lm-studio"
+        model = settings.local_llm_model.strip() or "qwen2.5-vl-7b-instruct"
+        return (
+            OpenAI(
+                api_key=key,
+                base_url=openai_compat_base_url(local_base),
+                timeout=timeout,
+            ),
+            model,
+            "local_llm",
         )
     return None

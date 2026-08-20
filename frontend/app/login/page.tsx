@@ -69,7 +69,7 @@ function LoginForm() {
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-14 xl:grid-cols-[minmax(0,24rem)_minmax(0,28rem)] xl:justify-center">
           <div>
             <p className="label-caps">Account</p>
-            <h1 className="mt-2 text-2xl font-light tracking-tight">Sign in</h1>
+            <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Sign in</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Email and password, or continue with Phantom (Ethereum, Solana, or Sui).
               Wallets only sign a login message — never a transaction.
@@ -84,7 +84,7 @@ function LoginForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-2 w-full border border-white/[0.1] bg-transparent px-3 py-2 text-sm outline-none focus:border-white/[0.22]"
+                  className="glass-field mt-2"
                 />
               </label>
               <label className="block">
@@ -123,7 +123,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={submitting || walletBusy !== null}
-                className="w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                className="btn-glass w-full"
               >
                 {submitting ? "Signing in…" : "Sign in"}
               </button>
@@ -144,7 +144,7 @@ function LoginForm() {
                   type="button"
                   disabled={submitting || walletBusy !== null}
                   onClick={() => void onWallet(opt.chain)}
-                  className="flex w-full items-center justify-between border border-white/[0.12] px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                  className="btn-glass flex w-full items-center justify-between px-3 py-2.5 text-left"
                 >
                   <span className="font-mono text-xs uppercase tracking-wide">
                     {walletBusy === opt.chain
