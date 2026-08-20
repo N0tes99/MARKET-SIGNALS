@@ -16,7 +16,7 @@ from app.engines.paper_agent.types import PaperDirection
 
 SETUP_TYPE = "squeeze_expansion"
 SOURCE = "squeeze_expansion"
-MAX_OPENS_PER_DAY = 1
+MAX_OPENS_PER_DAY = 2
 TRADEABLE_ALERTS = frozenset({"trigger", "expansion"})
 EXPANSION_ACTIVE_ALERTS = frozenset({"primed", "trigger", "expansion"})
 CORTEX_STALE_SECONDS = 150.0

@@ -82,7 +82,7 @@ class ExpansionFeedResponse(BaseModel):
     scanned_at: datetime
     symbols_scanned: int = 0
     universe: list[str] = Field(default_factory=list)
-    phase: str = "mvp_benchmark"
+    phase: str = "perp_v2_universe"
 
 
 class ReplayEventSchema(BaseModel):

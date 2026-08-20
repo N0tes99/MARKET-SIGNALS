@@ -59,7 +59,7 @@ MIN_CONFIDENCE = 55.0
 MAX_NEW_OPENS_PER_DAY = 5
 MAX_CRYPTO_PERP_V2_OPENS_PER_DAY = 2
 MAX_CME_FUTURES_OPENS_PER_DAY = 3
-MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY = 1
+MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY = 2
 SQUEEZE_EXPANSION_SOURCE = SOURCE
 # Idea discovery is heavier than managing opens — don't rescan every tick.
 # 90s keeps pace with keep-warm / dashboard polls so good setups aren't missed all day.
