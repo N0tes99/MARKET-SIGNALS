@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 from app.cortex.synthesis import alert_level_for
 from app.cortex.types import WorkingMemory
+from app.engines.expansion_engine.config import default_expansion_config
 from app.engines.expansion_engine.types import ExpansionCandidate
 from app.engines.paper_agent.types import PaperDirection
 
@@ -17,7 +18,12 @@ SETUP_TYPE = "squeeze_expansion"
 SOURCE = "squeeze_expansion"
 MAX_OPENS_PER_DAY = 1
 TRADEABLE_ALERTS = frozenset({"trigger", "expansion"})
-MIN_NET_SCORE = 80.0
+EXPANSION_ACTIVE_ALERTS = frozenset({"primed", "trigger", "expansion"})
+CORTEX_STALE_SECONDS = 150.0
+
+
+def min_trade_net_score() -> float:
+    return default_expansion_config().trigger_net_score
 
 
 class _CortexLike(Protocol):
@@ -50,9 +56,38 @@ def is_tradeable(candidate: ExpansionCandidate) -> bool:
     """True when cortex would allow a paper open (TRIGGER/EXPANSION only)."""
     if alert_level_for(candidate) not in TRADEABLE_ALERTS:
         return False
-    if candidate.net_score < MIN_NET_SCORE:
+    if candidate.net_score < min_trade_net_score():
         return False
     return _direction(candidate.direction_bias) is not None
+
+
+def active_expansion_alert(cortex: _CortexLike | None, symbol: str) -> str | None:
+    """Return primed/trigger/expansion alert for symbol, if cortex covers it."""
+    if cortex is None:
+        return None
+    memory = cortex.last_memory
+    if memory is None:
+        return None
+    ctx = memory.symbols.get(symbol.upper())
+    if ctx is None:
+        return None
+    if ctx.alert_level in EXPANSION_ACTIVE_ALERTS:
+        return ctx.alert_level
+    return None
+
+
+def refresh_cortex_if_stale(cortex: _CortexLike, *, max_age_seconds: float = CORTEX_STALE_SECONDS) -> None:
+    """Run a cortex tick when memory is missing or older than the beat interval."""
+    from datetime import UTC, datetime
+
+    memory = cortex.last_memory
+    if memory is None:
+        cortex.tick(persist=True)
+        return
+    as_of = memory.as_of if memory.as_of.tzinfo else memory.as_of.replace(tzinfo=UTC)
+    age = (datetime.now(UTC) - as_of).total_seconds()
+    if age > max_age_seconds:
+        cortex.tick(persist=True)
 
 
 def idea_from_candidate(
@@ -114,7 +149,8 @@ def ideas_from_working_memory(memory: WorkingMemory) -> list[SqueezeExpansionIde
 
 
 def scan_squeeze_expansion(cortex: _CortexLike) -> list[SqueezeExpansionIdea]:
-    """Use last cortex memory, or run one tick if empty."""
+    """Use fresh cortex memory, running a tick if empty or stale."""
+    refresh_cortex_if_stale(cortex)
     memory = cortex.last_memory
     if memory is None:
         memory = cortex.tick(persist=True)
