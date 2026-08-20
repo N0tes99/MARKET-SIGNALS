@@ -954,15 +954,15 @@ export interface ChartAnalysis {
 }
 
 export async function analyzeChartScreenshot(
-  file: File,
+  file: File | null,
   opts?: { note?: string; symbolHint?: string },
 ): Promise<ChartAnalysis> {
   const form = new FormData();
-  form.append("file", file);
+  if (file) form.append("file", file);
   if (opts?.note?.trim()) form.append("note", opts.note.trim());
   if (opts?.symbolHint?.trim()) form.append("symbol_hint", opts.symbolHint.trim());
 
-  const timeoutMs = 100_000;
+  const timeoutMs = 180_000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -982,13 +982,23 @@ export async function analyzeChartScreenshot(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(
-        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Vision analysis can take a minute — retry.`,
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s. Local vision can take a few minutes — retry.`,
       );
     }
     throw error;
   } finally {
     clearTimeout(timer);
   }
+}
+
+export interface ChartAnalysisStatus {
+  vision: boolean;
+  source: string;
+  hint: string;
+}
+
+export async function fetchChartAnalysisStatus(): Promise<ChartAnalysisStatus> {
+  return apiFetch<ChartAnalysisStatus>("/api/v1/chart-analysis/status");
 }
 
 export async function fetchDecision(symbol: string): Promise<DecisionResult> {

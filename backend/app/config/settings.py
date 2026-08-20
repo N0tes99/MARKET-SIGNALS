@@ -47,8 +47,17 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/1"
 
     openai_api_key: str = ""
-    # Google AI Studio (free quota). Used when OPENAI_API_KEY is empty.
+    # GroqCloud free tier (OpenAI-compatible). Used when OPENAI_API_KEY is empty.
+    # Often available where Google AI Studio is geo-blocked.
+    groq_api_key: str = ""
+    # Google AI Studio (free quota). Used when OpenAI and Groq keys are empty.
     gemini_api_key: str = ""
+    # Self-hosted OpenAI-compatible server (Ollama, LM Studio, vLLM, llama.cpp).
+    # Example: http://192.168.1.20:11434/v1 or http://host.docker.internal:11434/v1
+    local_llm_base_url: str = ""
+    local_llm_api_key: str = "lm-studio"
+    local_llm_model: str = ""
+    local_llm_timeout_seconds: float = 180.0
 
     binance_spot_url: str = "https://api.binance.com"
     binance_futures_url: str = "https://fapi.binance.com"

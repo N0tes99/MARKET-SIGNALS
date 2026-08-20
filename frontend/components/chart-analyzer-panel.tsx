@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import {
   analyzeChartScreenshot,
+  fetchChartAnalysisStatus,
   type ChartAnalysis,
+  type ChartAnalysisStatus,
   type ChartBias,
   type ChartExecutionHint,
   type ChartPositionIdea,
@@ -35,7 +37,10 @@ function trendColor(trend: string): string {
 
 function sourceLabel(source: string): string {
   if (source === "openai") return "gpt-4o-mini vision";
+  if (source === "groq") return "groq vision";
   if (source === "gemini") return "gemini-2.0-flash vision";
+  if (source === "local_llm") return "LM Studio / local node";
+  if (source === "local") return "desk engines (no vision)";
   return source;
 }
 
@@ -50,6 +55,7 @@ export function ChartAnalyzerPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ChartAnalysis | null>(null);
+  const [status, setStatus] = useState<ChartAnalysisStatus | null>(null);
 
   const assignFile = useCallback((next: File | null) => {
     setFile(next);
@@ -60,6 +66,13 @@ export function ChartAnalyzerPanel() {
       return next ? URL.createObjectURL(next) : null;
     });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchChartAnalysisStatus()
+      .then(setStatus)
+      .catch(() => undefined);
+  }, [user]);
 
   function onPick(event: ChangeEvent<HTMLInputElement>) {
     assignFile(event.target.files?.[0] ?? null);
@@ -73,7 +86,7 @@ export function ChartAnalyzerPanel() {
   }
 
   async function onAnalyze() {
-    if (!file) return;
+    if (!file && !symbolHint.trim()) return;
     setBusy(true);
     setError(null);
     try {
@@ -94,10 +107,16 @@ export function ChartAnalyzerPanel() {
       <section className="surface p-5 sm:p-6">
         <p className="label-caps">Upload</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Screenshot of a chart, tape, options chain, or ticket. The analyst reads
-          structure and walks possible locations. Engines still decide — this does
-          not place orders.
+          Screenshot of a chart, tape, options chain, or ticket. With LM Studio
+          running, the local Qwen vision model reads the image. Without it, type
+          a tracked ticker and desk engines still map locations. Engines decide —
+          this does not place orders.
         </p>
+        {status ? (
+          <p className="mt-3 font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+            Backend · {sourceLabel(status.source)}. {status.hint}
+          </p>
+        ) : null}
 
         <button
           type="button"
@@ -175,11 +194,11 @@ export function ChartAnalyzerPanel() {
 
         <button
           type="button"
-          disabled={!file || busy || !user}
+          disabled={(!file && !symbolHint.trim()) || busy || !user}
           onClick={() => void onAnalyze()}
           className="mt-5 w-full border border-white/[0.12] px-3 py-2.5 font-mono text-xs uppercase tracking-wide transition-colors hover:bg-white/[0.06] disabled:opacity-50"
         >
-          {busy ? "Reading chart…" : "Analyze screenshot"}
+          {busy ? "Reading…" : "Analyze"}
         </button>
       </section>
 

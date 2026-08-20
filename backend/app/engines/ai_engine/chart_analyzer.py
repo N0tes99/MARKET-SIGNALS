@@ -11,7 +11,7 @@ from typing import Any
 
 from app.engines.ai_engine.engine import get_llm_backend
 from app.engines.ai_engine.image import PreparedImage
-from app.market_data.symbols import is_tracked
+from app.market_data.symbols import is_tracked, resolve_asset_class
 from app.schemas.chart_analysis import (
     ChartAnalysisSchema,
     ChartReadingSchema,
@@ -66,7 +66,7 @@ _SYMBOL_CLEAN = re.compile(r"[^A-Z0-9.=]")
 
 
 class VisionUnavailable(RuntimeError):
-    """No OpenAI/Gemini key configured for vision."""
+    """No vision backend configured (local desk fallback should be used instead)."""
 
 
 class ChartAnalyzer:
@@ -74,47 +74,171 @@ class ChartAnalyzer:
 
     def analyze(
         self,
-        image: PreparedImage,
+        image: PreparedImage | None = None,
         *,
         note: str = "",
         symbol_hint: str = "",
         decision: DecisionResult | None = None,
     ) -> ChartAnalysisSchema:
         backend = get_llm_backend()
-        if backend is None:
-            raise VisionUnavailable(
-                "Vision analysis needs OPENAI_API_KEY or GEMINI_API_KEY"
+        if backend is None or image is None:
+            return analyze_locally(
+                note=note,
+                symbol_hint=symbol_hint,
+                decision=decision,
             )
+        try:
+            return self._analyze_with_vision(
+                image,
+                backend=backend,
+                note=note,
+                symbol_hint=symbol_hint,
+                decision=decision,
+            )
+        except Exception:
+            logger.exception("Vision analysis failed; using local desk fallback")
+            return analyze_locally(
+                note=note,
+                symbol_hint=symbol_hint,
+                decision=decision,
+            )
+
+    def _analyze_with_vision(
+        self,
+        image: PreparedImage,
+        *,
+        backend: tuple[Any, str, str],
+        note: str,
+        symbol_hint: str,
+        decision: DecisionResult | None,
+    ) -> ChartAnalysisSchema:
         client, model, source = backend
         payload = _user_payload(note=note, symbol_hint=symbol_hint, decision=decision)
         data_url = (
             f"data:{image.mime};base64,{base64.b64encode(image.data).decode('ascii')}"
         )
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": payload},
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                    ],
-                },
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-            max_tokens=1600,
-        )
-        content = response.choices[0].message.content or "{}"
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            logger.warning("Chart analyzer returned non-JSON; using empty parse")
-            parsed = {}
-        if not isinstance(parsed, dict):
-            parsed = {}
+        messages = [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": payload},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
+        ]
+        content = _vision_completion(client, model, messages, prefer_json=source != "local_llm")
+        parsed = _parse_llm_json(content)
         return assemble_chart_analysis(parsed, source=source, decision=decision)
+
+
+def analyze_locally(
+    *,
+    note: str = "",
+    symbol_hint: str = "",
+    decision: DecisionResult | None = None,
+) -> ChartAnalysisSchema:
+    """Navigate positions from desk engines when vision is unavailable."""
+    if decision is not None:
+        return assemble_chart_analysis(
+            _local_from_decision(decision, note=note),
+            source="local",
+            decision=decision,
+        )
+    symbol = _normalize_symbol(symbol_hint)
+    observations = [
+        "Vision is off (Gemini is geo-blocked in some regions; no Groq/OpenAI key). "
+        "The screenshot pixels were not read."
+    ]
+    if note:
+        observations.append(f"Trader note: {note[:200]}")
+    if symbol:
+        thesis = (
+            f"{symbol} is not on the tracked desk. Without vision the analyst "
+            "cannot read the screenshot. Use a tracked ticker (BTC, NVDA, …) "
+            "or request it from admin."
+        )
+        structure = "No live evidence — symbol is not tracked."
+    else:
+        thesis = (
+            "No vision key and no ticker. Type a tracked symbol (BTC, ETH, NVDA) "
+            "so desk engines can map WAIT / WATCH / EXECUTE from live evidence. "
+            "A screenshot is optional in this mode."
+        )
+        structure = "Waiting on a ticker — sitting out is the valid call."
+    return assemble_chart_analysis(
+        {
+            "symbol": symbol,
+            "asset_class": "unknown",
+            "trend": "unclear",
+            "structure": structure,
+            "thesis": thesis,
+            "observations": observations,
+            "positions": [
+                {
+                    "bias": "no_trade",
+                    "setup_name": "Stand aside",
+                    "thesis": thesis,
+                    "execution_hint": "WAIT",
+                    "confidence": 15,
+                    "chart_derived": False,
+                    "risk_notes": "Add a tracked symbol to use the decision pipeline.",
+                }
+            ],
+            "image_quality": "unreadable",
+        },
+        source="local",
+    )
+
+
+def _vision_completion(
+    client: Any,
+    model: str,
+    messages: list[dict[str, Any]],
+    *,
+    prefer_json: bool,
+) -> str:
+    """Chat completion that degrades if the node rejects response_format."""
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+        "max_tokens": 1600,
+    }
+    if prefer_json:
+        try:
+            response = client.chat.completions.create(
+                **kwargs,
+                response_format={"type": "json_object"},
+            )
+            return response.choices[0].message.content or "{}"
+        except Exception:
+            logger.info("JSON response_format rejected; retrying without it")
+    response = client.chat.completions.create(**kwargs)
+    return response.choices[0].message.content or "{}"
+
+
+def _parse_llm_json(content: str) -> dict[str, Any]:
+    """Parse model JSON, including fenced blocks from local servers."""
+    text = content.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                parsed = json.loads(text[start : end + 1])
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+        logger.warning("Chart analyzer returned non-JSON; using empty parse")
+        return {}
 
 
 def attach_decision(
@@ -274,6 +398,9 @@ def _coerce_position(
     confidence = max(0.0, min(100.0, confidence))
     setup = _optional_str(raw.get("setup_name"), 80) or "Unnamed setup"
     thesis = _optional_str(raw.get("thesis"), 600) or "No thesis provided."
+    derived = raw.get("chart_derived", True)
+    if isinstance(derived, str):
+        derived = derived.strip().lower() in {"1", "true", "yes"}
     return PositionIdeaSchema(
         bias=bias,
         setup_name=setup,
@@ -284,7 +411,7 @@ def _coerce_position(
         risk_notes=_optional_str(raw.get("risk_notes"), 300) or "",
         execution_hint=hint,
         confidence=confidence,
-        chart_derived=True,
+        chart_derived=bool(derived),
     )
 
 
@@ -302,6 +429,118 @@ def _clamp_execution(
     if engine_signal in {"WAIT", "WATCH"} or trade_state == "WATCH":
         return "WATCH"
     return hint
+
+
+def _local_from_decision(decision: DecisionResult, *, note: str) -> dict[str, Any]:
+    """Build a chart-analysis payload from engines when vision cannot run."""
+    trend_score = _category_score(decision, "Trend")
+    trend = _trend_from_score(trend_score)
+    state = decision.trade_state.value
+    exec_hint = decision.execution.signal.value
+    if state == "IGNORE":
+        bias = "no_trade"
+        hint = "WAIT"
+        setup = "Stand aside"
+    elif trend == "bearish":
+        bias = "short"
+        hint = exec_hint
+        setup = "Desk short location"
+    elif trend == "bullish":
+        bias = "long"
+        hint = exec_hint
+        setup = "Desk long location"
+    else:
+        bias = "no_trade"
+        hint = "WATCH" if state == "WATCH" else "WAIT"
+        setup = "No clean location"
+
+    risk = decision.risk
+    entry = None
+    invalidation = None
+    targets: list[str] = []
+    risk_notes = decision.execution.description
+    if risk is not None:
+        entry = f"tape; stop {risk.stop_loss:.2f}"
+        invalidation = f"stop {risk.stop_loss:.2f}"
+        targets = [f"target {risk.take_profit:.2f} ({risk.risk_reward_ratio:.1f}:1)"]
+        risk_notes = risk.description
+
+    observations = [
+        "Vision unavailable — screenshot was not read. Thesis is from live desk engines.",
+    ]
+    if note:
+        observations.append(f"Trader note: {note[:200]}")
+    for item in decision.evidence.items[:6]:
+        if item.description:
+            observations.append(f"{item.category}: {item.description}")
+
+    asset_class = "unknown"
+    resolved = resolve_asset_class(decision.symbol)
+    if resolved is not None:
+        asset_class = resolved.value
+
+    thesis = (
+        f"{decision.symbol} desk state {state}, grade {decision.opportunity.trade_grade}, "
+        f"execution {exec_hint}. {decision.summary} "
+        "Pixels were not read (Gemini/Groq/OpenAI vision off)."
+    )
+    positions: list[dict[str, Any]] = [
+        {
+            "bias": bias,
+            "setup_name": setup,
+            "thesis": thesis,
+            "entry_zone": entry,
+            "invalidation": invalidation,
+            "targets": targets,
+            "risk_notes": risk_notes,
+            "execution_hint": hint,
+            "confidence": decision.opportunity.opportunity_score,
+            "chart_derived": False,
+        }
+    ]
+    if bias != "no_trade":
+        positions.append(
+            {
+                "bias": "no_trade",
+                "setup_name": "Stand aside",
+                "thesis": "Sitting out remains valid until a location is confirmed on the tape.",
+                "execution_hint": "WAIT",
+                "confidence": 20,
+                "chart_derived": False,
+                "risk_notes": "No trade is a first-class decision.",
+            }
+        )
+    return {
+        "symbol": decision.symbol,
+        "asset_class": asset_class,
+        "timeframe": "1h",
+        "chart_type": "desk_engines",
+        "trend": trend,
+        "structure": decision.summary,
+        "thesis": thesis,
+        "observations": observations[:8],
+        "key_levels": [level for level in (invalidation, *targets) if level],
+        "positions": positions,
+        "image_quality": "unreadable",
+        "conflicts": [],
+    }
+
+
+def _category_score(decision: DecisionResult, category: str) -> float | None:
+    for item in decision.evidence.items:
+        if item.category == category:
+            return item.score
+    return None
+
+
+def _trend_from_score(score: float | None) -> str:
+    if score is None:
+        return "unclear"
+    if score >= 60:
+        return "bullish"
+    if score <= 40:
+        return "bearish"
+    return "range"
 
 
 def _user_payload(

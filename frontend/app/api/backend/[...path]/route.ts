@@ -23,6 +23,7 @@ function authHeader(): string | null {
 
 function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
+  if (normalized === "api/v1/chart-analysis") return 180_000;
   const longRunning = new Set([
     "api/v1/assets",
     "api/v1/runners",
@@ -31,7 +32,6 @@ function proxyTimeoutMs(targetPath: string): number {
     "api/v1/options-tape",
     "api/v1/perps/board",
     "api/v1/futures/board",
-    "api/v1/chart-analysis",
   ]);
   return longRunning.has(normalized) ? 100_000 : 50_000;
 }

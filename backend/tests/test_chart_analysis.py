@@ -281,24 +281,80 @@ async def test_chart_analysis_mocked_success(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chart_analysis_unavailable_without_vision(client: AsyncClient) -> None:
-    from app.core.service_dependencies import get_chart_analyzer
-    from app.engines.ai_engine.chart_analyzer import ChartAnalyzer, VisionUnavailable
-    from app.engines.ai_engine.image import PreparedImage
+async def test_chart_analysis_local_fallback_with_symbol(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.engines.ai_engine import engine as ai_mod
 
-    class _Missing(ChartAnalyzer):
-        def analyze(self, image: PreparedImage, **kwargs):  # noqa: ANN003
-            raise VisionUnavailable("Vision analysis needs OPENAI_API_KEY or GEMINI_API_KEY")
-
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "")
     app.dependency_overrides[get_current_user] = _user
-    app.dependency_overrides[get_chart_analyzer] = _Missing
     try:
         response = await client.post(
             "/api/v1/chart-analysis",
-            files={"file": ("chart.png", _png(64, 64), "image/png")},
+            data={"symbol_hint": "BTC", "note": "range high"},
         )
-        assert response.status_code == 503
-        assert "OPENAI_API_KEY" in response.json()["detail"]
+        assert response.status_code == 200
+        body = response.json()
+        assert body["source"] == "local"
+        assert body["reading"]["symbol"] == "BTC"
+        assert body["engine_grounding"]["symbol"] == "BTC"
+        assert body["positions"]
     finally:
         app.dependency_overrides.pop(get_current_user, None)
-        app.dependency_overrides.pop(get_chart_analyzer, None)
+
+
+@pytest.mark.asyncio
+async def test_chart_analysis_requires_file_or_symbol(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = _user
+    try:
+        response = await client.post("/api/v1/chart-analysis")
+        assert response.status_code == 400
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_chart_analysis_status_reports_local_llm(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "http://127.0.0.1:1234/v1")
+    monkeypatch.setattr(ai_mod.settings, "local_llm_model", "qwen2.5-vl-7b-instruct")
+    app.dependency_overrides[get_current_user] = _user
+    try:
+        response = await client.get("/api/v1/chart-analysis/status")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["vision"] is True
+        assert body["source"] == "local_llm"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_openai_compat_base_url_appends_v1() -> None:
+    from app.engines.ai_engine.engine import openai_compat_base_url
+
+    assert openai_compat_base_url("http://127.0.0.1:1234") == "http://127.0.0.1:1234/v1"
+    assert openai_compat_base_url("http://127.0.0.1:1234/v1/") == "http://127.0.0.1:1234/v1"
+
+
+def test_local_llm_backend_selected(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "http://192.168.1.20:1234")
+    monkeypatch.setattr(ai_mod.settings, "local_llm_model", "qwen2.5-vl-7b-instruct")
+    backend = ai_mod.get_llm_backend()
+    assert backend is not None
+    _client, model, source = backend
+    assert source == "local_llm"
+    assert model == "qwen2.5-vl-7b-instruct"

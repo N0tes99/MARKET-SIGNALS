@@ -62,3 +62,11 @@ class ChartAnalysisSchema(BaseModel):
     source: str
     disclaimer: str
     generated_at: datetime
+
+
+class ChartAnalysisStatusSchema(BaseModel):
+    """Whether vision is configured, or desk-engine fallback will run."""
+
+    vision: bool
+    source: str = Field(..., description="openai, groq, gemini, or local")
+    hint: str

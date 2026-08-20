@@ -620,8 +620,9 @@ Response: `ChartAnalysisSchema` (`reading`, `thesis`, `positions`, `conflicts`, 
 
 - Vision LLM reads the image; engines remain the decision layer
 - A screenshot can be stale, cropped, or missing context — quality is flagged (`good` / `partial` / `unreadable`)
-- Requires `OPENAI_API_KEY` or `GEMINI_API_KEY` (same backend as AI Analyst)
-- Token-expensive: not a public unauthenticated surface
+- Requires a vision backend: `OPENAI_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, or `LOCAL_LLM_BASE_URL` (LM Studio / Ollama / vLLM). If none are set, Chart still runs from desk engines when the user types a tracked ticker.
+- `LOCAL_LLM_BASE_URL` is **this API process’s** backend. Other clones of the repo do not use your machine. If this API is public and pointed at your home LM Studio, every logged-in user of **this** instance would send screenshots to your GPU — do not do that.
+- Token-expensive when using paid OpenAI; local LM is electricity + VRAM on the node you run
 
 ### Status
 
