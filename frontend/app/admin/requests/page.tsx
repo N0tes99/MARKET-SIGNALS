@@ -72,6 +72,8 @@ export default function AdminTickerRequestsPage() {
           </Link>
         </p>
 
+        <AdminNav />
+
         <div className="mt-6 flex gap-2">
           {(["open", "all"] as const).map((f) => (
             <button
