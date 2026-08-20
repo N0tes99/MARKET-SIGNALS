@@ -99,13 +99,16 @@ def confirm_open(
     if confirmation is disabled (no pipeline — tests).
 
     CME Yahoo names skip F&G and the 13-category pipeline; exits come from
-    Yahoo OHLCV ATR instead.
+    Yahoo OHLCV ATR instead. Squeeze expansion skips F&G/grade the same way.
     """
-    if pipeline is None:
-        return None, TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:off"
-
     if _is_cme_paper(symbol, source):
         return _confirm_cme_open(symbol=symbol, entry_price=entry_price, market=market)
+
+    if source == "squeeze_expansion":
+        return _confirm_expansion_open(symbol=symbol, entry_price=entry_price, market=market)
+
+    if pipeline is None:
+        return None, TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:off"
 
     fng = fetch_fear_greed()
     fng_note = ""
@@ -178,6 +181,22 @@ def _atr_exit_pcts(entry: float, stop_loss: float, take_profit: float) -> tuple[
     if sl < 0.4 or tp < sl:
         return STOP_LOSS_PCT, TAKE_PROFIT_PCT
     return sl, tp
+
+
+def _confirm_expansion_open(
+    *,
+    symbol: str,
+    entry_price: float,
+    market=None,
+) -> tuple[str | None, float, float, str]:
+    """Squeeze trigger path: ATR exits, no F&G, no 13-category grade.
+
+    Crowded-funding / greed vetoes stay on perp_momentum. Expansion is a
+    different setup class — confirm the break with ATR, not mean-reversion.
+    """
+    tp_pct, sl_pct, atr_note = _cme_atr_exit_pcts(market, symbol, entry_price)
+    note = atr_note.replace("confirm:cme", "confirm:expansion", 1)
+    return None, tp_pct, sl_pct, note
 
 
 def _confirm_cme_open(

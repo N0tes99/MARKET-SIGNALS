@@ -12,6 +12,7 @@ from typing import Any
 
 POLICY_SCHEMA = "paper_policy.v1"
 PREFERRED_L2_SETUPS = frozenset({"funding_extreme", "liq_flush"})
+SQUEEZE_EXPANSION_SETUP = "squeeze_expansion"
 SKIP_MOMENTUM_VS_CROWDED_FUNDING = True
 SKIP_CME_VS_CROWDED_COT = True
 # Honest labels: ±0.05% is noise, not a win.
@@ -20,7 +21,9 @@ MIN_LOSS_RETURN_PCT = -0.5
 
 
 def candidate_rank_tier(setup_type: str) -> int:
-    """Higher tier is tried first. Layer-2 crowding/flush beats raw momentum."""
+    """Higher tier is tried first. Expansion trigger > L2 crowding > momentum."""
+    if setup_type == SQUEEZE_EXPANSION_SETUP:
+        return 2
     return 1 if setup_type in PREFERRED_L2_SETUPS else 0
 
 
@@ -107,6 +110,7 @@ def snapshot_live_knobs(
         "max_new_opens_per_day": paper_agent.MAX_NEW_OPENS_PER_DAY,
         "max_crypto_perp_v2_opens_per_day": paper_agent.MAX_CRYPTO_PERP_V2_OPENS_PER_DAY,
         "max_cme_futures_opens_per_day": paper_agent.MAX_CME_FUTURES_OPENS_PER_DAY,
+        "max_squeeze_expansion_opens_per_day": paper_agent.MAX_SQUEEZE_EXPANSION_OPENS_PER_DAY,
         "discover_interval_seconds": paper_agent._DISCOVER_INTERVAL_SECONDS,
         "starting_cash": starting_cash,
         "size_usd": size_usd,
