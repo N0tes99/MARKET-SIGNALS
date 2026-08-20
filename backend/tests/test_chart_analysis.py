@@ -200,7 +200,7 @@ def test_positions_ranked_best_first() -> None:
                 },
             ],
         },
-        source="local_llm",
+        source="groq",
     )
     assert result.positions[0].setup_name == "Range fade"
     assert result.positions[0].confidence == 71
@@ -331,7 +331,6 @@ async def test_chart_analysis_local_fallback_with_symbol(
     monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "")
     app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.post(
@@ -359,44 +358,38 @@ async def test_chart_analysis_requires_file_or_symbol(client: AsyncClient) -> No
 
 
 @pytest.mark.asyncio
-async def test_chart_analysis_status_reports_local_llm(
+async def test_chart_analysis_status_reports_groq(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.engines.ai_engine import engine as ai_mod
 
-    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "http://127.0.0.1:1234/v1")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_model", "qwen2.5-vl-7b-instruct")
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "gsk_test")
     app.dependency_overrides[get_chart_user] = _user
     try:
         response = await client.get("/api/v1/chart-analysis/status")
         assert response.status_code == 200
         body = response.json()
         assert body["vision"] is True
-        assert body["source"] == "local_llm"
+        assert body["source"] == "groq"
     finally:
         app.dependency_overrides.pop(get_chart_user, None)
 
 
-def test_openai_compat_base_url_appends_v1() -> None:
-    from app.engines.ai_engine.engine import openai_compat_base_url
-
-    assert openai_compat_base_url("http://127.0.0.1:1234") == "http://127.0.0.1:1234/v1"
-    assert openai_compat_base_url("http://127.0.0.1:1234/v1/") == "http://127.0.0.1:1234/v1"
-
-
-def test_local_llm_backend_selected(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_groq_backend_selected(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.engines.ai_engine import engine as ai_mod
 
-    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "http://192.168.1.20:1234")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_model", "qwen2.5-vl-7b-instruct")
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "gsk_test")
     backend = ai_mod.get_llm_backend()
     assert backend is not None
     _client, model, source = backend
-    assert source == "local_llm"
-    assert model == "qwen2.5-vl-7b-instruct"
+    assert source == "groq"
+    assert model == "qwen/qwen3.6-27b"
+
+
+def test_no_backend_without_groq(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.engines.ai_engine import engine as ai_mod
+
+    monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
+    monkeypatch.setattr(ai_mod.settings, "openai_api_key", "sk-should-be-ignored")
+    monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "gem-should-be-ignored")
+    assert ai_mod.get_llm_backend() is None

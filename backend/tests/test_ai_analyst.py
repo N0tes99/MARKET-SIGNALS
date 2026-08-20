@@ -23,7 +23,6 @@ def test_local_explanation_produces_summary(monkeypatch) -> None:
     monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "")
     analyst = AIAnalyst()
     decision = _sample_decision()
     explanation = analyst.explain_decision(decision)
@@ -114,7 +113,6 @@ def test_local_summary_uses_fear_greed_and_reddit(monkeypatch) -> None:
     monkeypatch.setattr(ai_mod.settings, "openai_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "groq_api_key", "")
     monkeypatch.setattr(ai_mod.settings, "gemini_api_key", "")
-    monkeypatch.setattr(ai_mod.settings, "local_llm_base_url", "")
     explanation = AIAnalyst().explain_decision(decision)
     assert explanation.source == "local"
     assert "Crowd:" in explanation.summary

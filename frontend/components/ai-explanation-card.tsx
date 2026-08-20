@@ -31,11 +31,7 @@ export function AIExplanationCard({ symbol }: AIExplanationCardProps) {
       <div className="flex items-baseline justify-between">
         <h2 className="label-caps">Analysis</h2>
         <span className="font-mono text-[10px] text-muted-foreground">
-          {data.source === "openai"
-            ? "gpt-4o-mini"
-            : data.source === "gemini"
-              ? "gemini-2.0-flash"
-              : "local"}
+          {data.source === "groq" ? "groq" : "local"}
         </span>
       </div>
 

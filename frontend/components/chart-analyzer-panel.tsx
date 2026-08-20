@@ -35,10 +35,7 @@ function trendColor(trend: string): string {
 }
 
 function sourceLabel(source: string): string {
-  if (source === "openai") return "gpt-4o-mini vision";
   if (source === "groq") return "groq vision";
-  if (source === "gemini") return "gemini-2.0-flash vision";
-  if (source === "local_llm") return "LM Studio / local node";
   if (source === "local") return "desk engines (no vision)";
   return source;
 }

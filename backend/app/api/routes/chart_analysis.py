@@ -28,19 +28,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _STATUS_HINTS = {
-    "openai": "Using paid OpenAI vision.",
-    "groq": "Using Groq vision (free tier). Gemini is not required.",
-    "gemini": (
-        "Using Gemini vision. If Google AI Studio is blocked in your region, "
-        "leave GEMINI_API_KEY empty."
-    ),
-    "local_llm": (
-        "Using your OpenAI-compatible node (LM Studio / Ollama / vLLM). "
-        "Load a vision model such as Qwen2.5-VL."
-    ),
+    "groq": "Using Groq vision. Set GROQ_API_KEY on the API.",
     "local": (
-        "No vision backend. Enter a tracked ticker — desk engines still map "
-        "WAIT / WATCH / EXECUTE. Optional: LOCAL_LLM_BASE_URL or GROQ_API_KEY."
+        "No Groq key. Enter a tracked ticker — desk engines still map "
+        "WAIT / WATCH / EXECUTE."
     ),
 }
 

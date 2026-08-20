@@ -149,8 +149,7 @@ def analyze_locally(
         )
     symbol = _normalize_symbol(symbol_hint)
     observations = [
-        "Vision is off (Gemini is geo-blocked in some regions; no Groq/OpenAI key). "
-        "The screenshot pixels were not read."
+        "Vision is off (no GROQ_API_KEY). The screenshot pixels were not read."
     ]
     if note:
         observations.append(f"Trader note: {note[:200]}")
@@ -163,7 +162,7 @@ def analyze_locally(
         structure = "No live evidence — symbol is not tracked."
     else:
         thesis = (
-            "No vision key and no ticker. Type a tracked symbol (BTC, ETH, NVDA) "
+            "No Groq key and no ticker. Type a tracked symbol (BTC, ETH, NVDA) "
             "so desk engines can map WAIT / WATCH / EXECUTE from live evidence. "
             "A screenshot is optional in this mode."
         )
