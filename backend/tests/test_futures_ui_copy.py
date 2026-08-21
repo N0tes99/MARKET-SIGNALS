@@ -37,7 +37,9 @@ def test_nav_and_proxy_include_futures() -> None:
 
 def test_keep_warm_pings_futures_board() -> None:
     text = _KEEP_WARM.read_text(encoding="utf-8")
-    assert "Ping futures board" in text
+    # Logs must not print hosts; the echo is generic ("Pinging futures").
+    assert "Pinging futures" in text
+    assert "Ping futures board" not in text
     assert "/api/v1/futures/board" in text
     assert "X-Cron-Secret" in text
     assert "--max-time 180" in text
