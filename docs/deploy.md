@@ -189,7 +189,7 @@ Store Render URLs as Actions **secrets** (not variables). Secrets are redacted a
 
 After the URL secrets work, delete the matching **Variables** so the hostname is not listed in Settings either.
 
-Do **not** set a URL to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the value is host-only. The job logs only HTTP codes, not hosts.
+Do **not** set a URL to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the value is host-only. Derived futures/paper URLs stay in the job script and are not written to `GITHUB_ENV`, so logs show HTTP codes only (`Pinging futures`, `OK (HTTP 200)`), not hosts.
 
 If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 

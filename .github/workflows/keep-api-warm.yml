@@ -2,12 +2,13 @@
 # /assets scoring (+ Discord alerts) and the CME futures board can run
 # without site visitors.
 #
-# Cost optimisation: all pings run as sequential steps in ONE job so
-# GitHub bills 1 minute per trigger instead of 4. The single health
-# wake at the top serves all subsequent endpoint pings.
+# Cost optimisation: all pings run in ONE job / ONE step so GitHub bills
+# 1 minute per trigger. Derived futures/paper URLs stay in local bash
+# variables — never GITHUB_ENV — so public logs cannot dump them.
 #
-# Hostnames: store API_*_URL as Actions *secrets* (not variables) so
-# GitHub redacts them in public logs. Do not echo resolved URLs.
+# Store API_*_URL as Actions *secrets* (not variables). GitHub redacts
+# the exact secret; rewritten paths are not secrets unless we keep them
+# off the log entirely.
 name: Keep API warm
 
 on:
@@ -19,7 +20,6 @@ jobs:
   warm:
     runs-on: ubuntu-latest
     env:
-      # Secrets first (masked in logs). Variables still work until you move them.
       API_HEALTH_URL: ${{ secrets.API_HEALTH_URL || vars.API_HEALTH_URL }}
       API_ASSETS_URL: ${{ secrets.API_ASSETS_URL || vars.API_ASSETS_URL }}
       API_FUTURES_BOARD_URL: ${{ secrets.API_FUTURES_BOARD_URL || vars.API_FUTURES_BOARD_URL }}
@@ -28,8 +28,9 @@ jobs:
       API_PASSWORD: ${{ secrets.API_PASSWORD }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Resolve URLs
+      - name: Warm API
         run: |
+          set +x
           normalize_path() {
             local raw="$1" append="$2" trimmed rest
             trimmed="${raw%/}"
@@ -42,19 +43,24 @@ jobs:
             fi
           }
 
+          http_get() {
+            local url="$1" timeout="$2"
+            curl -sS -o /tmp/keepwarm_body -w "%{http_code}" --max-time "$timeout" \
+              "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$url" 2>/dev/null || echo "000"
+          }
+
           if [ -z "${API_HEALTH_URL:-}" ]; then
-            echo "::error::API_HEALTH_URL is not set. Add it as an Actions secret (Settings → Secrets and variables → Actions → Secrets), full path /api/v1/health."
+            echo "::error::API_HEALTH_URL is not set. Add it as an Actions secret with full path /api/v1/health."
             exit 1
           fi
           HEALTH=$(normalize_path "${API_HEALTH_URL}" "/api/v1/health")
 
           if [ -z "${API_ASSETS_URL:-}" ]; then
-            echo "::warning::API_ASSETS_URL not set — assets warm-up skipped"
             ASSETS=""
           else
             ASSETS=$(normalize_path "${API_ASSETS_URL}" "/api/v1/assets")
+            case "$ASSETS" in *\?*) ASSETS="${ASSETS}&sync=true" ;; *) ASSETS="${ASSETS}?sync=true" ;; esac
           fi
-          case "$ASSETS" in *\?*) ASSETS="${ASSETS}&sync=true" ;; *) ASSETS="${ASSETS}?sync=true" ;; esac
 
           if [ -n "${API_FUTURES_BOARD_URL:-}" ]; then
             FUTURES=$(normalize_path "${API_FUTURES_BOARD_URL}" "/api/v1/futures/board")
@@ -71,17 +77,14 @@ jobs:
             PAPER="${BASE}/api/v1/paper/cron-tick"
           fi
 
-          {
-            echo "HEALTH_URL=$HEALTH"
-            echo "ASSETS_URL=$ASSETS"
-            echo "FUTURES_URL=$FUTURES"
-            echo "PAPER_URL=$PAPER"
-          } >> "$GITHUB_ENV"
+          AUTH_ARGS=()
+          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
+            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
+          CRON_ARGS=()
+          [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
 
-      - name: Wake API (health check)
-        run: |
           echo "Pinging health"
-          HTTP_CODE=$(curl -sS -o /tmp/health_body -w "%{http_code}" --max-time 60 "$HEALTH_URL" || true)
+          HTTP_CODE=$(curl -sS -o /tmp/keepwarm_body -w "%{http_code}" --max-time 60 "$HEALTH" 2>/dev/null || echo "000")
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "::error::Health returned HTTP ${HTTP_CODE} — /api/v1/health must be public (no auth)"
             exit 1
@@ -91,70 +94,42 @@ jobs:
             exit 1
           fi
           echo "OK (HTTP ${HTTP_CODE})"
-          # Let the API finish booting before hitting heavier endpoints
           sleep 8
 
-      - name: Ping assets (warm rank_all cache)
-        continue-on-error: true
-        run: |
-          if [ -z "${ASSETS_URL:-}" ]; then
+          if [ -z "$ASSETS" ]; then
             echo "::warning::API_ASSETS_URL not set — skipping assets warm-up"
-            exit 0
+          else
+            echo "Pinging assets (max 180s)"
+            HTTP_CODE=$(http_get "$ASSETS" 180)
+            case "$HTTP_CODE" in
+              200) echo "OK (HTTP ${HTTP_CODE})" ;;
+              401|403) echo "::warning::Assets HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET" ;;
+              *) echo "::warning::Assets HTTP ${HTTP_CODE} (cold start / timeout)" ;;
+            esac
           fi
-          AUTH_ARGS=()
-          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
-            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-          CRON_ARGS=()
-          [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
-
-          echo "Pinging assets (max 180s)"
-          HTTP_CODE=$(curl -sS -o /tmp/assets_body -w "%{http_code}" --max-time 180 \
-            "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$ASSETS_URL" || true)
-          case "$HTTP_CODE" in
-            200) echo "OK (HTTP ${HTTP_CODE})" ;;
-            401|403) echo "::warning::Assets HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET" ;;
-            *)   echo "::warning::Assets HTTP ${HTTP_CODE} (cold start / timeout)" ;;
-          esac
-
-      - name: Ping futures board (warm Yahoo =F cache)
-        continue-on-error: true
-        run: |
-          AUTH_ARGS=()
-          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
-            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-          CRON_ARGS=()
-          [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
 
           echo "Pinging futures (max 180s)"
-          HTTP_CODE=$(curl -sS -o /tmp/futures_body -w "%{http_code}" --max-time 180 \
-            "${AUTH_ARGS[@]}" "${CRON_ARGS[@]}" "$FUTURES_URL" || true)
+          HTTP_CODE=$(http_get "$FUTURES" 180)
           case "$HTTP_CODE" in
             200) echo "OK (HTTP ${HTTP_CODE})" ;;
             401|403) echo "::warning::Futures HTTP ${HTTP_CODE} — check API_USERNAME/API_PASSWORD and CRON_SECRET" ;;
-            *)   echo "::warning::Futures HTTP ${HTTP_CODE} (cold start / timeout)" ;;
+            *) echo "::warning::Futures HTTP ${HTTP_CODE} (cold start / timeout)" ;;
           esac
 
-      - name: Tick paper agent
-        continue-on-error: true
-        run: |
           if [ -z "${CRON_SECRET:-}" ]; then
             echo "::warning::CRON_SECRET not set — skipping paper cron-tick"
-            exit 0
+          else
+            echo "POST paper cron-tick (max 180s)"
+            HTTP_CODE=$(curl -sS -o /tmp/keepwarm_body -w "%{http_code}" --max-time 180 \
+              -X POST \
+              -H "X-Cron-Secret: ${CRON_SECRET}" \
+              -H "Content-Type: application/json" \
+              "${AUTH_ARGS[@]}" \
+              "$PAPER" 2>/dev/null || echo "000")
+            case "$HTTP_CODE" in
+              200) echo "OK (HTTP ${HTTP_CODE})" ;;
+              401|403) echo "::warning::Paper cron-tick HTTP ${HTTP_CODE} — check CRON_SECRET + Basic Auth" ;;
+              503) echo "::warning::Paper cron-tick 503 — CRON_SECRET on Render may not match" ;;
+              *) echo "::warning::Paper cron-tick HTTP ${HTTP_CODE}" ;;
+            esac
           fi
-          AUTH_ARGS=()
-          [ -n "${API_USERNAME:-}" ] && [ -n "${API_PASSWORD:-}" ] && \
-            AUTH_ARGS=(-u "${API_USERNAME}:${API_PASSWORD}")
-
-          echo "POST paper cron-tick (max 180s)"
-          HTTP_CODE=$(curl -sS -o /tmp/paper_body -w "%{http_code}" --max-time 180 \
-            -X POST \
-            -H "X-Cron-Secret: ${CRON_SECRET}" \
-            -H "Content-Type: application/json" \
-            "${AUTH_ARGS[@]}" \
-            "$PAPER_URL" || true)
-          case "$HTTP_CODE" in
-            200) echo "OK (HTTP ${HTTP_CODE})" ;;
-            401|403) echo "::warning::Paper cron-tick HTTP ${HTTP_CODE} — check CRON_SECRET + Basic Auth" ;;
-            503) echo "::warning::Paper cron-tick 503 — CRON_SECRET on Render may not match" ;;
-            *)   echo "::warning::Paper cron-tick HTTP ${HTTP_CODE}" ;;
-          esac
