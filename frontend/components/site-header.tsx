@@ -53,6 +53,7 @@ function MainNav() {
         <>
           <NavLink href="/tape" label="Tape" />
           <NavLink href="/perps" label="Perps" />
+          <NavLink href="/rail" label="Rail" />
           <NavLink href="/futures" label="Futures" />
           <NavLink href="/radar" label="Radar" />
           <NavLink href="/expansion" label="Expansion" />

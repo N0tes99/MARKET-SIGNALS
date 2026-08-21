@@ -322,6 +322,10 @@ export function PaperAgentPanel() {
           <h2 className="label-caps">Paper agent</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
             public proof track · dual fills · daily open cap
+            {" · "}
+            <Link href="/rail" className="underline-offset-2 hover:underline">
+              open clerk on Rail
+            </Link>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

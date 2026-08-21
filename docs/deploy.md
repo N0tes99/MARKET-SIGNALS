@@ -72,6 +72,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `ALPACA_BASE_URL` | optional; default `https://paper-api.alpaca.markets` (paper). Use `https://api.alpaca.markets` for live keys |
 | `ALPACA_DATA_BASE_URL` | optional; default `https://data.alpaca.markets` — Market Data host for **IEX-only** free snapshots (`feed=iex`). Never request SIP / Algo Trader Plus. Yahoo remains primary OHLCV. |
 | `GROQ_API_KEY` | optional **free** GroqCloud vision for Chart. https://console.groq.com/keys |
+| `RAIL_ARMED` | optional; default `false`. Master kill switch for Surface 6 clerk submits. Leave off. |
+| `RAIL_LIVE_ENABLED` | optional; default `false`. Phase A live adapters **refuse even when true**. Do not put venue signing keys on Render. |
 
 ### Optional alert / email-verify vars
 

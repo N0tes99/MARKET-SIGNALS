@@ -3,6 +3,8 @@
 **Signal Engine** is an AI-powered Market Intelligence Platform that helps traders make statistically superior decisions through evidence accumulation—not prediction.
 
 > Signal Engine is **not** a trading bot. It is a decision-support platform: Bloomberg Terminal meets AI Analyst.
+>
+> Surface 6 **Rail** (`/rail`) is a nested clerk that can dry-run paper fills from sealed opportunity envelopes. It does not place live orders. See `docs/research/rail-execution-surface.md`.
 
 ## Philosophy
 

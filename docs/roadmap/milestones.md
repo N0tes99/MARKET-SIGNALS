@@ -83,3 +83,15 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
 - [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
+
+## Milestone 11 — Surface 6 Rail (blind execution clerk)
+
+Architecture: `ARCHITECTURE.md` §5.7, `docs/research/rail-execution-surface.md`.
+
+Nested `/rail` site. Clerk sees opportunity primitives, not the thesis. Live venues stay off.
+
+- [x] Architecture spec (nested vs separate; Hyperliquid primary, Drift Solana option, Polymarket prediction)
+- [x] Phase A — sealed envelopes, paper dry-run, live stubs that cannot place orders, `/rail` UI
+- [ ] Phase B — read-only Hyperliquid / Drift / Polymarket inventory mirrors
+- [ ] Phase C — private micro-live in a **separate process** after paper maturity + dual-control arming
+- [ ] Phase D — multi-venue portfolio caps and correlation veto

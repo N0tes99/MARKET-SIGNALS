@@ -38,6 +38,12 @@ backend/app/
 │   └── replay/                      # Warehouse rewind for expansion replay
 │
 ├── engines/
+│   ├── rail/                        # Surface 6 blind clerk (Phase A ✅ paper-only)
+│   │   ├── types.py
+│   │   ├── envelope.py              # Seals thesis → clerk primitives
+│   │   ├── clerk.py
+│   │   ├── desk.py
+│   │   └── venues/                  # paper live; hyperliquid/drift/polymarket refuse
 │   └── expansion_engine/            # Surface 5 specialists (MVP ✅)
 │       ├── compression.py
 │       ├── squeeze_fuel.py
