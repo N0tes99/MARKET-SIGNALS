@@ -6,7 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { cn } from "@/lib/utils";
-import { fetchCandles } from "@/services/api";
+import { fetchCandles, type CandlePoint } from "@/services/api";
+
+const EMPTY_CANDLES: CandlePoint[] = [];
 
 const MiniSparkline = dynamic(
   () => import("@/components/mini-sparkline").then((m) => m.MiniSparkline),
@@ -37,7 +39,7 @@ export function AssetChartPanel({ symbol }: { symbol: string }) {
     retryDelay: 3_000,
   });
 
-  const candles = candlesQuery.data?.candles ?? [];
+  const candles = candlesQuery.data?.candles ?? EMPTY_CANDLES;
   const points = useMemo(
     () => candles.map((c) => ({ t: c.t, close: c.c })),
     [candles],
