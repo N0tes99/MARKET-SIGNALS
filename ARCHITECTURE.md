@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 0.6.1 |
-| Last updated | 2026-08-20 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A; chart screenshot analyzer |
+| Version | 0.7.0 |
+| Last updated | 2026-08-21 |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A; Surface 6 Rail Phase A (paper clerk); chart screenshot analyzer |
 
 ---
 
@@ -116,6 +116,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP (BTC/SOL/SUI)** |
+| Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase A (paper-only)** |
 | Cortex | `backend/app/cortex/` | **Phase A** |
 | Episodic memory | `backend/app/memory/episodic/` | **In-memory ring buffer** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
@@ -123,7 +124,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
 | Chart Screenshot Analyzer | `backend/app/engines/ai_engine/chart_analyzer.py` | **Implemented** |
 | Backtesting | `backend/app/backtesting/` | **Implemented** |
-| Broker Adapters | `backend/app/adapters/brokers/` | **Not yet created** |
+| Broker Adapters | `backend/app/adapters/brokers/` | **Partial** (Alpaca read-only) |
 
 ---
 
@@ -437,6 +438,7 @@ Surface 2 — Crypto setups          funding_extreme / liq_flush / basis_rich (p
 Surface 3 — Equity options setups  momentum_continuation / breakout_convexity + option pick + staged plan
 Surface 4 — Runner detection       Fundamental inflection → discovery gap → ignition (equities)
 Surface 5 — Expansion radar        Compression → squeeze fuel → trigger (crypto perps)
+Surface 6 — Rail (nested /rail)    Blind clerk: opportunity envelopes → paper dry-run (live stubs off)
 ```
 
 Surface 4 **does not** alter 13-category grades, crypto scanners, or Layer 3 options scores. It is an opportunity detector (WATCHLIST / ALERT), not an EXECUTE path in M10.
@@ -533,6 +535,43 @@ Cortex tick (120s)
 | `GET /api/v1/cortex/history` | Episodic snapshots |
 
 **Status:** `MVP` — compression/squeeze/trigger/state, cortex Phase A, paper bridge, `/expansion` radar (cortex blackboard + engine scan). No Postgres episodic store, no semantic memory, no CVD/news/macro specialists yet.
+
+---
+
+### 5.7 Surface 6 — Rail (blind crypto execution clerk)
+
+**Purpose:** Nested execution surface. A clerk that sees **opportunity primitives** (side, size band, urgency, edge, TTL) and knows **how** to send/cancel/manage — without seeing symbol, thesis, factors, or prices.
+
+Signal Engine Surfaces 1–5 remain intelligence-only. Rail does not turn the desk into a trading bot. Plan: `docs/research/rail-execution-surface.md`.
+
+```
+Desk engines (evidence, perp v2, expansion, paper agent)
+        │  mint_envelope() — strips thesis
+        ▼
+OpportunityEnvelope (clerk-visible)     instrument_handle (adapter-only)
+        │
+        ▼
+Rail Clerk + kill switch
+        ├── paper          Phase A dry-run
+        ├── hyperliquid    Phase A hard refuse (primary live perp target)
+        ├── drift          Phase A hard refuse (Solana OSS option)
+        └── polymarket     Phase A hard refuse (prediction CLOB)
+```
+
+| Rule | Meaning |
+|------|---------|
+| Nested, not a new repo | Same auth/CSP; own chrome at `/rail`. Extract the worker before any signing key. |
+| Engines never call venues | Only the clerk may submit an envelope |
+| Clerk never calls engines | No evidence, no AI Analyst, no chart vision |
+| Phase A cannot go live | Live adapters refuse even if `RAIL_ARMED` / `RAIL_LIVE_ENABLED` are true |
+| Sitting out is valid | Empty envelope list is a healthy clerk |
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/rail/desk` | Blind envelopes + venue catalog + dry-run fills |
+| `POST /api/v1/rail/clerk/simulate` | Paper-venue ack for one open envelope (no live order) |
+
+**Status:** `PHASE A` — envelope sealer, paper dry-run, live stubs, `/rail` nested site. No Hyperliquid/Drift/Polymarket orders, no keys, no portfolio manager.
 
 ---
 
@@ -846,12 +885,14 @@ class BrokerAdapter(Protocol):
 - Paper trading adapter used for backtesting and demos
 - Each adapter has its own rate limit and error handling
 - Broker adapters are **never** called directly by engines — only by a dedicated Execution Service
+- Crypto live execution is **Rail** (`§5.7`), not Alpaca. Alpaca stays read-only equities.
 
 ### Status
 
 `PARTIAL` — directory created; Alpaca **read-only** mirror (`GET /api/v1/brokers/alpaca/mirror`)
 fetches account + positions + recent closed fills via official REST. No execution path.
 Other brokers (Binance, Coinbase) and place/cancel remain deferred.
+Surface 6 Rail Phase A adds a **paper** clerk plus hard-off Hyperliquid/Drift/Polymarket stubs.
 
 ---
 
@@ -890,6 +931,8 @@ Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 | `GET` | `/api/v1/assets/{symbol}/decision` | Full decision pipeline | **Live** |
 | `GET` | `/api/v1/assets/{symbol}/analysis` | AI explanation | **Live** |
 | `WS` | `/api/v1/ws/dashboard` | Real-time dashboard updates | **Live** (backend; FE deferred) |
+| `GET` | `/api/v1/rail/desk` | Surface 6 blind clerk snapshot | **Phase A** |
+| `POST` | `/api/v1/rail/clerk/simulate` | Paper dry-run fill (no live order) | **Phase A** |
 
 ### Design Rules
 
@@ -906,8 +949,9 @@ Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 
 | Route | Purpose | Status |
 |-------|---------|--------|
-| `/` | Asset grid (BTC, ETH, SOL, SUI) | **Scaffolded** |
-| `/assets/[symbol]` | Detail view with 9 analysis sections | **Scaffolded** (sections empty) |
+| `/` | Asset grid (BTC, ETH, SOL, SUI) | **Live** |
+| `/assets/[symbol]` | Detail view with analysis sections | **Live** |
+| `/rail` | Surface 6 nested clerk (blind envelopes) | **Phase A** |
 
 ### Detail View Sections (per asset)
 
@@ -1020,6 +1064,7 @@ When adding a new system, follow this checklist:
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
 | M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview** |
+| M11 — Surface 6 Rail | Blind opportunity clerk, nested `/rail`, paper dry-run, live venue stubs | **Phase A** |
 
 ---
 
@@ -1032,6 +1077,7 @@ When adding a new system, follow this checklist:
 | Development journal | `docs/journal/` |
 | Milestone tracker | `docs/roadmap/milestones.md` |
 | Research notes | `docs/research/` |
+| Surface 6 Rail plan | `docs/research/rail-execution-surface.md` |
 
 ---
 

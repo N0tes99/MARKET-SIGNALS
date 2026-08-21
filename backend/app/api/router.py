@@ -27,6 +27,7 @@ from app.api.routes import (
     perps,
     public_preview,
     quotes,
+    rail,
     runners,
     setups,
     social,
@@ -73,6 +74,7 @@ api_router.include_router(futures.router, prefix="/futures", tags=["futures"])
 api_router.include_router(evidence_snapshots.router, prefix="/evidence", tags=["evidence"])
 api_router.include_router(opportunities.router, prefix="/opportunities", tags=["opportunities"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper"])
+api_router.include_router(rail.router, prefix="/rail", tags=["rail"])
 api_router.include_router(alpaca.router, prefix="/brokers/alpaca", tags=["brokers"])
 api_router.include_router(backtests.router, prefix="/backtests", tags=["backtests"])
 api_router.include_router(tuning.router, prefix="/tuning", tags=["tuning"])

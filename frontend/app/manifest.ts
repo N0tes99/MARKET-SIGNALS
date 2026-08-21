@@ -64,6 +64,12 @@ export default function manifest(): MetadataRoute.Manifest {
         description: "Crypto perp paper, funding, liquidations",
       },
       {
+        name: "Rail",
+        short_name: "Rail",
+        url: "/rail",
+        description: "Blind clerk — paper dry-run only",
+      },
+      {
         name: "Expansion",
         short_name: "Expand",
         url: "/expansion",

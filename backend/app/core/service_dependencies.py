@@ -181,6 +181,14 @@ def get_paper_agent():
 
 
 @lru_cache
+def get_rail_desk():
+    """Singleton Surface 6 clerk (paper dry-run; live venues refuse)."""
+    from app.engines.rail.desk import RailDesk
+
+    return RailDesk(paper_agent=get_paper_agent())
+
+
+@lru_cache
 def get_weight_optimizer() -> WeightOptimizer:
     """Singleton weight optimizer sharing market data cache."""
     return WeightOptimizer(market_data=get_market_data_service())

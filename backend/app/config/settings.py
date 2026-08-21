@@ -112,6 +112,10 @@ class Settings(BaseSettings):
         "web:signal-engine:v1.1.0 (research; +https://github.com/N0tes99/MARKET-SIGNALS)"
     )
 
+    # Surface 6 Rail — paper clerk. Live venues refuse in Phase A even when true.
+    rail_armed: bool = False
+    rail_live_enabled: bool = False
+
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"
     site_totp_secret: str = ""
