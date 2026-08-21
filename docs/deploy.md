@@ -22,9 +22,8 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
   (Secure + SameSite=Lax). The `/api/backend/*` proxy forwards `Cookie` / `Set-Cookie`.
 - `/docs` is disabled when `APP_ENV=production`.
 
-> **Legacy:** Older Railway / Vercel notes are obsolete — do not use them as the
-> primary path. Keep any leftover `railway.toml` / Vercel project configs only if
-> you still have a legacy deployment; new deploys should be Render + Netlify.
+> **Legacy:** Older Railway / Vercel notes are obsolete — do not use them.
+> New deploys should be Render + Netlify.
 
 ---
 

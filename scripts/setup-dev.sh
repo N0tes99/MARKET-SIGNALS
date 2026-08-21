@@ -4,8 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "==> Copying environment file..."
-cp -n "$ROOT/.env.example" "$ROOT/.env" 2>/dev/null || true
+echo "==> Ensuring local .env exists (gitignored)..."
+touch "$ROOT/.env"
 
 echo "==> Starting Docker services..."
 docker compose -f "$ROOT/docker-compose.yml" up -d postgres redis
