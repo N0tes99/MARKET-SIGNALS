@@ -170,15 +170,16 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 Browser dashboard calls `GET /api/v1/assets` **without** `sync` and receives a snapshot immediately (`ranking_status`: `fresh` / `stale` / `warming`). Cold misses refresh in the background so Netlify’s proxy does not wait on a full rank.
 
-Defaults use the Netlify proxy when variables are unset. Prefer **direct Render URLs with full paths**:
+Store Render URLs as Actions **secrets** (not variables). Secrets are redacted as `***` in public logs; variables are not. The workflow still reads Variables as a fallback until you move them.
 
-| Repo variable | Exact value |
-|---------------|-------------|
+| Actions secret | Exact value |
+|----------------|-------------|
 | `API_HEALTH_URL` | `https://<your-render-service>.onrender.com/api/v1/health` |
 | `API_ASSETS_URL` | `https://<your-render-service>.onrender.com/api/v1/assets` |
+| `API_FUTURES_BOARD_URL` | optional; defaults from health host → `/api/v1/futures/board` |
 | `API_PAPER_CRON_URL` | optional; defaults from health host → `/api/v1/paper/cron-tick` |
 
-`/assets` and `/paper/cron-tick` bypass the MFA product gate (so keep-warm works without a browser session) but stay **Basic-Auth** protected on Render. Add Actions **secrets** (not variables):
+`/assets` and `/paper/cron-tick` bypass the MFA product gate (so keep-warm works without a browser session) but stay **Basic-Auth** protected on Render. Also add:
 
 | Secret | Value |
 |--------|--------|
@@ -186,7 +187,9 @@ Defaults use the Netlify proxy when variables are unset. Prefer **direct Render 
 | `API_PASSWORD` | same as Render `AUTH_PASSWORD` |
 | `CRON_SECRET` | same as Render `CRON_SECRET` |
 
-Do **not** set the variables to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the variable is host-only, but prefer setting the full paths above so logs match intent.
+After the URL secrets work, delete the matching **Variables** so the hostname is not listed in Settings either.
+
+Do **not** set a URL to the bare hostname (`https://….onrender.com`) — that hits `/` and returns **401**. The workflow will auto-append `/api/v1/health` or `/api/v1/assets` when the value is host-only. The job logs only HTTP codes, not hosts.
 
 If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 
@@ -201,4 +204,4 @@ The assets job wakes health first, waits a few seconds, then hits `/assets?sync=
 - [ ] Health public, other routes 401 without auth
 - [ ] Netlify proxy env set; dashboard loads assets
 - [ ] Discord/email alerts only if you want them (`ALERT_ENABLED=true`)
-- [ ] Keep-warm repo vars use **full** `/api/v1/health` and `/api/v1/assets` paths
+- [ ] Keep-warm **secrets** use **full** `/api/v1/health` and `/api/v1/assets` paths (then delete the old Variables)
