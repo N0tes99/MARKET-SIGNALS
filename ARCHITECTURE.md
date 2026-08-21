@@ -6,7 +6,7 @@
 |-------|-------|
 | Version | 0.6.1 |
 | Last updated | 2026-08-20 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase A; chart screenshot analyzer |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; chart screenshot analyzer |
 
 ---
 
@@ -116,8 +116,8 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP (BTC/SOL/SUI)** |
-| Cortex | `backend/app/cortex/` | **Phase A** |
-| Episodic memory | `backend/app/memory/episodic/` | **In-memory ring buffer** |
+| Cortex | `backend/app/cortex/` | **Phase B** |
+| Episodic memory | `backend/app/memory/episodic/` | **Postgres + in-memory fallback** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -517,9 +517,10 @@ Does **not** fold into 13-category grades. Parallel to Surfaces 2–4. Paper con
 
 ```
 Cortex tick (120s)
-    → expansion + regime + derivatives specialists
+    → expansion + regime + derivatives + CVD proxy + news + global macro
     → WorkingMemory (blackboard)
-    → episodic store
+    → episodic store (Postgres when migrated)
+    → semantic consolidator (lead time + calibration)
     → paper squeeze_expansion (1/day, ATR exits, skip F&G/grade)
 ```
 
@@ -531,8 +532,10 @@ Cortex tick (120s)
 | `GET /api/v1/cortex` | Latest working memory |
 | `POST /api/v1/cortex/tick` | Run heartbeat |
 | `GET /api/v1/cortex/history` | Episodic snapshots |
+| `GET /api/v1/cortex/semantic` | Lead-time + calibration stats |
+| `GET /api/v1/cortex/health` | Tick freshness + store backend |
 
-**Status:** `MVP` — compression/squeeze/trigger/state, cortex Phase A, paper bridge, `/expansion` radar (cortex blackboard + engine scan). No Postgres episodic store, no semantic memory, no CVD/news/macro specialists yet.
+**Status:** `MVP + Phase B` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, CVD proxy, news/calendar, global macro), paper bridge, `/expansion` radar (blackboard + health + semantic lead-time). Episodic ticks persist to Postgres when migrated (`cortex_episodes`); semantic lead-time/calibration consolidates from that history. No true exchange-tape CVD, no headline NLP news feed, no OHLCV data-lake warehouse yet.
 
 ---
 

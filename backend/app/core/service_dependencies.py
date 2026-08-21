@@ -134,14 +134,16 @@ def get_expansion_scanner():
 
 @lru_cache
 def get_cortex_orchestrator():
-    """Singleton cortex orchestrator (shared episodic memory)."""
+    """Singleton cortex orchestrator (shared episodic + semantic memory)."""
     from app.cortex.orchestrator import CortexOrchestrator
-    from app.memory.episodic.store import InMemoryEpisodicStore
+    from app.memory.episodic.factory import build_episodic_store
+    from app.memory.semantic.factory import build_semantic_store
 
     return CortexOrchestrator(
         market_data=get_market_data_service(),
         expansion_scanner=get_expansion_scanner(),
-        episodic=InMemoryEpisodicStore(max_records=200),
+        episodic=build_episodic_store(),
+        semantic=build_semantic_store(),
     )
 
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { useExpansionSymbol } from "@/hooks/use-expansion";
+import { useCortexMemory, useExpansionSymbol } from "@/hooks/use-expansion";
 import { cn } from "@/lib/utils";
 
 function stateTone(state: string): string {
@@ -21,6 +21,14 @@ function stateTone(state: string): string {
 /** Parallel Surface 5 read on asset detail — does not change 13-category grades. */
 export function AssetExpansionCard({ symbol }: { symbol: string }) {
   const { data, isLoading, isError } = useExpansionSymbol(symbol);
+  const cortexQuery = useCortexMemory();
+  const cortex = cortexQuery.data?.symbols.find(
+    (ctx) => ctx.symbol.toUpperCase() === symbol.toUpperCase(),
+  );
+  const specialistBits = (cortex?.opinions ?? [])
+    .filter((op) => op.specialist !== "expansion")
+    .map((op) => `${op.specialist} ${op.score == null ? "—" : op.score.toFixed(0)}`)
+    .slice(0, 4);
 
   if (isLoading) {
     return <div className="surface skeleton h-28" />;
@@ -74,6 +82,14 @@ export function AssetExpansionCard({ symbol }: { symbol: string }) {
       </dl>
       {data.key_trigger ? (
         <p className="mt-3 font-mono text-[11px] text-muted-foreground/65">{data.key_trigger}</p>
+      ) : null}
+      {specialistBits.length > 0 ? (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+          {specialistBits.join(" · ")}
+        </p>
+      ) : null}
+      {cortex?.synthesis_notes[0] ? (
+        <p className="mt-2 font-mono text-[11px] text-muted-foreground/60">{cortex.synthesis_notes[0]}</p>
       ) : null}
     </section>
   );

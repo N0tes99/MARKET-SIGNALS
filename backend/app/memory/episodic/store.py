@@ -20,6 +20,8 @@ class EpisodicStore(Protocol):
 
     def history(self, limit: int = 20) -> list[EpisodicRecord]: ...
 
+    def count(self) -> int: ...
+
 
 def _serialize(obj: Any) -> Any:
     if obj is None:
@@ -69,6 +71,8 @@ def serialize_working_memory(memory: WorkingMemory) -> dict[str, Any]:
 class InMemoryEpisodicStore:
     """Ring buffer of recent cortex ticks (dev + MVP)."""
 
+    backend = "memory"
+
     def __init__(self, max_records: int = 100) -> None:
         self._records: deque[EpisodicRecord] = deque(maxlen=max_records)
 
@@ -89,3 +93,6 @@ class InMemoryEpisodicStore:
     def history(self, limit: int = 20) -> list[EpisodicRecord]:
         n = max(1, min(limit, len(self._records)))
         return list(self._records)[-n:]
+
+    def count(self) -> int:
+        return len(self._records)

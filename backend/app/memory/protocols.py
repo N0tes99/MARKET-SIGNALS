@@ -17,7 +17,7 @@ class EpisodicMemory(Protocol):
 
 
 class SemanticMemory(Protocol):
-    """Lead-time stats and calibration buckets — not wired yet."""
+    """Lead-time stats and calibration buckets."""
 
     def lead_time_median_hours(self, signal: str) -> float | None: ...
 

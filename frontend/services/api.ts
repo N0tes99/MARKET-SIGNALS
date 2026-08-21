@@ -975,11 +975,36 @@ export interface CortexMemory {
   as_of: string;
   universe: string[];
   symbols: CortexSymbolContext[];
+  global_opinions?: CortexOpinion[];
   notes: string[];
   phase: string;
   primed: string[];
   triggering: string[];
   digest: string;
+}
+
+export interface CortexSemanticStat {
+  metric: string;
+  signal: string;
+  score_bucket: number;
+  sample_count: number;
+  median_hours: number | null;
+  hit_rate: number | null;
+  payload: Record<string, unknown>;
+}
+
+export interface CortexSemanticResponse {
+  stats: CortexSemanticStat[];
+  lead_time_hours: number | null;
+  sample_count: number;
+}
+
+export interface CortexHealth {
+  last_tick_at: string | null;
+  ticks_recorded: number;
+  healthy: boolean;
+  backend: string;
+  notes: string[];
 }
 
 export async function fetchExpansionFeed(): Promise<ExpansionFeedResponse> {
@@ -1005,6 +1030,14 @@ export async function fetchExpansionSymbol(
 
 export async function fetchCortexMemory(): Promise<CortexMemory> {
   return apiFetch<CortexMemory>("/api/v1/cortex?run_if_empty=true", 120_000);
+}
+
+export async function fetchCortexSemantic(): Promise<CortexSemanticResponse> {
+  return apiFetch<CortexSemanticResponse>("/api/v1/cortex/semantic", 60_000);
+}
+
+export async function fetchCortexHealth(): Promise<CortexHealth> {
+  return apiFetch<CortexHealth>("/api/v1/cortex/health", 30_000);
 }
 
 export async function fetchAnalysis(

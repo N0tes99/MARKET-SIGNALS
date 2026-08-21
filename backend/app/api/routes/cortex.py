@@ -8,9 +8,12 @@ from app.core.service_dependencies import get_cortex_orchestrator
 from app.cortex.orchestrator import CortexOrchestrator
 from app.cortex.types import WorkingMemory
 from app.schemas.cortex import (
+    CortexHealthSchema,
     CortexHistoryResponse,
+    CortexSemanticResponse,
     CortexTickResponse,
     EpisodicRecordSchema,
+    SemanticStatSchema,
     SpecialistOpinionSchema,
     SymbolContextSchema,
     WorkingMemorySchema,
@@ -63,6 +66,17 @@ def _memory_to_schema(memory: WorkingMemory, *, digest: str = "") -> WorkingMemo
         as_of=memory.as_of,
         universe=list(memory.universe),
         symbols=symbols,
+        global_opinions=[
+            SpecialistOpinionSchema(
+                specialist=o.specialist,
+                score=o.score,
+                direction=o.direction,
+                factors=list(o.factors),
+                conflicts=list(o.conflicts),
+                metadata=dict(o.metadata),
+            )
+            for o in memory.global_opinions
+        ],
         notes=list(memory.notes),
         phase=memory.phase,
         primed=memory.primed_symbols(),
@@ -114,4 +128,52 @@ def get_cortex_history(
             for r in records
         ],
         count=len(records),
+    )
+
+
+@router.get("/semantic", response_model=CortexSemanticResponse)
+def get_cortex_semantic(
+    orchestrator: CortexOrchestrator = Depends(get_cortex_orchestrator),
+) -> CortexSemanticResponse:
+    """Lead-time and calibration stats from episodic history."""
+    stats = orchestrator.semantic.all_stats()
+    lead = next((s for s in stats if s.metric == "lead_time"), None)
+    return CortexSemanticResponse(
+        stats=[
+            SemanticStatSchema(
+                metric=s.metric,
+                signal=s.signal,
+                score_bucket=s.score_bucket,
+                sample_count=s.sample_count,
+                median_hours=s.median_hours,
+                hit_rate=s.hit_rate,
+                payload=dict(s.payload),
+            )
+            for s in stats
+        ],
+        lead_time_hours=lead.median_hours if lead else None,
+        sample_count=lead.sample_count if lead else 0,
+    )
+
+
+@router.get("/health", response_model=CortexHealthSchema)
+def get_cortex_health(
+    orchestrator: CortexOrchestrator = Depends(get_cortex_orchestrator),
+) -> CortexHealthSchema:
+    """Episodic freshness and store backend."""
+    from app.cortex.lifecycle import assess_health
+
+    latest = orchestrator.episodic.latest()
+    backend = getattr(orchestrator.episodic, "backend", "memory")
+    health = assess_health(
+        last_tick_at=latest.as_of if latest else None,
+        ticks_recorded=orchestrator.episodic.count(),
+        backend=str(backend),
+    )
+    return CortexHealthSchema(
+        last_tick_at=health.last_tick_at,
+        ticks_recorded=health.ticks_recorded,
+        healthy=health.healthy,
+        backend=health.backend,
+        notes=list(health.notes),
     )
