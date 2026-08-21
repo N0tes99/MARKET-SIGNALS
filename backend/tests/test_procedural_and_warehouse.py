@@ -5,7 +5,12 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 
 from app.data_lake.schemas import OhlcvBar
-from app.data_lake.warehouse.ohlcv import get_bars, persist_ohlcv_frame, upsert_bars
+from app.data_lake.warehouse.ohlcv import (
+    get_bars,
+    persist_ohlcv_frame,
+    reset_memory_store,
+    upsert_bars,
+)
 from app.engines.expansion_engine.config import (
     DEFAULT_EXPANSION_CONFIG,
     default_expansion_config,
@@ -19,8 +24,14 @@ from app.memory.procedural.config_store import (
 )
 
 
+def setup_function() -> None:
+    reset_process_overlay()
+    reset_memory_store()
+
+
 def teardown_function() -> None:
     reset_process_overlay()
+    reset_memory_store()
 
 
 def test_file_defaults_when_nothing_saved() -> None:
@@ -87,10 +98,10 @@ def test_warehouse_orders_bars_oldest_first() -> None:
     base = datetime(2026, 8, 21, 0, 0, tzinfo=UTC)
     upsert_bars(
         [
-            OhlcvBar("SOL", "1h", base + timedelta(hours=2), 3, 3, 3, 3, 1),
-            OhlcvBar("SOL", "1h", base, 1, 1, 1, 1, 1),
-            OhlcvBar("SOL", "1h", base + timedelta(hours=1), 2, 2, 2, 2, 1),
+            OhlcvBar("WH1", "1h", base + timedelta(hours=2), 3, 3, 3, 3, 1),
+            OhlcvBar("WH1", "1h", base, 1, 1, 1, 1, 1),
+            OhlcvBar("WH1", "1h", base + timedelta(hours=1), 2, 2, 2, 2, 1),
         ]
     )
-    closes = [b.close for b in get_bars("SOL", "1h")]
+    closes = [b.close for b in get_bars("WH1", "1h")]
     assert closes == [1.0, 2.0, 3.0]

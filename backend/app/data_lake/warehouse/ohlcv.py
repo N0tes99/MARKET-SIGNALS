@@ -26,6 +26,12 @@ _Session = None
 _memory: dict[tuple[str, str, datetime], OhlcvBar] = {}
 
 
+def reset_memory_store() -> None:
+    """Drop the in-process warehouse (tests)."""
+    with _lock:
+        _memory.clear()
+
+
 def _skip_postgres() -> bool:
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return True
