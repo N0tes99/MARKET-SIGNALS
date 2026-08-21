@@ -535,7 +535,7 @@ Cortex tick (120s)
 | `GET /api/v1/cortex/semantic` | Lead-time + calibration stats |
 | `GET /api/v1/cortex/health` | Tick freshness + store backend |
 
-**Status:** `MVP + Phase B` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, CVD proxy, news/calendar, global macro), paper bridge, `/expansion` radar (cortex blackboard + engine scan). Episodic ticks persist to Postgres when migrated (`cortex_episodes`); semantic lead-time/calibration consolidates from that history. No true exchange-tape CVD, no headline NLP news feed, no OHLCV data-lake warehouse yet.
+**Status:** `MVP + Phase B` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, CVD proxy, news/calendar, global macro), paper bridge, `/expansion` radar (blackboard + health + semantic lead-time). Episodic ticks persist to Postgres when migrated (`cortex_episodes`); semantic lead-time/calibration consolidates from that history. No true exchange-tape CVD, no headline NLP news feed, no OHLCV data-lake warehouse yet.
 
 ---
 

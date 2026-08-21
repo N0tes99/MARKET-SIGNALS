@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { useCortexMemory, useExpansionFeed } from "@/hooks/use-expansion";
+import { useCortexHealth, useCortexMemory, useCortexSemantic, useExpansionFeed } from "@/hooks/use-expansion";
 import { cn } from "@/lib/utils";
 import type { ExpansionCandidate, ExpansionState } from "@/services/api";
 
@@ -38,6 +38,8 @@ function featured(feed: {
 export function ExpansionPreviewStrip() {
   const feedQuery = useExpansionFeed();
   const cortexQuery = useCortexMemory();
+  const healthQuery = useCortexHealth();
+  const semanticQuery = useCortexSemantic();
   const primed = feedQuery.data?.primed ?? [];
   const triggering = feedQuery.data?.triggering ?? [];
   const expanding = feedQuery.data?.expanding ?? [];
@@ -45,6 +47,8 @@ export function ExpansionPreviewStrip() {
   const isLoading = feedQuery.isLoading;
   const isError = feedQuery.isError;
   const digest = cortexQuery.data?.digest;
+  const health = healthQuery.data;
+  const leadHours = semanticQuery.data?.lead_time_hours;
 
   return (
     <section className="mb-8 border-b border-white/[0.05] pb-8">
@@ -57,6 +61,10 @@ export function ExpansionPreviewStrip() {
           </h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
             cortex blackboard · paper opens on trigger/expansion only
+            {health
+              ? ` · ${health.healthy ? "healthy" : "stale"} ${health.backend}`
+              : ""}
+            {leadHours != null ? ` · lead ${leadHours.toFixed(1)}h` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-x-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">

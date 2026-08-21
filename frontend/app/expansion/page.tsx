@@ -3,9 +3,19 @@
 import Link from "next/link";
 
 import { SiteHeader } from "@/components/site-header";
-import { useCortexMemory, useExpansionFeed } from "@/hooks/use-expansion";
+import {
+  useCortexHealth,
+  useCortexMemory,
+  useCortexSemantic,
+  useExpansionFeed,
+} from "@/hooks/use-expansion";
 import { cn } from "@/lib/utils";
-import type { ExpansionCandidate, ExpansionState } from "@/services/api";
+import type {
+  CortexOpinion,
+  CortexSymbolContext,
+  ExpansionCandidate,
+  ExpansionState,
+} from "@/services/api";
 
 function stateClass(state: ExpansionState | string): string {
   switch (state) {
@@ -20,7 +30,28 @@ function stateClass(state: ExpansionState | string): string {
   }
 }
 
-function CandidateCard({ row }: { row: ExpansionCandidate }) {
+function formatScore(score: number | null | undefined): string {
+  if (score == null || Number.isNaN(score)) return "—";
+  return score.toFixed(0);
+}
+
+function opinionLine(opinions: CortexOpinion[]): string | null {
+  const bits = opinions
+    .filter((op) => op.specialist !== "expansion")
+    .map((op) => `${op.specialist} ${formatScore(op.score)}`)
+    .slice(0, 4);
+  return bits.length > 0 ? bits.join(" · ") : null;
+}
+
+function CandidateCard({
+  row,
+  cortex,
+}: {
+  row: ExpansionCandidate;
+  cortex?: CortexSymbolContext;
+}) {
+  const specialists = cortex ? opinionLine(cortex.opinions) : null;
+  const extraNote = cortex?.synthesis_notes[0];
   return (
     <article className="surface p-4">
       <div className="flex items-baseline justify-between gap-2">
@@ -55,6 +86,14 @@ function CandidateCard({ row }: { row: ExpansionCandidate }) {
       <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
         {row.direction_bias} · {row.horizon}
       </p>
+      {specialists ? (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+          {specialists}
+        </p>
+      ) : null}
+      {extraNote ? (
+        <p className="mt-2 font-mono text-[11px] text-muted-foreground/60">{extraNote}</p>
+      ) : null}
     </article>
   );
 }
@@ -62,10 +101,19 @@ function CandidateCard({ row }: { row: ExpansionCandidate }) {
 export default function ExpansionPage() {
   const feedQuery = useExpansionFeed();
   const cortexQuery = useCortexMemory();
+  const healthQuery = useCortexHealth();
+  const semanticQuery = useCortexSemantic();
   const candidates = feedQuery.data?.candidates ?? [];
   const primed = feedQuery.data?.primed ?? [];
   const triggering = feedQuery.data?.triggering ?? [];
   const expanding = feedQuery.data?.expanding ?? [];
+  const bySymbol = new Map(
+    (cortexQuery.data?.symbols ?? []).map((ctx) => [ctx.symbol.toUpperCase(), ctx]),
+  );
+  const health = healthQuery.data;
+  const semantic = semanticQuery.data;
+  const globalOpinions = cortexQuery.data?.global_opinions ?? [];
+  const calibration = (semantic?.stats ?? []).filter((s) => s.metric === "calibration").slice(0, 4);
 
   return (
     <main className="min-h-screen">
@@ -75,9 +123,10 @@ export default function ExpansionPage() {
           <p className="label-caps">Surface 5</p>
           <h1 className="mt-2 font-brand text-3xl font-medium tracking-tight">Expansion radar</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compression, squeeze fuel, breakout trigger. Cortex specialists (regime +
-            derivatives) annotate the blackboard. Does not fold into 13-category grades.
-            Paper opens on TRIGGER/EXPANSION only — PRIMED is watch. Sitting out is valid.
+            Compression, squeeze fuel, breakout trigger. Cortex specialists (regime,
+            derivatives, CVD proxy, news/calendar, global macro) annotate the blackboard.
+            Does not fold into 13-category grades. Paper opens on TRIGGER/EXPANSION only —
+            PRIMED is watch. Sitting out is valid.
           </p>
         </div>
 
@@ -101,14 +150,58 @@ export default function ExpansionPage() {
                 {" · "}
                 universe {cortexQuery.data.universe.length}
               </p>
-              {cortexQuery.data.notes.length > 0 ? (
-                <ul className="mt-3 space-y-1 font-mono text-[11px] text-muted-foreground/65">
-                  {cortexQuery.data.notes.slice(0, 6).map((note) => (
-                    <li key={note}>{note}</li>
-                  ))}
-                </ul>
-              ) : null}
             </>
+          ) : null}
+
+          {health ? (
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+              {health.healthy ? "healthy" : "stale"}
+              {" · "}
+              {health.backend}
+              {" · "}
+              {health.ticks_recorded} ticks
+              {health.notes[0] ? ` · ${health.notes[0]}` : ""}
+            </p>
+          ) : null}
+
+          {semantic ? (
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
+              {semantic.lead_time_hours != null
+                ? `median primed→trigger ${semantic.lead_time_hours.toFixed(1)}h (${semantic.sample_count} samples)`
+                : "lead time — not enough primed→trigger samples yet"}
+            </p>
+          ) : null}
+
+          {calibration.length > 0 ? (
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+              calibration{" "}
+              {calibration
+                .map((s) => {
+                  const rate =
+                    s.hit_rate == null ? "—" : `${Math.round(s.hit_rate * 100)}%`;
+                  return `b${s.score_bucket} ${rate}`;
+                })
+                .join(" · ")}
+            </p>
+          ) : null}
+
+          {globalOpinions.length > 0 ? (
+            <ul className="mt-3 space-y-1 font-mono text-[11px] text-muted-foreground/65">
+              {globalOpinions.map((op) => (
+                <li key={op.specialist}>
+                  {op.specialist} {formatScore(op.score)}
+                  {op.factors[0] ? ` · ${op.factors[0]}` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {cortexQuery.data && cortexQuery.data.notes.length > 0 ? (
+            <ul className="mt-3 space-y-1 font-mono text-[11px] text-muted-foreground/65">
+              {cortexQuery.data.notes.slice(0, 6).map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
           ) : null}
         </section>
 
@@ -137,7 +230,11 @@ export default function ExpansionPage() {
             </p>
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {candidates.map((row) => (
-                <CandidateCard key={row.id} row={row} />
+                <CandidateCard
+                  key={row.id}
+                  row={row}
+                  cortex={bySymbol.get(row.symbol.toUpperCase())}
+                />
               ))}
             </div>
             {candidates.length === 0 ? (
