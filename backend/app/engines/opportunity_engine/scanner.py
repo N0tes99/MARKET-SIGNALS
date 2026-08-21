@@ -305,7 +305,9 @@ class SetupScanner:
         """Return zero or more setup ideas. Soft-fails to [] — never raises."""
         normalized = symbol.upper()
         try:
-            return _SCAN_CACHE.get_or_set(normalized, lambda: self._scan_uncached(normalized))
+            return _SCAN_CACHE.get_stale_while_revalidate(
+                normalized, lambda: self._scan_uncached(normalized)
+            )
         except Exception:
             logger.exception("Setup scan failed for %s", normalized)
             return []
@@ -329,7 +331,7 @@ class SetupScanner:
             return self._scan_many_uncached(universe)
 
         try:
-            ideas = _FEED_CACHE.get_or_set(cache_key, _build)
+            ideas = _FEED_CACHE.get_stale_while_revalidate(cache_key, _build)
         except Exception:
             logger.exception("Setup feed scan failed")
             ideas = []
