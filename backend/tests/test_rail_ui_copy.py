@@ -55,5 +55,6 @@ def test_architecture_and_plan_exist() -> None:
     assert "### 5.7 Surface 6" in arch
     assert "`/rail`" in arch
     plan = _PLAN.read_text(encoding="utf-8")
-    assert "Nested site at `/rail`" in plan
-    assert "Hyperliquid" in plan
+    assert "venue-native discovery" in plan
+    assert "Hyperliquid is the crypto rail" in plan
+    assert "Identify only where we can execute" in arch

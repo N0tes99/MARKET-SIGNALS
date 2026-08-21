@@ -1,191 +1,168 @@
-# Surface 6 — Rail (blind crypto execution clerk)
+# Surface 6 — Rail Engine (venue-native discovery + same-rail execution)
 
-> **Status:** Phase A scaffold (paper-only). Live venues are stubs that cannot place orders.
-> **Decision:** Nested site at `/rail`, not a separate repo — yet. Extract when real money exists.
+> **Status:** Phase A clerk shell exists (paper-only). **This revision** is the plan for a
+> **separate engine** that finds things Signal Engine does not see, on a rail where we
+> can also execute.
+> **Last updated:** 2026-08-21
 
-This is the plan for an agent that **sees opportunity and knows how to execute**, without
-reading the thesis. Signal Engine stays the research desk. Rail is the clerk.
+Signal Engine stays the off-chain research desk. Rail is not “the paper agent with a
+faster finger.” It is a **different sense**: venue-native books, funding, and outcome
+markets that SE never reads.
 
 ---
 
-## 1. Should this be a separate product?
+## 1. Product split (revised)
 
-**Build it as a site-within-the-site now. Split the process later.**
+| | Signal Engine (Surfaces 1–5) | Rail Engine (Surface 6) |
+|--|------------------------------|-------------------------|
+| Job | Evidence, explainability, CEX-aggregated tape | Identify **and** (later) execute on **one** crypto rail |
+| Data | Bybit / OKX / Kraken / Yahoo, Coinglass overlay, F&G, Reddit | The venue’s own `/info` + L2 book + funding + outcomes |
+| Finds | 13-category grades, funding_extreme, liq_flush, basis_rich, 12h perp momentum, expansion squeeze, equity options, CME, runners | Things those scanners cannot see (below) |
+| Executes | Never (paper agent is a proof track, not a venue) | Same rail it scanned — or it does not scan that market |
+| UI | Desk, Perps, Expansion, Radar | Nested `/rail` clerk (blind envelopes) |
 
-| Option | When it wins | Cost |
+**Rule:** if we cannot execute a market on that rail, Rail does not identify it.
+No “spot an arb on Binance, fill on Hyperliquid” in v1 — that is a different product
+(cross-venue basis) and needs two adapters plus latency we do not have.
+
+Phase A code still *mints* envelopes from the public paper book so `/rail` is not empty.
+That is a **temporary feed**. Phase B replaces it with Rail’s own scanners. Paper-agent
+ideas must not be the long-term alpha.
+
+Same repo for now (auth, CSP, deploy). **Separate engine module**
+(`backend/app/engines/rail/`). Extract the **process** before any signing key.
+
+Railway.app is unrelated. Production stays Render + Netlify.
+
+---
+
+## 2. Which rail? (identify **and** execute)
+
+The rail has to do both jobs: public market data we can scan, and an order API / agent
+wallet we can submit to later.
+
+| Rail | Identify | Execute | Verdict |
+|------|----------|---------|---------|
+| **Hyperliquid** | `/info` (meta, `l2Book`, funding, `outcomeMeta`) + WS books. Perps, HIP-3 deployer perps, HIP-4 outcome contracts, spot — one engine. | Agent (API) wallet signs trades; master wallet holds funds and is the only withdraw key. Same account / margin for perps **and** HIP-4 outcomes (live May 2026). | **The rail.** Scan here, fill here. |
+| Drift (Solana) | On-chain AMM/JIT perps | Yes, OSS | Backup if settlement *must* be SOL. Worse clerk fit. |
+| Polymarket (Polygon) | Public CLOB + Gamma | Yes | **Not first.** HIP-4 already puts outcomes on the same HL rail as perps. Use Polymarket later only for books HL does not list. |
+| Binance / Bybit write APIs | SE already *reads* these | KYC, geo-block, not self-custodied rails | Out. SE may keep reading them. Rail does not write them. |
+
+**Decision:** Hyperliquid is the crypto rail. One L1 CLOB, one USDC/USDH account, perps +
+event contracts. That is the only venue where “identify things SE is not” and “execute
+in there” are the same system.
+
+Solana is optional later (Drift), not the starting rail.
+
+---
+
+## 3. What Signal Engine already identifies (do not rebuild)
+
+SE’s crypto surface, today:
+
+| Source | What it sees | Data |
 |--------|----------------|------|
-| Separate repo / deploy | Live keys, SOC-ish isolation, different SLA | Duplicates auth, wallets, evidence, scanners |
-| Nested `/rail` (chosen) | Same edge, same login, one deploy, fast iteration | Must firewall keys and UX so the desk does not become a casino |
-| Separate later | After paper maturity + first live venue | Move `backend/app/engines/rail/` + `/rail` UI; keep envelope schema |
+| Derivatives engine | Funding, OI Δ, optional liquidations → 13-category grade | Bybit → OKX, Coinglass overlay |
+| Layer 2 setups | `funding_extreme`, `liq_flush`, `basis_rich` | Same CEX derivatives + mark vs spot |
+| Paper perp v2 | 12h momentum + funding tilt + F&G + Reddit | 16-symbol `PERP_V2_UNIVERSE` |
+| Expansion / cortex | Compression → squeeze fuel → trigger | Same universe, 1h OHLCV |
+| Macro / regime / chart vision | Off-chain context | FRED, F&G, screenshots |
 
-Signal Engine already has the **edge**: crypto perp v2, expansion radar, dual-ledger paper
-agent, funding/OI, Fear & Greed, wallet login (ETH / Solana / Sui). Building a second
-product that re-discovers “when to trade” would throw that away.
-
-The product philosophy still holds for Surfaces 1–5: **Signal Engine is not a trading bot.**
-Rail is a *different* surface. It is allowed to execute **only** through a sealed envelope
-and a kill switch. Engines never call a venue. The clerk never calls an engine.
-
-**Extract trigger (do not wait for a calendar):** first time a signing key or agent wallet
-would live in this API process. Then Rail becomes its own worker with no intelligence
-code on the same host.
-
-Railway.app is **not** this surface. Production stays Render + Netlify (`docs/deploy.md`).
-“Rail” means on-chain execution rails.
+Gaps are **not** “better RSI.” They are **venue-native** facts SE has no adapter for.
 
 ---
 
-## 2. What the agent is (and is not)
+## 4. What Rail Engine identifies (SE cannot)
 
-The request: *it does not see what the trade consists of, but it sees opportunity and
-knows how to execute like a human, faster.*
+All of these are Hyperliquid-native. Scan and (later) fill on the same book.
 
-That is an **order clerk**, not an LLM trader.
+| Family | Opportunity | Why SE misses it |
+|--------|-------------|------------------|
+| **A. Book microstructure** | L2 imbalance, spread blowout, thin-ask walk, queue fade | SE has no `l2Book`. It has candles + CEX funding. |
+| **B. HL-native funding** | HL funding vs HL premium, not Bybit’s print | SE funding is Bybit/OKX. HL can diverge for hours. |
+| **C. HIP-4 outcomes** | Binary/event mid ≠ 1.00 (YES+NO), stale vs underlying, daily BTC/ETH binaries | SE has no prediction surface. Macro engine does not price an event contract. |
+| **D. Perp ↔ outcome** | Same-account hedge: HL BTC perp vs HIP-4 “BTC above X by expiry” | Only exists on a rail that lists both. SE cannot even see the outcome leg. |
+| **E. HIP-3 listings** | New `xyz:` deployer perps, auction/open interest ignition | SE universe is 16 CEX tickers. |
+| **F. Liquidation / ADL tape** | HL-native liq map, not Coinglass aggregates | Different venue, different cascade. |
+| **G. Inventory / basis on-rail** | Mark vs oracle, USDC/USDH spot vs perp on HL | SE `basis_rich` is CEX mark vs Yahoo/Kraken spot. |
 
-```
-Desk (Signal Engine)                         Clerk (Rail)
-────────────────────                         ────────────
-Sees symbol, thesis, factors, prices         Sees side, size band, urgency, edge, TTL
-Ranks opportunity                            Does not know BTC vs SOL vs a Polymarket slug
-AI Analyst explains                          Venue adapter knows HOW to send/cancel/manage
-Never holds signing keys                     Never reads evidence or chart screenshots
-```
+**Phase B ships A + B + C only.** D–G after those prove they are not just noise.
 
-A human scalp trader does the same split: research on one screen, finger-memory on the
-other. Rail is the finger-memory, automated.
+Explicit non-goals (leave to SE or never):
 
-**Not in scope**
-
-- An LLM that “looks at the chart and decides”
-- YOLO sizing, martingale, copy-trading
-- Custody of user funds on the API host
-- Public live bot in Phase A
-
-**In scope (Phase A)**
-
-- Sealed `OpportunityEnvelope`
-- Nested `/rail` clerk UI (blind)
-- Paper venue that dry-runs fills from the existing paper agent book
-- Catalog + hard-off stubs for Hyperliquid, Drift, Polymarket
+- 13-category grades, equity options, CME, Reddit narrative
+- LLM “looks at the chart and decides”
+- Cross-CEX arb that we cannot fill on HL
+- Polymarket as a first scanner (no HL fill path for those books)
 
 ---
 
-## 3. Venue / chain choice (most open *for this job*)
-
-“Most open-source chain” is the wrong first question. The first question is **where a
-fast clerk can have an edge without KYC theater and with a real order API**.
-
-| Venue | Chain | Market | Openness | Fit for *this* agent |
-|-------|-------|--------|----------|----------------------|
-| **Hyperliquid** | Own L1 (not Solana) | Perps CLOB | Matching + agent wallets; the current perp-bot default | **Primary live target.** Native perps, funding, HIP agent wallets. Our scanners already think in perps. |
-| **Drift** | Solana | Perps | Fully OSS, permissionless | **Solana option** if we insist on SOL settlement. Slightly worse clerk fit (AMM/JIT vs pure CLOB). |
-| **dYdX v4** | Cosmos | Perps | Fully decentralized | Strong OSS; extra chain ops. Not first. |
-| **Polymarket** | Polygon | Prediction CLOB | Public CLOB + Gamma APIs | **Second market type**, not a perp substitute. Different edge (probability vs tape). |
-| Binance/Bybit API | Off-chain | Perps | Closed, geo-blocked | We already *read* them. Do not *write* them from this product. |
-
-**Recommendation**
-
-1. **Keep using Signal Engine scanners** (Bybit/OKX/Kraken reads) for edge.
-2. **Execute perps on Hyperliquid first** when (if) we go live — best clerk venue.
-3. **Keep a Drift adapter** so Solana remains a first-class option, not a rewrite.
-4. **Polymarket as a parallel market_kind=`prediction`**, same envelope, different adapter.
-5. Do **not** start on Solana just to be on Solana. Start where the book we already
-   score (crypto perp v2 + expansion) can be handed to a clerk.
-
-Phase A executes nowhere live. The clerk’s `venue` is always `paper`. Each envelope
-still carries a `target_venue` so the nested site shows where the same opportunity
-*would* rail later.
-
----
-
-## 4. Envelope contract (the firewall)
-
-Clerk-facing JSON **must not** contain: symbol, factors, notes, prices, thesis, setup
-type names that encode the asset.
+## 5. Engine shape (still blind at the clerk)
 
 ```
-envelope_id          paper:{trade_id}     stable
-venue                paper                where the clerk may fill now
-target_venue         hyperliquid|drift|polymarket
-market_kind          perp | prediction
-side                 buy | sell
-size_band            xs | s | m | l       not notionals
-urgency              passive | normal | aggressive
-edge_score           0–100                no “why”
-ttl_seconds          int
-invalidation         stop_band_{1-9}      not a price
-instrument_handle    hmac hex             only adapters resolve it
-status               open | closed
-```
-
-Resolution of `instrument_handle` → symbol lives **inside** the venue adapter, never in
-the `/rail` payload. The desk (`/perps`, `/assets/{symbol}`) remains the place a human
-inspects the thesis. Rail may link “inspect on desk” without showing the symbol on the
-clerk card.
-
----
-
-## 5. Process firewall
-
-```
-Evidence / Opportunity / Expansion / Paper Agent
-        │  mint_envelope()  (strips thesis)
-        ▼
-OpportunityEnvelope  ──────────────────────────►  /rail UI (blind)
+Hyperliquid /info + WS          Signal Engine desk (optional overlay, never required)
         │
         ▼
-Rail Clerk  (kill switch + daily cap + size band)
+Rail scanners (A/B/C)  —  see the full book / funding / outcome
+        │  mint_envelope() strips ticker, prices, thesis
+        ▼
+OpportunityEnvelope (clerk-visible)
         │
-        ├── paper adapter      Phase A: dry-run ack only
-        ├── hyperliquid        Phase A: hard refuse
-        ├── drift              Phase A: hard refuse
-        └── polymarket         Phase A: hard refuse
+        ▼
+Rail Clerk + kill switch
+        ├── paper         always allowed in Phase A/B (dry-run)
+        └── hyperliquid   Phase C+ only, separate process, agent wallet
 ```
 
-Rules:
+- Scanners **may** see symbol, book, mids. They live in `engines/rail/scanners/`.
+- Clerk **may not**. `/rail` UI stays blind. “Inspect on desk” can deep-link to
+  `/perps` or a future `/rail/inspect` that is **off** the clerk path.
+- Rail scanners **do not** register with the Evidence Engine. They do not move
+  BTC’s 13-category grade. Sitting out is valid.
+- Execution still: engines never call `/exchange`; only the clerk does, and Phase A/B
+  live adapters keep hard-refusing.
 
-- Engines never import a venue adapter.
-- Venue adapters never import an engine.
-- `RAIL_ARMED` and `RAIL_LIVE_ENABLED` default **false**.
-- Phase A live adapters refuse even if those flags are flipped and even if keys exist.
-- No signing keys in this repo or in `.env.example` (there isn’t one). Document names only.
-
-Portfolio management is **Phase D**: one clerk, many envelopes, risk engine veto on
-gross / per-venue / correlation. Do not build a “portfolio AI” first.
-
----
-
-## 6. Nested site UX
-
-| Route | Role |
-|-------|------|
-| `/` `/perps` `/expansion` | Desk — thesis, symbols, paper PnL |
-| `/rail` | Clerk — opportunities as side / band / urgency / edge. Own chrome. |
-
-`/rail` uses its own header (leave → Desk). Main nav still has a Rail link so it is
-discoverable. This is a site-within-the-site: same auth, same CSP, different job.
+Envelope `market_kind` grows: `perp | outcome` (HIP-4). `prediction` stays as a
+reserved id for a future Polymarket adapter — unused until we have a fill path.
 
 ---
 
-## 7. Phases (technical, not calendar)
+## 6. Phases
 
-| Phase | Ship |
-|-------|------|
-| **A — this PR** | Envelope, clerk dry-run, paper venue, live stubs, `/rail`, docs |
-| **B** | Read-only Hyperliquid/Drift/Polymarket mirrors (balances, positions). Still no orders. |
-| **C** | Private micro-live, **separate process**, agent wallet, dual-control arming, after paper maturity gates already on the paper agent (`ready_for_private_live`) |
-| **D** | Multi-venue portfolio: caps, correlation veto, shared kill switch |
+| Phase | Ship | Execute? |
+|-------|------|----------|
+| **A** (in repo) | Clerk shell, paper dry-run, live stubs, `/rail` | Paper ack only |
+| **B** (next build) | HL **read-only** adapter: `l2Book`, funding, `outcomeMeta`. Scanners A/B/C mint envelopes. Paper still the only fill. | No live orders |
+| **C** | Private micro-live, **separate process**, HL agent wallet, dual-control arming, after paper maturity + B paper track on *Rail* ideas (not SE ideas) | HL only, tiny size |
+| **D** | Perp↔outcome inventory, HIP-3, portfolio caps | Still HL-first |
 
-Do not skip B. A clerk that cannot see its own inventory is how accounts blow up.
+Do not skip B. A clerk that cannot see HL inventory is how accounts blow up.
+Do not start C until Rail’s own (not SE’s) paper book has a sample.
 
 ---
 
-## 8. Risks
+## 7. Risks
 
-- **Product confusion:** desk users think Signal Engine now autotrades. Copy on `/rail`
-  must say paper-only / not live.
-- **Leakage:** one symbol in a clerk field undoes the design. Tests dump JSON and ban
-  tracked symbols.
-- **Live keys on Render:** forbidden until extract. This API already has Discord/Groq
-  keys; adding a trading key is a different liability class.
-- **Polymarket vs perps:** do not average those edges. Same clerk, different `market_kind`.
+- **Product confusion:** `/rail` must say “HL-native scanner / not the desk grade.”
+- **Leakage:** scanner logs can hold symbols; clerk JSON cannot. Keep tests.
+- **Copying SE:** if a scanner is just Bybit funding under a new name, delete it.
+- **HIP-4 liquidity:** many outcomes are thin. Size bands stay tiny; sit out is the default.
+- **Keys:** agent wallet is still a live key. It never lands on the Render API host.
+
+---
+
+## 8. What Phase B would add (not built in this revision)
+
+```
+backend/app/engines/rail/
+├── scanners/
+│   ├── book.py          # A — L2 imbalance / spread
+│   ├── funding.py       # B — HL funding vs premium
+│   └── outcome.py       # C — HIP-4 YES+NO, stale vs underlying
+├── adapters/
+│   └── hyperliquid_info.py   # read-only POST /info
+└── (existing clerk, envelope, paper venue, live refuse stubs)
+```
+
+`GET /api/v1/rail/desk` sources envelopes from these scanners, not from
+`PaperAgent.summary()`. Paper agent remains the public proof track on the **desk**.

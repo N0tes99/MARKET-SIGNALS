@@ -538,40 +538,49 @@ Cortex tick (120s)
 
 ---
 
-### 5.7 Surface 6 — Rail (blind crypto execution clerk)
+### 5.7 Surface 6 — Rail Engine (venue-native discovery + same-rail clerk)
 
-**Purpose:** Nested execution surface. A clerk that sees **opportunity primitives** (side, size band, urgency, edge, TTL) and knows **how** to send/cancel/manage — without seeing symbol, thesis, factors, or prices.
+**Purpose:** A **separate engine** that identifies opportunities Signal Engine cannot see,
+on a crypto rail where we can also execute later. Clerk UI stays blind (side, size band,
+urgency, edge — no ticker/thesis).
 
-Signal Engine Surfaces 1–5 remain intelligence-only. Rail does not turn the desk into a trading bot. Plan: `docs/research/rail-execution-surface.md`.
+Signal Engine Surfaces 1–5 remain intelligence-only (Bybit/OKX/Yahoo evidence). Rail does
+not fold into 13-category grades. Plan: `docs/research/rail-execution-surface.md`.
+
+**Rail:** Hyperliquid (perps + HIP-4 outcomes, one account, agent wallet). Drift / Polymarket
+are not first — we only scan markets we can fill on that rail.
 
 ```
-Desk engines (evidence, perp v2, expansion, paper agent)
-        │  mint_envelope() — strips thesis
+HL /info + L2 (Phase B scanners)     SE desk (not the alpha source)
+        │
         ▼
-OpportunityEnvelope (clerk-visible)     instrument_handle (adapter-only)
+Rail scanners — book / HL funding / HIP-4 outcomes
+        │  mint_envelope()
+        ▼
+OpportunityEnvelope (clerk-visible)
         │
         ▼
 Rail Clerk + kill switch
-        ├── paper          Phase A dry-run
-        ├── hyperliquid    Phase A hard refuse (primary live perp target)
-        ├── drift          Phase A hard refuse (Solana OSS option)
-        └── polymarket     Phase A hard refuse (prediction CLOB)
+        ├── paper          Phase A/B dry-run
+        └── hyperliquid    Phase C+ separate process only
 ```
 
 | Rule | Meaning |
 |------|---------|
-| Nested, not a new repo | Same auth/CSP; own chrome at `/rail`. Extract the worker before any signing key. |
-| Engines never call venues | Only the clerk may submit an envelope |
-| Clerk never calls engines | No evidence, no AI Analyst, no chart vision |
-| Phase A cannot go live | Live adapters refuse even if `RAIL_ARMED` / `RAIL_LIVE_ENABLED` are true |
+| Separate *engine*, same repo | Own scanners; extract the worker before any signing key |
+| Identify only where we can execute | No Binance-spot / HL-fill fantasy in v1 |
+| Do not rebuild SE | No funding_extreme clone from Bybit |
+| Clerk stays blind | Scanners see the book; `/rail` does not |
+| Phase A/B cannot go live | Live adapters refuse even if `RAIL_ARMED` is true |
 | Sitting out is valid | Empty envelope list is a healthy clerk |
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/v1/rail/desk` | Blind envelopes + venue catalog + dry-run fills |
-| `POST /api/v1/rail/clerk/simulate` | Paper-venue ack for one open envelope (no live order) |
+| `POST /api/v1/rail/clerk/simulate` | Paper-venue ack (no live order) |
 
-**Status:** `PHASE A` — envelope sealer, paper dry-run, live stubs, `/rail` nested site. No Hyperliquid/Drift/Polymarket orders, no keys, no portfolio manager.
+**Status:** `PHASE A` clerk shell (paper mint from the public paper book — **temporary**).
+Phase B = HL read-only scanners. No Hyperliquid orders, no keys, no portfolio manager.
 
 ---
 
