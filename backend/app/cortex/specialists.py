@@ -119,7 +119,29 @@ def collect_derivatives_opinion(
 
 
 def collect_cvd_opinion(engine: BuyerSellerEngine, symbol: str) -> SpecialistOpinion:
-    """OHLCV buying-pressure proxy — not exchange-tape cumulative volume delta."""
+    """Prefer public-trade CVD; fall back to the OHLCV buying-pressure proxy."""
+    from app.market_data.tape import fetch_tape_cvd
+
+    tape = fetch_tape_cvd(symbol)
+    if tape is not None:
+        return SpecialistOpinion(
+            specialist="cvd",
+            score=round(tape.score, 2),
+            direction=tape.direction,
+            factors=[
+                f"{symbol}: tape CVD {tape.source} Δ={tape.delta:.0f} "
+                f"n={tape.trade_count}",
+            ],
+            metadata={
+                "buyer_strength": tape.score,
+                "seller_strength": round(100.0 - tape.score, 2),
+                "delta": tape.delta,
+                "trade_count": tape.trade_count,
+                "source": tape.source,
+                "proxy": False,
+            },
+        )
+
     try:
         result = engine.analyze(symbol, timeframe="1h")
     except Exception:

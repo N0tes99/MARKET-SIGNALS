@@ -1,8 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { fetchAssets, type AssetsDashboard } from "@/services/api";
+import {
+  dashboardStreamUrl,
+  fetchAssets,
+  type AssetsDashboard,
+} from "@/services/api";
 
 function isGatewayTimeout(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -21,6 +26,35 @@ function isTabVisible(): boolean {
 }
 
 export function useAssets() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+    let source: EventSource | null = null;
+    try {
+      source = new EventSource(dashboardStreamUrl());
+    } catch {
+      return;
+    }
+    const onDashboard = (event: MessageEvent<string>) => {
+      try {
+        const payload = JSON.parse(event.data) as AssetsDashboard;
+        if (!payload || !Array.isArray(payload.assets)) return;
+        queryClient.setQueryData(["assets"], payload);
+      } catch {
+        /* ignore malformed chunks */
+      }
+    };
+    source.addEventListener("dashboard", onDashboard);
+    source.onmessage = onDashboard;
+    return () => {
+      source?.removeEventListener("dashboard", onDashboard);
+      source?.close();
+    };
+  }, [queryClient]);
+
   return useQuery({
     queryKey: ["assets"],
     queryFn: fetchAssets,

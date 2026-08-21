@@ -105,6 +105,12 @@ class MarketDataService:
                 symbol,
                 observed_at=_ohlcv_observed_at(raw),
             )
+            try:
+                from app.data_lake.warehouse.ohlcv import persist_ohlcv_frame
+
+                persist_ohlcv_frame(raw, symbol=symbol, timeframe=timeframe)
+            except Exception:
+                logger.debug("OHLCV warehouse persist skipped for %s", symbol, exc_info=True)
             return raw
 
         cache = _CHART_OHLCV_CACHE if timeframe in _CHART_TIMEFRAMES else _OHLCV_CACHE

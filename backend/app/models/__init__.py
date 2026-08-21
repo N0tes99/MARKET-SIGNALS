@@ -9,9 +9,11 @@ from app.models.cortex_memory import CortexEpisodeModel, CortexSemanticStatModel
 from app.models.evidence_snapshot import EvidenceSnapshot
 from app.models.favorite import Favorite
 from app.models.follow import Follow
+from app.models.ohlcv_bar import OhlcvBarModel
 from app.models.paper_trade import PaperAgentStateModel, PaperTradeModel
 from app.models.post import Post
 from app.models.post_like import PostLike
+from app.models.procedural_policy import ProceduralPolicyModel
 from app.models.signal_record import SignalRecordModel
 from app.models.ticker_request import TickerRequestModel
 from app.models.user import User
@@ -29,10 +31,12 @@ __all__ = [
     "EvidenceSnapshot",
     "Favorite",
     "Follow",
+    "OhlcvBarModel",
     "PaperAgentStateModel",
     "PaperTradeModel",
     "Post",
     "PostLike",
+    "ProceduralPolicyModel",
     "SignalRecordModel",
     "TickerRequestModel",
     "User",

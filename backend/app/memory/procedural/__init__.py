@@ -1,1 +1,1 @@
-"""Procedural memory — versioned policies and weights (Phase B)."""
+"""Procedural memory — versioned expansion knobs in Postgres."""

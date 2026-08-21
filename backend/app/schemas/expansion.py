@@ -97,3 +97,10 @@ class ExpansionReplayResponse(BaseModel):
     events: list[ReplayEventSchema] = Field(default_factory=list)
     benchmark_symbols: list[str] = Field(default_factory=list)
     scanned_at: datetime
+
+
+class ExpansionPolicySchema(BaseModel):
+    name: str = "expansion"
+    source: str
+    version: int = 0
+    knobs: dict = Field(default_factory=dict)
