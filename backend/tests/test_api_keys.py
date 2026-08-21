@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.core.api_keys import (
@@ -23,6 +24,7 @@ from app.core.dependencies import get_db
 from app.core.security import hash_password
 from app.core.service_dependencies import get_cortex_orchestrator, get_expansion_scanner
 from app.cortex.types import WorkingMemory
+from app.database import session as db_session
 from app.database.base import Base
 from app.main import app
 from app.models import AccessGrantModel, ApiKeyModel, User  # noqa: F401
@@ -85,7 +87,9 @@ class _StubCortex:
 
 
 async def _postgres_available() -> bool:
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_async_engine(
+        settings.database_url, pool_pre_ping=True, poolclass=NullPool
+    )
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -109,12 +113,18 @@ async def api_key_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.core.site_gate.settings.auth_password", "gate-pass")
     monkeypatch.setattr("app.config.settings.auth_password", "gate-pass")
 
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    # AccessGateMiddleware uses the global session factory, not get_db.
+    # Bind it to this test's loop or asyncpg raises "Future attached to a different loop".
+    engine = create_async_engine(
+        settings.database_url, pool_pre_ping=True, poolclass=NullPool
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(db_session, "async_session_factory", factory)
+    monkeypatch.setattr(db_session, "engine", engine)
 
     async with factory() as session:
         builder = User(
