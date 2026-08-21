@@ -6,10 +6,13 @@ import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.cortex.attention import specialists_for_state
+from app.cortex.attention import should_run_global_macro, specialists_for_state
 from app.cortex.specialists import (
     build_specialist_engines,
+    collect_cvd_opinion,
     collect_derivatives_opinion,
+    collect_macro_opinion,
+    collect_news_opinion,
     collect_regime_opinion,
 )
 from app.cortex.synthesis import (
@@ -17,14 +20,17 @@ from app.cortex.synthesis import (
     expansion_to_opinion,
     synthesize_symbol_notes,
 )
-from app.cortex.types import SymbolContext, WorkingMemory
+from app.cortex.types import SpecialistOpinion, SymbolContext, WorkingMemory
 from app.engines.expansion_engine.config import EXPANSION_UNIVERSE, default_expansion_config
 from app.engines.expansion_engine.scanner import ExpansionScanner
 from app.engines.expansion_engine.types import ExpansionState
 from app.market_data.service import MarketDataService
 from app.memory.episodic.store import EpisodicStore, InMemoryEpisodicStore
+from app.memory.semantic.store import InMemorySemanticStore, SemanticStore
 
 logger = logging.getLogger(__name__)
+
+CORTEX_PHASE = "cortex_v2"
 
 
 class CortexOrchestrator:
@@ -36,11 +42,13 @@ class CortexOrchestrator:
         market_data: MarketDataService | None = None,
         expansion_scanner: ExpansionScanner | None = None,
         episodic: EpisodicStore | None = None,
+        semantic: SemanticStore | None = None,
     ) -> None:
         self._market = market_data or MarketDataService()
         self._expansion = expansion_scanner or ExpansionScanner(market_data=self._market)
-        self._regime, self._derivatives = build_specialist_engines(self._market)
+        self._specialists = build_specialist_engines(self._market)
         self._episodic = episodic or InMemoryEpisodicStore()
+        self._semantic = semantic or InMemorySemanticStore()
         self._prior_states: dict[str, ExpansionState] = {}
         self._last_memory: WorkingMemory | None = None
 
@@ -51,6 +59,10 @@ class CortexOrchestrator:
     @property
     def episodic(self) -> EpisodicStore:
         return self._episodic
+
+    @property
+    def semantic(self) -> SemanticStore:
+        return self._semantic
 
     def tick(
         self,
@@ -64,12 +76,19 @@ class CortexOrchestrator:
         as_of = datetime.now(UTC)
         notes: list[str] = []
         symbol_contexts: dict[str, SymbolContext] = {}
+        global_opinions: list[SpecialistOpinion] = []
+
+        if should_run_global_macro():
+            macro = collect_macro_opinion(self._specialists.macro)
+            global_opinions.append(macro)
+            if macro.factors:
+                notes.append(macro.factors[0])
 
         for sym in universe:
             normalized = sym.upper()
             prior = self._prior_states.get(normalized)
             active = specialists_for_state(prior)
-            opinions = []
+            opinions: list[SpecialistOpinion] = []
 
             expansion = None
             if "expansion" in active:
@@ -81,10 +100,18 @@ class CortexOrchestrator:
                     opinions.append(expansion_to_opinion(expansion))
 
             if "regime" in active:
-                opinions.append(collect_regime_opinion(self._regime, normalized))
+                opinions.append(collect_regime_opinion(self._specialists.regime, normalized))
 
             if "derivatives" in active:
-                opinions.append(collect_derivatives_opinion(self._derivatives, normalized))
+                opinions.append(
+                    collect_derivatives_opinion(self._specialists.derivatives, normalized)
+                )
+
+            if "cvd" in active:
+                opinions.append(collect_cvd_opinion(self._specialists.cvd, normalized))
+
+            if "news" in active:
+                opinions.append(collect_news_opinion(self._specialists.news, normalized))
 
             ctx = SymbolContext(
                 symbol=normalized,
@@ -94,6 +121,12 @@ class CortexOrchestrator:
                 alert_level=alert_level_for(expansion),
             )
             ctx.synthesis_notes = synthesize_symbol_notes(ctx)
+            if (
+                expansion is not None
+                and expansion.squeeze.score >= 65
+                and any(o.specialist == "macro" and (o.score or 50) <= 45 for o in global_opinions)
+            ):
+                ctx.synthesis_notes.append("Macro headwind vs squeeze fuel")
             symbol_contexts[normalized] = ctx
 
             if expansion is not None:
@@ -117,13 +150,23 @@ class CortexOrchestrator:
             as_of=as_of,
             universe=universe,
             symbols=symbol_contexts,
+            global_opinions=global_opinions,
             notes=notes,
-            phase="cortex_v1",
+            phase=CORTEX_PHASE,
         )
 
         self._last_memory = memory
         if persist:
-            self._episodic.append(memory)
+            try:
+                self._episodic.append(memory)
+            except Exception:
+                logger.exception("Cortex episodic persist failed")
+            try:
+                from app.memory.semantic.consolidator import consolidate_from_episodic
+
+                consolidate_from_episodic(self._episodic, self._semantic)
+            except Exception:
+                logger.exception("Cortex semantic consolidation failed")
         return memory
 
     def digest(self) -> str:
@@ -139,4 +182,10 @@ class CortexOrchestrator:
         else:
             parts.append("alerts: none")
         parts.append(f"universe: {len(mem.universe)}")
+        try:
+            lead = self._semantic.get("lead_time", "primed_to_trigger")
+            if lead is not None and lead.median_hours is not None:
+                parts.append(f"lead {lead.median_hours:.1f}h n={lead.sample_count}")
+        except Exception:
+            pass
         return " | ".join(parts)

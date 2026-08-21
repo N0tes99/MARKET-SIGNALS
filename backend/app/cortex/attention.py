@@ -8,20 +8,22 @@ from app.engines.expansion_engine.types import ExpansionState
 EXPANSION_CLUSTER = "expansion"
 REGIME = "regime"
 DERIVATIVES = "derivatives"
+CVD = "cvd"
+NEWS = "news"
 
-_DEFAULT = (EXPANSION_CLUSTER, REGIME, DERIVATIVES)
+_DEFAULT = (EXPANSION_CLUSTER, REGIME, DERIVATIVES, CVD, NEWS)
 
 
 def specialists_for_state(prior_state: ExpansionState | None) -> tuple[str, ...]:
     """Route specialists based on prior expansion state.
 
     Expansion cluster always runs (compression + squeeze + trigger inside).
-    Regime + derivatives add context early; all three run every tick in v1.
+    CVD (order-flow proxy), news/calendar, regime, and derivatives run every tick.
     """
     del prior_state  # reserved for lighter DORMANT-only scans later
     return _DEFAULT
 
 
 def should_run_global_macro() -> bool:
-    """Global macro/regime tick — deferred until macro specialist exists."""
-    return False
+    """Global macro snapshot once per tick (not per symbol)."""
+    return True

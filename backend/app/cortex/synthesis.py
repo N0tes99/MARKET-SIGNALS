@@ -48,6 +48,18 @@ def synthesize_symbol_notes(ctx: SymbolContext) -> list[str]:
     ):
         notes.append("Derivatives positioning supports squeeze fuel")
 
+    cvd = _find_opinion(ctx.opinions, "cvd")
+    if (
+        expansion.compression.score >= 75
+        and cvd is not None
+        and float(cvd.metadata.get("absorption") or 0) >= 55
+    ):
+        notes.append("Order-flow absorption supports compression (CVD proxy)")
+
+    news = _find_opinion(ctx.opinions, "news")
+    if news is not None and news.conflicts:
+        notes.extend(news.conflicts[:2])
+
     if expansion.trigger_active:
         notes.append(f"Trigger active — {expansion.key_trigger}")
 

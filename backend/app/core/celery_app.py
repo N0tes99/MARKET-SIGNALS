@@ -8,7 +8,7 @@ celery_app = Celery(
     "signal_engine",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.warm_cache", "app.tasks.cortex_tick"],
+    include=["app.tasks.warm_cache", "app.tasks.cortex_tick", "app.tasks.memory_consolidation"],
 )
 
 celery_app.conf.update(
@@ -35,6 +35,10 @@ celery_app.conf.update(
         "cortex-expansion-tick": {
             "task": "app.tasks.cortex_tick.run_cortex_tick",
             "schedule": 120.0,
+        },
+        "cortex-semantic-consolidate": {
+            "task": "app.tasks.memory_consolidation.consolidate",
+            "schedule": 21600.0,
         },
     },
 )

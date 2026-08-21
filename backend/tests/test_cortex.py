@@ -62,6 +62,8 @@ def test_attention_routes_default_specialists() -> None:
     assert "expansion" in specs
     assert "regime" in specs
     assert "derivatives" in specs
+    assert "cvd" in specs
+    assert "news" in specs
 
 
 def test_alert_level_for_primed() -> None:
@@ -112,6 +114,10 @@ def test_orchestrator_tick_with_mock_market() -> None:
     assert len(memory.symbols["BTC"].opinions) >= 1
     assert orch.last_memory is not None
     assert orch.episodic.latest() is not None
+    assert memory.phase == "cortex_v2"
+    names = {o.specialist for o in memory.symbols["BTC"].opinions}
+    assert "expansion" in names or len(memory.symbols["BTC"].opinions) >= 1
+    assert any(o.specialist == "macro" for o in memory.global_opinions)
 
 
 @pytest.mark.asyncio
@@ -140,3 +146,14 @@ async def test_cortex_api_history(client: AsyncClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_cortex_api_health_and_semantic(client: AsyncClient) -> None:
+    await client.post("/api/v1/cortex/tick")
+    health = await client.get("/api/v1/cortex/health")
+    assert health.status_code == 200
+    assert "ticks_recorded" in health.json()
+    semantic = await client.get("/api/v1/cortex/semantic")
+    assert semantic.status_code == 200
+    assert "stats" in semantic.json()
