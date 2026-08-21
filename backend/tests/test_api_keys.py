@@ -21,6 +21,8 @@ from app.core.api_keys import (
 )
 from app.core.dependencies import get_db
 from app.core.security import hash_password
+from app.core.service_dependencies import get_cortex_orchestrator, get_expansion_scanner
+from app.cortex.types import WorkingMemory
 from app.database.base import Base
 from app.main import app
 from app.models import AccessGrantModel, ApiKeyModel, User  # noqa: F401
@@ -53,6 +55,33 @@ def test_generate_api_key_format() -> None:
     assert full.startswith(API_KEY_PREFIX)
     assert prefix == full[:16]
     assert digest == hash_api_key(full)
+
+
+class _StubExpansionScanner:
+    """Auth tests should not run a live 16-symbol expansion scan."""
+
+    class _Config:
+        universe: tuple[str, ...] = ()
+
+    _config = _Config()
+
+    def scan(self, use_cache: bool = True) -> list:
+        return []
+
+
+class _StubCortex:
+    def __init__(self) -> None:
+        self.last_memory = WorkingMemory(
+            tick_id="test-tick",
+            as_of=datetime.now(UTC),
+            universe=(),
+        )
+
+    def tick(self, persist: bool = True) -> WorkingMemory:
+        return self.last_memory
+
+    def digest(self) -> str:
+        return "test-digest"
 
 
 async def _postgres_available() -> bool:
@@ -108,11 +137,15 @@ async def api_key_client(monkeypatch: pytest.MonkeyPatch):
                 raise
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_expansion_scanner] = lambda: _StubExpansionScanner()
+    app.dependency_overrides[get_cortex_orchestrator] = lambda: _StubCortex()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, factory, builder.id
 
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_expansion_scanner, None)
+    app.dependency_overrides.pop(get_cortex_orchestrator, None)
     await engine.dispose()
 
 
