@@ -44,7 +44,7 @@ Evidence Engine → Opportunity Engine → Execution Engine → Risk Engine → 
 | Layer | Technologies |
 |-------|-------------|
 | Backend | Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL, Redis, Celery |
-| AI | OpenAI API, local reasoning architecture |
+| AI | Groq vision + desk synthesizer |
 | Frontend | Next.js, React, TypeScript, TailwindCSS, shadcn/ui, Recharts, TanStack Query |
 | Infrastructure | Docker, Docker Compose, GitHub Actions, Alembic, Ruff, Pytest |
 
@@ -73,9 +73,11 @@ signal-engine/
 ### With Docker (recommended)
 
 ```bash
-cp .env.example .env
+touch .env   # gitignored; put local keys here, never commit them
 docker compose up --build
 ```
+
+Env var names and production values live in [`docs/deploy.md`](docs/deploy.md). Do not put Render/Groq/Discord secrets in the repo.
 
 Services:
 

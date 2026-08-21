@@ -41,7 +41,7 @@ def main() -> None:
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     content = f"""# Generated {stamp} — DO NOT COMMIT (gitignored)
-# Paste into Render / Vercel / Railway environment variables.
+# Paste into Render / Netlify environment variables.
 
 # Backend (Render Web Service)
 SECRET_KEY={secret_key}
@@ -56,7 +56,7 @@ EXTRA_SECRET_1={extra_1}
 EXTRA_SECRET_2={extra_2}
 
 # Reminder: set DATABASE_URL from your host's Postgres dashboard (don't invent it).
-# CORS_ORIGINS=https://your-app.vercel.app
+# CORS_ORIGINS=https://your-site.netlify.app
 """
 
     OUT_FILE.write_text(content, encoding="utf-8")

@@ -1,8 +1,16 @@
-# Environment
+# Environment — never commit real keys
 .env
 .env.local
 .env.*.local
+/.env.example
 secrets.local.env
+
+# Keys / certs
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
 
 # Python
 __pycache__/
