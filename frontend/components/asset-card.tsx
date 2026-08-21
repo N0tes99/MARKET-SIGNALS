@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { memo } from "react";
 
 import type { DashboardDensity } from "@/hooks/use-dashboard-view";
 import { cn } from "@/lib/utils";
@@ -56,7 +59,12 @@ function gradeClass(grade: string): string {
   return "text-muted-foreground";
 }
 
-export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps) {
+export const AssetCard = memo(function AssetCard({
+  asset,
+  quote,
+  density = "m",
+  rank,
+}: AssetCardProps) {
   const change = quote?.change_pct;
   const compact = density === "s";
   const changeClass =
@@ -71,7 +79,7 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
   return (
     <article
       className={cn(
-        "surface-interactive group",
+        "surface-dense-interactive group",
         compact ? "p-3" : "p-5",
       )}
     >
@@ -153,7 +161,7 @@ export function AssetCard({ asset, quote, density = "m", rank }: AssetCardProps)
       </Link>
     </article>
   );
-}
+});
 
 function MetricRow({
   label,

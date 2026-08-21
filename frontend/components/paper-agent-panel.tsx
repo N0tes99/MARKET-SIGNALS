@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
@@ -255,14 +255,52 @@ export function PaperAgentPanel() {
   const queryClient = useQueryClient();
   const [tradesOpen, setTradesOpen] = useState(false);
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ["paper-summary"],
-    queryFn: () => fetchPaperSummary(true),
+    // Background reads must not tick the agent — tick is a side effect.
+    queryFn: () => fetchPaperSummary(false),
     staleTime: 60_000,
     refetchInterval: 120_000,
     refetchOnWindowFocus: false,
     retry: 1,
   });
+
+  // One opportunistic tick after first paint so the ledger advances without
+  // blocking every poll / competing with rankings on dashboard mount.
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      void queryClient
+        .fetchQuery({
+          queryKey: ["paper-summary"],
+          queryFn: () => fetchPaperSummary(true),
+        })
+        .catch(() => {
+          /* keep read-only summary if tick fails */
+        });
+    };
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(
+        () => {
+          if (!cancelled) run();
+        },
+        { timeout: 2500 },
+      );
+    } else {
+      timeoutId = setTimeout(() => {
+        if (!cancelled) run();
+      }, 800);
+    }
+    return () => {
+      cancelled = true;
+      if (timeoutId != null) clearTimeout(timeoutId);
+      if (idleId != null && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }, [queryClient]);
 
   const resetMutation = useMutation({
     mutationFn: resetPaperAgent,
@@ -307,7 +345,7 @@ export function PaperAgentPanel() {
           ) : null}
           {isFetching && !isLoading ? (
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
-              ticking
+              refreshing
             </p>
           ) : null}
         </div>
@@ -326,7 +364,12 @@ export function PaperAgentPanel() {
           <button
             type="button"
             className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
-            onClick={() => void refetch()}
+            onClick={() =>
+              void queryClient.fetchQuery({
+                queryKey: ["paper-summary"],
+                queryFn: () => fetchPaperSummary(true),
+              })
+            }
           >
             Retry
           </button>

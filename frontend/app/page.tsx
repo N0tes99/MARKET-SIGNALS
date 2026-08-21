@@ -1,11 +1,7 @@
 import { DashboardHeader } from "@/components/dashboard-header";
-import { AlpacaActivityPanel } from "@/components/alpaca-activity-panel";
 import { AssetGrid } from "@/components/asset-grid";
-import { EquityOpportunitiesFeed } from "@/components/equity-opportunities-feed";
-import { OpportunitiesFeed } from "@/components/opportunities-feed";
-import { OptionsTapeStrip } from "@/components/options-tape-strip";
+import { DeferredDashboardFeeds } from "@/components/deferred-dashboard-feeds";
 import { PaperAgentPanel } from "@/components/paper-agent-panel";
-import { RadarPreviewStrip } from "@/components/radar-preview-strip";
 import { TopPicks } from "@/components/top-picks";
 
 export default function HomePage() {
@@ -21,16 +17,8 @@ export default function HomePage() {
             <TopPicks />
           </div>
         </div>
-        <OptionsTapeStrip />
-        <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
-          <EquityOpportunitiesFeed />
-          <RadarPreviewStrip />
-        </div>
         <AssetGrid />
-        <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
-          <OpportunitiesFeed />
-          <AlpacaActivityPanel />
-        </div>
+        <DeferredDashboardFeeds />
       </div>
     </main>
   );
