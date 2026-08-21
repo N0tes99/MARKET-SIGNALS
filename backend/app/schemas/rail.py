@@ -12,7 +12,7 @@ class RailEnvelopeSchema(BaseModel):
     envelope_id: str
     venue: VenueId
     target_venue: VenueId
-    market_kind: Literal["perp", "prediction"]
+    market_kind: Literal["perp", "prediction", "outcome"]
     side: Literal["buy", "sell"]
     size_band: Literal["xs", "s", "m", "l"]
     urgency: Literal["passive", "normal", "aggressive"]
@@ -40,7 +40,7 @@ class RailVenueSchema(BaseModel):
     id: VenueId
     label: str
     chain: str
-    market_kind: Literal["perp", "prediction"]
+    market_kind: Literal["perp", "prediction", "outcome"]
     role: str
     status: Literal["ready", "planned", "refused"]
     note: str

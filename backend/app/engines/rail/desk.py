@@ -1,14 +1,13 @@
-"""Build the nested Rail desk snapshot from the public paper agent book."""
+"""Build the nested Rail desk snapshot from Hyperliquid-native scanners."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from threading import Lock
-from typing import TYPE_CHECKING
 
 from app.config import settings
 from app.engines.rail.clerk import RailClerk
-from app.engines.rail.envelope import mint_from_paper_trade
+from app.engines.rail.scanners import HyperliquidRailScanner
 from app.engines.rail.types import (
     ClerkFill,
     OpportunityEnvelope,
@@ -17,27 +16,24 @@ from app.engines.rail.types import (
     VenueInfo,
 )
 
-if TYPE_CHECKING:
-    from app.engines.paper_agent.agent import PaperAgent
-
 VENUE_CATALOG: tuple[VenueInfo, ...] = (
     VenueInfo(
         id="paper",
         label="Paper",
         chain="off-chain",
         market_kind="perp",
-        role="Phase A fill venue — dry-run only",
+        role="Phase A/B fill venue — dry-run only",
         status="ready",
-        note="Reuses the public paper agent book. No second ledger. No live order.",
+        note="Acks clerk submits. No live order. No second paper ledger.",
     ),
     VenueInfo(
         id="hyperliquid",
         label="Hyperliquid",
         chain="hyperliquid-l1",
         market_kind="perp",
-        role="Primary live perp target (agent wallets)",
-        status="planned",
-        note="Best clerk venue for perps. Phase A adapter refuses all orders.",
+        role="Identify live (books, funding, HIP-4). Execute later via agent wallet.",
+        status="ready",
+        note="Phase B reads /info. Live /exchange stays refused.",
     ),
     VenueInfo(
         id="drift",
@@ -46,16 +42,16 @@ VENUE_CATALOG: tuple[VenueInfo, ...] = (
         market_kind="perp",
         role="Solana OSS perp option",
         status="planned",
-        note="Use if settlement must be Solana. Phase A adapter refuses all orders.",
+        note="Not first — we only scan rails we can fill. Phase B is Hyperliquid.",
     ),
     VenueInfo(
         id="polymarket",
         label="Polymarket",
         chain="polygon",
         market_kind="prediction",
-        role="Prediction CLOB — separate market_kind",
+        role="Prediction CLOB — only if HL does not list the book",
         status="planned",
-        note="Same clerk, different edge. No prediction envelopes in Phase A.",
+        note="HIP-4 already puts outcomes on the HL rail. No Polymarket scanner yet.",
     ),
 )
 
@@ -96,10 +92,17 @@ class EnvelopeBook:
 
 
 class RailDesk:
-    """Mint blind envelopes from paper crypto trades and run the clerk."""
+    """Mint blind envelopes from HL scanners and run the paper clerk."""
 
-    def __init__(self, *, paper_agent: PaperAgent, clerk: RailClerk | None = None) -> None:
-        self._paper = paper_agent
+    def __init__(
+        self,
+        *,
+        scanner: HyperliquidRailScanner | None = None,
+        clerk: RailClerk | None = None,
+        paper_agent: object | None = None,
+    ) -> None:
+        del paper_agent
+        self._scanner = scanner or HyperliquidRailScanner()
         self.clerk = clerk or RailClerk()
         self.book = EnvelopeBook()
 
@@ -108,25 +111,21 @@ class RailDesk:
         self.clerk.reset()
 
     def snapshot(self) -> RailDeskSnapshot:
-        summary = self._paper.summary(tick_notes=[])
-        trades = list(summary.open_trades) + list(summary.recent_closed)
-        minted = 0
-        skipped = 0
+        pairs = self._scanner.scan()
         self.book.reset()
-        for trade in trades:
-            pair = mint_from_paper_trade(trade)
-            if pair is None:
-                skipped += 1
-                continue
-            envelope, sealed = pair
+        families: dict[str, int] = {"book": 0, "funding": 0, "outcome": 0}
+        for envelope, sealed in pairs:
             self.book.upsert(envelope, sealed)
-            minted += 1
+            if sealed.family in families:
+                families[sealed.family] += 1
         envelopes = self.book.list_envelopes()
         open_n = sum(1 for item in envelopes if item.status == "open")
         notes = [
-            "phase_a_paper_only",
-            f"minted:{minted}",
-            f"skipped_non_crypto:{skipped}",
+            "phase_b_hl_scanners",
+            f"minted:{len(envelopes)}",
+            f"book:{families['book']}",
+            f"funding:{families['funding']}",
+            f"outcome:{families['outcome']}",
             "live_venues_refuse",
         ]
         if open_n == 0:
@@ -135,7 +134,7 @@ class RailDesk:
             as_of=datetime.now(UTC),
             armed=bool(settings.rail_armed),
             live_enabled=bool(settings.rail_live_enabled),
-            phase="A",
+            phase="B",
             default_venue="paper",
             sitting_out=open_n == 0,
             venues=list(VENUE_CATALOG),
@@ -149,7 +148,6 @@ class RailDesk:
     ) -> tuple[OpportunityEnvelope | None, ClerkFill | None]:
         pair = self.book.get(envelope_id)
         if pair is None:
-            # Rebuild from current paper book, then retry once.
             self.snapshot()
             pair = self.book.get(envelope_id)
         if pair is None:

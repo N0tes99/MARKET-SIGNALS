@@ -96,3 +96,10 @@ def test_short_squeeze_maps_to_sell() -> None:
 def test_assert_clerk_payload_catches_symbol_leak() -> None:
     with pytest.raises(AssertionError, match="leaked symbol BTC"):
         assert_clerk_payload_is_blind({"note": "buy BTC"}, banned_symbols=("BTC",))
+
+
+def test_assert_clerk_payload_does_not_flag_hyperliquid_as_hype() -> None:
+    assert_clerk_payload_is_blind(
+        {"target_venue": "hyperliquid", "invalidation": "hl_funding"},
+        banned_symbols=("HYPE", "BTC", "SOL"),
+    )

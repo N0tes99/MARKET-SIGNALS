@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Literal
 
 VenueId = Literal["paper", "hyperliquid", "drift", "polymarket"]
-MarketKind = Literal["perp", "prediction"]
+MarketKind = Literal["perp", "prediction", "outcome"]
 Side = Literal["buy", "sell"]
 SizeBand = Literal["xs", "s", "m", "l"]
 Urgency = Literal["passive", "normal", "aggressive"]
@@ -83,6 +83,7 @@ class SealedInstrument:
     symbol: str
     market_kind: MarketKind
     paper_trade_id: str | None = None
+    family: str = ""
 
 
 @dataclass

@@ -1,4 +1,4 @@
-"""Live venue stubs — Phase A hard refuse. No HTTP, no keys, no orders."""
+"""Live venue stubs — Phase A/B hard refuse. No HTTP, no keys, no orders."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from app.config import settings
 from app.engines.rail.types import ClerkFill, OpportunityEnvelope, SealedInstrument, VenueId
 from app.engines.rail.venues.protocol import LiveVenueDisabled, VenueAdapter
 
-_PHASE_A = (
-    "Phase A is paper-only. This adapter cannot place orders even if RAIL_ARMED "
+_REFUSE = (
+    "Phase A/B is paper-only. This adapter cannot place orders even if RAIL_ARMED "
     "or RAIL_LIVE_ENABLED is set, and even if venue keys were present."
 )
 
@@ -25,7 +25,7 @@ class _RefusingLiveVenue:
         del envelope, sealed
         # Settings are read so misconfig is visible in tests; they cannot enable live.
         _ = (settings.rail_armed, settings.rail_live_enabled)
-        raise LiveVenueDisabled(self.venue_id, _PHASE_A)
+        raise LiveVenueDisabled(self.venue_id, _REFUSE)
 
 
 class HyperliquidVenue(_RefusingLiveVenue, VenueAdapter):

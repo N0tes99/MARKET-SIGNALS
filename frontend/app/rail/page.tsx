@@ -127,9 +127,9 @@ export default function RailPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Rail does not see the trade. It sees side, size band, urgency, and edge — then
-          executes like a human order clerk, faster. Signal Engine keeps the thesis on the
-          desk. Phase A is paper dry-run only. Hyperliquid, Drift, and Polymarket adapters
-          cannot place orders. No trade is a valid decision.
+          executes like a human order clerk, faster. Phase B reads Hyperliquid books,
+          HL funding, and HIP-4 outcomes — things the desk does not scan. Paper dry-run
+          only. Live adapters cannot place orders. No trade is a valid decision.
         </p>
       </div>
 
@@ -164,8 +164,8 @@ export default function RailPage() {
       <section>
         <h2 className="label-caps">Venues</h2>
         <p className="mt-1 mb-4 text-sm text-muted-foreground">
-          Hyperliquid is the first live perp target. Drift is the Solana option.
-          Polymarket is a separate prediction market, not a perp substitute.
+          Hyperliquid is the rail: identify on its books, fill there later. Drift is the
+          Solana option. Polymarket waits unless HIP-4 does not list the event.
         </p>
         <div className="grid gap-3 md:grid-cols-2">
           {(desk?.venues ?? []).map((venue) => (
@@ -178,7 +178,7 @@ export default function RailPage() {
         <h2 className="label-caps">Open opportunities</h2>
         <p className="mt-1 mb-4 text-sm text-muted-foreground">
           Handles are HMAC stubs. The clerk cannot reverse them into a ticker.
-          Inspect the thesis on Perps or the desk — not here.
+          These ideas come from Hyperliquid, not the desk grade.
         </p>
         {deskQuery.isLoading ? (
           <p className="font-mono text-[11px] text-muted-foreground/60">Loading clerk book…</p>

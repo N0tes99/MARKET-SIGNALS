@@ -425,7 +425,7 @@ export interface RailEnvelope {
   envelope_id: string;
   venue: RailVenueId;
   target_venue: RailVenueId;
-  market_kind: "perp" | "prediction";
+  market_kind: "perp" | "prediction" | "outcome";
   side: "buy" | "sell";
   size_band: "xs" | "s" | "m" | "l";
   urgency: "passive" | "normal" | "aggressive";
@@ -453,7 +453,7 @@ export interface RailVenue {
   id: RailVenueId;
   label: string;
   chain: string;
-  market_kind: "perp" | "prediction";
+  market_kind: "perp" | "prediction" | "outcome";
   role: string;
   status: "ready" | "planned" | "refused";
   note: string;

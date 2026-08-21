@@ -91,6 +91,6 @@ Architecture: `ARCHITECTURE.md` §5.7, `docs/research/rail-execution-surface.md`
 Separate engine: identify what SE cannot, on Hyperliquid, where we can also execute later.
 
 - [x] Phase A — clerk shell, paper dry-run, live stubs, `/rail` UI
-- [ ] Phase B — HL read-only `l2Book` / funding / HIP-4 scanners (replace paper-agent mint)
+- [x] Phase B — HL read-only `l2Book` / funding / HIP-4 scanners (replace paper-agent mint)
 - [ ] Phase C — private micro-live in a **separate process** (agent wallet; SE paper maturity is not the gate — Rail’s own paper book is)
 - [ ] Phase D — perp↔outcome inventory, HIP-3, portfolio caps
