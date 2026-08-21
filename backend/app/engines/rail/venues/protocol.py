@@ -25,5 +25,5 @@ class VenueAdapter(Protocol):
         envelope: OpportunityEnvelope,
         sealed: SealedInstrument,
     ) -> ClerkFill:
-        """Attempt a fill. Live adapters must refuse in Phase A."""
+        """Attempt a fill. Live adapters must refuse in Phase A/B."""
         ...

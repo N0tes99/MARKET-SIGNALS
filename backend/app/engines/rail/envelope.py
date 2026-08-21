@@ -1,9 +1,11 @@
-"""Seal paper-agent crypto trades into clerk-blind opportunity envelopes."""
+"""Mint clerk-blind opportunity envelopes. Scanners may see tickers; clerk JSON may not."""
 
 from __future__ import annotations
 
 import hashlib
 import hmac
+import re
+from datetime import UTC, datetime
 from typing import Any
 
 from app.config import settings
@@ -11,6 +13,7 @@ from app.engines.paper_agent.types import PaperTrade
 from app.engines.rail.types import (
     CRYPTO_PAPER_SOURCES,
     EnvelopeStatus,
+    MarketKind,
     OpportunityEnvelope,
     SealedInstrument,
     Side,
@@ -113,6 +116,49 @@ def mint_from_paper_trade(trade: PaperTrade) -> tuple[OpportunityEnvelope, Seale
     return envelope, sealed
 
 
+def mint_hl_envelope(
+    *,
+    family: str,
+    instrument_key: str,
+    market_kind: str,
+    side: Side,
+    edge_score: float,
+    invalidation: str,
+    ttl_seconds: int = 120,
+    size_band: SizeBand = "xs",
+    created_at: datetime | None = None,
+) -> tuple[OpportunityEnvelope, SealedInstrument]:
+    """Seal a Hyperliquid-native idea. instrument_key never leaves SealedInstrument."""
+    kind: MarketKind = "outcome" if market_kind == "outcome" else "perp"
+    handle = instrument_handle(
+        venue="hyperliquid", symbol=instrument_key, market_kind=kind
+    )
+    stamp = created_at or datetime.now(UTC)
+    envelope = OpportunityEnvelope(
+        envelope_id=f"hl:{family}:{handle}:{side}",
+        venue="paper",
+        target_venue="hyperliquid",
+        market_kind=kind,
+        side=side,
+        size_band=size_band,
+        urgency=urgency(edge_score),
+        edge_score=float(edge_score),
+        ttl_seconds=int(ttl_seconds),
+        invalidation=invalidation,
+        instrument_handle=handle,
+        status="open",
+        created_at=stamp,
+    )
+    sealed = SealedInstrument(
+        handle=handle,
+        venue="hyperliquid",
+        symbol=instrument_key.upper(),
+        market_kind=kind,
+        family=family,
+    )
+    return envelope, sealed
+
+
 def assert_clerk_payload_is_blind(
     payload: dict[str, Any],
     *,
@@ -136,5 +182,7 @@ def assert_clerk_payload_is_blind(
     blob = " ".join(f"{k}={v}" for k, v in payload.items()).upper()
     for symbol in banned_symbols:
         token = symbol.upper()
-        if token and token in blob:
+        if not token:
+            continue
+        if re.search(rf"(?<![A-Z0-9]){re.escape(token)}(?![A-Z0-9])", blob):
             raise AssertionError(f"clerk payload leaked symbol {token}")

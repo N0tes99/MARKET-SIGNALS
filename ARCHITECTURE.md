@@ -588,8 +588,7 @@ Rail Clerk + kill switch
 | `GET /api/v1/rail/desk` | Blind envelopes + venue catalog + dry-run fills |
 | `POST /api/v1/rail/clerk/simulate` | Paper-venue ack (no live order) |
 
-**Status:** `PHASE A` clerk shell (paper mint from the public paper book — **temporary**).
-Phase B = HL read-only scanners. No Hyperliquid orders, no keys, no portfolio manager.
+**Status:** `PHASE B` — HL read-only scanners (`l2Book`, funding vs premium, HIP-4 outcome gap). Clerk still paper dry-run. Live adapters refuse. No keys, no portfolio manager.
 
 ---
 

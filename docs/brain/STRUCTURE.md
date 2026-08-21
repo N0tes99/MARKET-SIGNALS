@@ -38,12 +38,14 @@ backend/app/
 │   └── replay/                      # Warehouse rewind for expansion replay
 │
 ├── engines/
-│   ├── rail/                        # Surface 6 blind clerk (Phase A ✅ paper-only)
+│   ├── rail/                        # Surface 6 HL-native clerk (Phase B ✅)
 │   │   ├── types.py
-│   │   ├── envelope.py              # Seals thesis → clerk primitives
+│   │   ├── envelope.py
 │   │   ├── clerk.py
 │   │   ├── desk.py
-│   │   └── venues/                  # paper live; hyperliquid/drift/polymarket refuse
+│   │   ├── adapters/hyperliquid_info.py
+│   │   ├── scanners/                # book, funding, HIP-4 outcomes
+│   │   └── venues/                  # paper ack; live refuse
 │   └── expansion_engine/            # Surface 5 specialists (MVP ✅)
 │       ├── compression.py
 │       ├── squeeze_fuel.py

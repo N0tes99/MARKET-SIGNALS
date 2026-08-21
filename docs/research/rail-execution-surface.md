@@ -1,8 +1,6 @@
 # Surface 6 — Rail Engine (venue-native discovery + same-rail execution)
 
-> **Status:** Phase A clerk shell exists (paper-only). **This revision** is the plan for a
-> **separate engine** that finds things Signal Engine does not see, on a rail where we
-> can also execute.
+> **Status:** Phase B — Hyperliquid read-only scanners mint envelopes. Live venues still refuse.
 > **Last updated:** 2026-08-21
 
 Signal Engine stays the off-chain research desk. Rail is not “the paper agent with a
@@ -25,9 +23,8 @@ markets that SE never reads.
 No “spot an arb on Binance, fill on Hyperliquid” in v1 — that is a different product
 (cross-venue basis) and needs two adapters plus latency we do not have.
 
-Phase A code still *mints* envelopes from the public paper book so `/rail` is not empty.
-That is a **temporary feed**. Phase B replaces it with Rail’s own scanners. Paper-agent
-ideas must not be the long-term alpha.
+Phase A clerk shell still exists. **Phase B replaces the paper-agent mint** with Rail’s own
+HL scanners. Paper-agent ideas stay on the desk proof track and are not Rail alpha.
 
 Same repo for now (auth, CSP, deploy). **Separate engine module**
 (`backend/app/engines/rail/`). Extract the **process** before any signing key.
@@ -132,7 +129,7 @@ reserved id for a future Polymarket adapter — unused until we have a fill path
 | Phase | Ship | Execute? |
 |-------|------|----------|
 | **A** (in repo) | Clerk shell, paper dry-run, live stubs, `/rail` | Paper ack only |
-| **B** (next build) | HL **read-only** adapter: `l2Book`, funding, `outcomeMeta`. Scanners A/B/C mint envelopes. Paper still the only fill. | No live orders |
+| **B** (this build) | HL **read-only** adapter: `l2Book`, funding, `outcomeMeta`. Scanners A/B/C mint envelopes. Paper still the only fill. | No live orders |
 | **C** | Private micro-live, **separate process**, HL agent wallet, dual-control arming, after paper maturity + B paper track on *Rail* ideas (not SE ideas) | HL only, tiny size |
 | **D** | Perp↔outcome inventory, HIP-3, portfolio caps | Still HL-first |
 
@@ -151,17 +148,17 @@ Do not start C until Rail’s own (not SE’s) paper book has a sample.
 
 ---
 
-## 8. What Phase B would add (not built in this revision)
+## 8. Phase B layout
 
 ```
 backend/app/engines/rail/
 ├── scanners/
 │   ├── book.py          # A — L2 imbalance / spread
 │   ├── funding.py       # B — HL funding vs premium
-│   └── outcome.py       # C — HIP-4 YES+NO, stale vs underlying
+│   └── outcome.py       # C — HIP-4 YES+NO gap
 ├── adapters/
 │   └── hyperliquid_info.py   # read-only POST /info
-└── (existing clerk, envelope, paper venue, live refuse stubs)
+└── (clerk, envelope, paper venue, live refuse stubs)
 ```
 
 `GET /api/v1/rail/desk` sources envelopes from these scanners, not from
