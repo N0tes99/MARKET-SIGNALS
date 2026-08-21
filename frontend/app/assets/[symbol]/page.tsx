@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AssetChartPanel } from "@/components/asset-chart-panel";
+import { AssetExpansionCard } from "@/components/asset-expansion-card";
 import { AssetPriceHeader } from "@/components/asset-price-header";
 import { DecisionBanner } from "@/components/decision-banner";
 import { DiscussionPanel } from "@/components/discussion-panel";
@@ -40,6 +41,7 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
 
         <div className="mt-6 space-y-6">
           <AssetChartPanel symbol={normalized} />
+          <AssetExpansionCard symbol={normalized} />
           <DecisionBanner symbol={normalized} />
           <SetupIdeasPanel symbol={normalized} />
           <EquitySetupsPanel symbol={normalized} />

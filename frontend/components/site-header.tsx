@@ -55,6 +55,7 @@ function MainNav() {
           <NavLink href="/perps" label="Perps" />
           <NavLink href="/futures" label="Futures" />
           <NavLink href="/radar" label="Radar" />
+          <NavLink href="/expansion" label="Expansion" />
           <NavLink href="/chart" label="Chart" />
           <NavLink href="/request-ticker" label="Request" />
           <NavLink href="/favorites" label="Favorites" />

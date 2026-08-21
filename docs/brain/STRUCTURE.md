@@ -51,8 +51,12 @@ backend/app/
     └── pump_events.v1.yaml          # BTC / SOL / SUI labeled events ✅
 
 frontend/app/
-└── expansion/                       # Radar UI ✅
+└── expansion/                       # Radar UI ✅ (api client + cortex blackboard)
     └── page.tsx
+
+frontend/components/
+├── expansion-preview-strip.tsx      # Desk preview ✅
+└── asset-expansion-card.tsx         # Asset detail (parallel to grades) ✅
 ```
 
 ## Paper bridge
