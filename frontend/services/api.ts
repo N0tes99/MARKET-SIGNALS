@@ -903,6 +903,110 @@ export async function fetchCryptoRadar(): Promise<CryptoRadarFeedResponse> {
   return apiFetch<CryptoRadarFeedResponse>("/api/v1/runners/crypto", 120_000);
 }
 
+export type ExpansionState = "dormant" | "primed" | "triggering" | "expanding";
+export type ExpansionDirection = "up" | "down" | "neutral";
+
+export interface ExpansionCandidate {
+  id: string;
+  symbol: string;
+  state: ExpansionState;
+  direction_bias: ExpansionDirection;
+  up_score: number;
+  down_score: number;
+  net_score: number;
+  confidence: "low" | "medium" | "high";
+  setup_level: "low" | "medium" | "high";
+  trigger_active: boolean;
+  horizon: string;
+  invalidation: string;
+  key_trigger: string;
+  compression: { score: number; factors: string[] };
+  squeeze: { score: number; direction: ExpansionDirection; factors: string[] };
+  trigger: {
+    active: boolean;
+    direction: ExpansionDirection;
+    volume_ratio?: number | null;
+    breakout_level?: number | null;
+  };
+  factors: string[];
+  conflicts: string[];
+  as_of: string;
+}
+
+export interface ExpansionFeedResponse {
+  candidates: ExpansionCandidate[];
+  primed: ExpansionCandidate[];
+  triggering: ExpansionCandidate[];
+  expanding: ExpansionCandidate[];
+  scanned_at: string;
+  symbols_scanned: number;
+  universe: string[];
+  phase: string;
+}
+
+export interface CortexOpinion {
+  specialist: string;
+  score: number | null;
+  direction: string | null;
+  factors: string[];
+  conflicts: string[];
+  metadata: Record<string, unknown>;
+}
+
+export interface CortexSymbolContext {
+  symbol: string;
+  opinions: CortexOpinion[];
+  alert_level: string;
+  synthesis_notes: string[];
+  prior_state: string | null;
+  expansion_summary: {
+    state?: string;
+    direction_bias?: string;
+    net_score?: number;
+    trigger_active?: boolean;
+    compression_score?: number;
+    squeeze_score?: number;
+    factors?: string[];
+  } | null;
+}
+
+export interface CortexMemory {
+  tick_id: string;
+  as_of: string;
+  universe: string[];
+  symbols: CortexSymbolContext[];
+  notes: string[];
+  phase: string;
+  primed: string[];
+  triggering: string[];
+  digest: string;
+}
+
+export async function fetchExpansionFeed(): Promise<ExpansionFeedResponse> {
+  return apiFetch<ExpansionFeedResponse>("/api/v1/expansion", 120_000);
+}
+
+export async function fetchExpansionSymbol(
+  symbol: string,
+): Promise<ExpansionCandidate | null> {
+  try {
+    return await apiFetch<ExpansionCandidate>(
+      `/api/v1/expansion/${encodeURIComponent(symbol)}`,
+      90_000,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("No expansion data") || message.includes("404")) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function fetchCortexMemory(): Promise<CortexMemory> {
+  return apiFetch<CortexMemory>("/api/v1/cortex?run_if_empty=true", 120_000);
+}
+
 export async function fetchAnalysis(
   symbol: string,
   opts?: { compare?: boolean },

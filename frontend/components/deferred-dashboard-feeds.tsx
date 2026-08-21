@@ -21,6 +21,13 @@ const RadarPreviewStrip = dynamic(
     import("@/components/radar-preview-strip").then((m) => m.RadarPreviewStrip),
   { ssr: false, loading: () => null },
 );
+const ExpansionPreviewStrip = dynamic(
+  () =>
+    import("@/components/expansion-preview-strip").then(
+      (m) => m.ExpansionPreviewStrip,
+    ),
+  { ssr: false, loading: () => null },
+);
 const OpportunitiesFeed = dynamic(
   () =>
     import("@/components/opportunities-feed").then((m) => m.OpportunitiesFeed),
@@ -46,6 +53,7 @@ export function DeferredDashboardFeeds() {
         <EquityOpportunitiesFeed />
         <RadarPreviewStrip />
       </div>
+      <ExpansionPreviewStrip />
       <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
         <OpportunitiesFeed />
         <AlpacaActivityPanel />

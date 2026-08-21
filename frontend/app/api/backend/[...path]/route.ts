@@ -25,6 +25,9 @@ function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
   if (normalized === "api/v1/chart-analysis") return 180_000;
   if (normalized.endsWith("/analysis")) return 90_000;
+  if (normalized.startsWith("api/v1/expansion") || normalized.startsWith("api/v1/cortex")) {
+    return 100_000;
+  }
   const longRunning = new Set([
     "api/v1/assets",
     "api/v1/runners",
@@ -87,9 +90,9 @@ async function proxyRequest(
     headers.set("authorization", auth);
   }
 
-  // Cold /assets, Radar, and Tape recompute often need 50–90s. Default stays
-  // short so other routes fail fast; these get a longer budget so Netlify
-  // does not 504 mid-compute when keep-warm has not run yet.
+  // Cold /assets, Radar, Tape, Expansion, and Cortex often need 50–90s.
+  // Default stays short so other routes fail fast; these get a longer budget
+  // so Netlify does not 504 mid-compute when keep-warm has not run yet.
   const PROXY_TIMEOUT_MS = proxyTimeoutMs(targetPath);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);

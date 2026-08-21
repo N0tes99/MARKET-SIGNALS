@@ -64,6 +64,12 @@ export default function manifest(): MetadataRoute.Manifest {
         description: "Crypto perp paper, funding, liquidations",
       },
       {
+        name: "Expansion",
+        short_name: "Expand",
+        url: "/expansion",
+        description: "Compression, squeeze, and cortex alerts",
+      },
+      {
         name: "Social",
         short_name: "Social",
         url: "/social",

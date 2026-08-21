@@ -532,7 +532,7 @@ Cortex tick (120s)
 | `POST /api/v1/cortex/tick` | Run heartbeat |
 | `GET /api/v1/cortex/history` | Episodic snapshots |
 
-**Status:** `MVP` — compression/squeeze/trigger/state, cortex Phase A, paper bridge. No `/expansion` UI, no Postgres episodic store, no semantic memory, no CVD/news/macro specialists yet.
+**Status:** `MVP` — compression/squeeze/trigger/state, cortex Phase A, paper bridge, `/expansion` radar (cortex blackboard + engine scan). No Postgres episodic store, no semantic memory, no CVD/news/macro specialists yet.
 
 ---
 
