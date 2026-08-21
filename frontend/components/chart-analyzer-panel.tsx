@@ -35,10 +35,7 @@ function trendColor(trend: string): string {
 }
 
 function sourceLabel(source: string): string {
-  if (source === "openai") return "gpt-4o-mini vision";
   if (source === "groq") return "groq vision";
-  if (source === "gemini") return "gemini-2.0-flash vision";
-  if (source === "local_llm") return "LM Studio / local node";
   if (source === "local") return "desk engines (no vision)";
   return source;
 }
@@ -51,6 +48,7 @@ export function ChartAnalyzerPanel() {
   const [symbolHint, setSymbolHint] = useState("");
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ChartAnalysis | null>(null);
   const [status, setStatus] = useState<ChartAnalysisStatus | null>(null);
@@ -70,6 +68,15 @@ export function ChartAnalyzerPanel() {
       .then(setStatus)
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
 
   async function runScan(nextFile: File | null) {
     if (!nextFile && !symbolHint.trim()) return;
@@ -110,7 +117,8 @@ export function ChartAnalyzerPanel() {
         <p className="label-caps">Upload</p>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Chart, tape, options chain, or ticket. Drop it and the scan ranks
-          setups automatically. Sitting out is a valid outcome.
+          setups automatically. Groq vision usually takes 15–45 seconds.
+          Sitting out is a valid outcome.
         </p>
         {status ? (
           <p className="mt-3 inline-flex rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/80">
@@ -199,7 +207,9 @@ export function ChartAnalyzerPanel() {
           onClick={() => void runScan(file)}
           className="btn-glass mt-5 w-full"
         >
-          {busy ? "Scanning setups…" : "Scan again"}
+          {busy
+            ? `Scanning setups… ${elapsed}s (often 15–45s)`
+            : "Scan again"}
         </button>
       </section>
 

@@ -13,10 +13,11 @@ from app.services.decision_pipeline import DecisionResult
 
 logger = logging.getLogger(__name__)
 
-_GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
-_GEMINI_MODEL = "gemini-2.0-flash"
 _GROQ_OPENAI_BASE = "https://api.groq.com/openai/v1"
 _GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+_GROQ_TIMEOUT_S = 120.0
+# Qwen 3.6 thinks by default; that burns tokens and often times out on charts.
+_GROQ_EXTRA_BODY = {"reasoning_effort": "none"}
 
 
 @dataclass
@@ -28,33 +29,44 @@ class AIExplanation:
     confidence: float
     factors: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
-    source: str = "local"  # local | openai | groq | gemini | local_llm
+    source: str = "local"  # local | groq
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class AIAnalyst:
     """Generates explainable, human-readable analysis from evidence and decisions.
 
-    Uses OpenAI when ``OPENAI_API_KEY`` is set, else Groq, else Gemini,
-    else a self-hosted OpenAI-compatible node (``LOCAL_LLM_BASE_URL``).
-    Otherwise a local synthesizer over the same evidence (Fear & Greed, Reddit, tape).
+    Uses Groq when ``GROQ_API_KEY`` is set. Otherwise a local synthesizer over
+    the same evidence (Fear & Greed, Reddit, tape).
     """
 
     def explain_decision(self, decision: DecisionResult) -> AIExplanation:
-        """Generate an explanation from a full pipeline decision."""
-        backend = _llm_backend()
-        if backend is not None:
-            client, model, source = backend
-            try:
-                return self._explain_with_llm(decision, client, model, source)
-            except Exception:
-                logger.exception(
-                    "%s explanation failed for %s, using local",
-                    source,
-                    decision.symbol,
-                )
+        """Generate an explanation from a full pipeline decision.
 
-        return self._explain_locally(decision)
+        Prefers Groq when a key is set; otherwise the local synthesizer.
+        """
+        local, groq, _status = self.explain_decision_pair(decision)
+        return groq if groq is not None else local
+
+    def explain_decision_pair(
+        self, decision: DecisionResult
+    ) -> tuple[AIExplanation, AIExplanation | None, str]:
+        """Return (local, groq, groq_status) so the desk can compare readings."""
+        local = self._explain_locally(decision)
+        backend = _llm_backend()
+        if backend is None:
+            return local, None, "unavailable"
+        client, model, source = backend
+        try:
+            groq = self._explain_with_llm(decision, client, model, source)
+            return local, groq, "ok"
+        except Exception:
+            logger.exception(
+                "%s explanation failed for %s, using local",
+                source,
+                decision.symbol,
+            )
+            return local, None, "failed"
 
     def explain_evidence(
         self,
@@ -138,6 +150,7 @@ class AIAnalyst:
             response_format={"type": "json_object"},
             temperature=0.3,
             max_tokens=600,
+            extra_body=_GROQ_EXTRA_BODY,
         )
 
         content = response.choices[0].message.content or "{}"
@@ -359,49 +372,22 @@ def _decision_payload(decision: DecisionResult) -> dict:
 
 
 def get_llm_backend() -> tuple[OpenAI, str, str] | None:
-    """Return (client, model, source). Cloud keys first, then a local node."""
+    """Return (client, model, source) for Groq, or None for desk engines."""
     return _llm_backend()
 
 
-def openai_compat_base_url(url: str) -> str:
-    """Normalize an OpenAI-compatible root so it ends with ``/v1``."""
-    base = url.strip().rstrip("/")
-    if base.endswith("/v1"):
-        return base
-    return f"{base}/v1"
-
-
 def _llm_backend() -> tuple[OpenAI, str, str] | None:
-    """Paid OpenAI, else Groq, else Gemini, else self-hosted OpenAI-compatible."""
-    openai_key = settings.openai_api_key.strip()
-    if openai_key:
-        return OpenAI(api_key=openai_key), "gpt-4o-mini", "openai"
+    """Groq vision when ``GROQ_API_KEY`` is set; otherwise desk engines."""
     groq_key = settings.groq_api_key.strip()
     if groq_key:
         return (
-            OpenAI(api_key=groq_key, base_url=_GROQ_OPENAI_BASE),
+            OpenAI(
+                api_key=groq_key,
+                base_url=_GROQ_OPENAI_BASE,
+                timeout=_GROQ_TIMEOUT_S,
+                max_retries=1,
+            ),
             _GROQ_VISION_MODEL,
             "groq",
-        )
-    gemini_key = settings.gemini_api_key.strip()
-    if gemini_key:
-        return (
-            OpenAI(api_key=gemini_key, base_url=_GEMINI_OPENAI_BASE),
-            _GEMINI_MODEL,
-            "gemini",
-        )
-    local_base = settings.local_llm_base_url.strip()
-    if local_base:
-        timeout = max(30.0, float(settings.local_llm_timeout_seconds or 180.0))
-        key = settings.local_llm_api_key.strip() or "lm-studio"
-        model = settings.local_llm_model.strip() or "qwen2.5-vl-7b-instruct"
-        return (
-            OpenAI(
-                api_key=key,
-                base_url=openai_compat_base_url(local_base),
-                timeout=timeout,
-            ),
-            model,
-            "local_llm",
         )
     return None

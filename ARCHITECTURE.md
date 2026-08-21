@@ -576,10 +576,11 @@ class AIAnalyst:
 
 ### Technology
 
-- OpenAI API (GPT-4 class model) for narrative generation
+- Groq (`qwen/qwen3.6-27b`) for narrative generation when ``GROQ_API_KEY`` is set
+- Desk synthesizer always available (Fear & Greed, Reddit, tape)
+- ``GET /api/v1/assets/{symbol}/analysis?compare=true`` returns both readings
 - Structured prompt with evidence bundle as JSON input
 - Output validated against Pydantic schema before serving
-- LangGraph integration planned for multi-step reasoning chains (future)
 
 ### Design Rules
 
@@ -589,7 +590,7 @@ class AIAnalyst:
 
 ### Status
 
-`IMPLEMENTED` — OpenAI integration with local fallback; `GET /api/v1/assets/{symbol}/analysis`
+`IMPLEMENTED` — Groq + local desk compare; `GET /api/v1/assets/{symbol}/analysis?compare=true`
 
 ---
 
@@ -599,7 +600,7 @@ class AIAnalyst:
 
 ### Responsibilities
 
-- Accept a PNG/JPEG/WebP/GIF screenshot (max 8MB) and downscale for vision
+- Accept a PNG/JPEG/WebP/GIF screenshot (max 8MB) and downscale to 1280px for vision
 - Extract visible structure: symbol, timeframe, trend, key levels, indicators
 - Propose 1–4 possible positions (`long` / `short` / `no_trade`) with thesis, entry zone, invalidation, targets, and `WAIT` / `WATCH` / `EXECUTE` hints
 - Treat **no trade** as a first-class outcome
@@ -620,9 +621,8 @@ Response: `ChartAnalysisSchema` (`reading`, `thesis`, `positions`, `conflicts`, 
 
 - Vision LLM reads the image; engines remain the decision layer
 - A screenshot can be stale, cropped, or missing context — quality is flagged (`good` / `partial` / `unreadable`)
-- Requires a vision backend: `OPENAI_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, or `LOCAL_LLM_BASE_URL` (LM Studio / Ollama / vLLM). If none are set, Chart still runs from desk engines when the user types a tracked ticker.
-- `LOCAL_LLM_BASE_URL` is **this API process’s** backend. Other clones of the repo do not use your machine. If this API is public and pointed at your home LM Studio, every logged-in user of **this** instance would send screenshots to your GPU — do not do that.
-- Token-expensive when using paid OpenAI; local LM is electricity + VRAM on the node you run
+- Requires ``GROQ_API_KEY`` for screenshot vision. If it is empty, Chart still runs from desk engines when the user types a tracked ticker.
+- Groq Qwen 3.6 is called with ``reasoning_effort=none`` so thinking tokens do not stall or truncate JSON.
 
 ### Status
 

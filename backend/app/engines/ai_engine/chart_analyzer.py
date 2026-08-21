@@ -9,7 +9,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from app.engines.ai_engine.engine import get_llm_backend
+from app.engines.ai_engine.engine import _GROQ_EXTRA_BODY, get_llm_backend
 from app.engines.ai_engine.image import PreparedImage
 from app.market_data.symbols import is_tracked, resolve_asset_class
 from app.schemas.chart_analysis import (
@@ -149,8 +149,7 @@ def analyze_locally(
         )
     symbol = _normalize_symbol(symbol_hint)
     observations = [
-        "Vision is off (Gemini is geo-blocked in some regions; no Groq/OpenAI key). "
-        "The screenshot pixels were not read."
+        "Vision is off (no GROQ_API_KEY). The screenshot pixels were not read."
     ]
     if note:
         observations.append(f"Trader note: {note[:200]}")
@@ -163,7 +162,7 @@ def analyze_locally(
         structure = "No live evidence — symbol is not tracked."
     else:
         thesis = (
-            "No vision key and no ticker. Type a tracked symbol (BTC, ETH, NVDA) "
+            "No Groq key and no ticker. Type a tracked symbol (BTC, ETH, NVDA) "
             "so desk engines can map WAIT / WATCH / EXECUTE from live evidence. "
             "A screenshot is optional in this mode."
         )
@@ -206,6 +205,7 @@ def _vision_completion(
         "messages": messages,
         "temperature": 0.2,
         "max_tokens": 2000,
+        "extra_body": _GROQ_EXTRA_BODY,
     }
     if prefer_json:
         try:
@@ -485,7 +485,7 @@ def _local_from_decision(decision: DecisionResult, *, note: str) -> dict[str, An
     thesis = (
         f"{decision.symbol} desk state {state}, grade {decision.opportunity.trade_grade}, "
         f"execution {exec_hint}. {decision.summary} "
-        "Pixels were not read (Gemini/Groq/OpenAI vision off)."
+        "Pixels were not read (Groq vision off)."
     )
     positions: list[dict[str, Any]] = [
         {

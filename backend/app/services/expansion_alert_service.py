@@ -58,7 +58,8 @@ class ExpansionAlertService:
         exp = ctx.expansion
         if exp is None:
             return False
-        color = {"primed": 0xF59E0B, "trigger": 0xF97316, "expansion": 0x22C55E}.get(level, 0x6366F1)
+        colors = {"primed": 0xF59E0B, "trigger": 0xF97316, "expansion": 0x22C55E}
+        color = colors.get(level, 0x6366F1)
         title = {
             "primed": f"{symbol} — PRIMED (compression setup)",
             "trigger": f"{symbol} — TRIGGER (breakout firing)",
@@ -90,13 +91,19 @@ class ExpansionAlertService:
             )
         embed = {
             "title": title,
-            "description": exp.key_trigger[:200] if exp.key_trigger else "Expansion radar escalation",
+            "description": (
+                exp.key_trigger[:200] if exp.key_trigger else "Expansion radar escalation"
+            ),
             "color": color,
             "fields": fields,
             "footer": {"text": f"cortex {tick_id} · paper opens on trigger/expansion only"},
         }
         try:
-            return bool(alerts.send_embed(symbol, embed, content=f"**Expansion radar · {level.upper()}**"))
+            return bool(
+                alerts.send_embed(
+                    symbol, embed, content=f"**Expansion radar · {level.upper()}**"
+                )
+            )
         except Exception:
             logger.exception("Expansion Discord alert failed for %s", symbol)
             return False

@@ -28,19 +28,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _STATUS_HINTS = {
-    "openai": "Using paid OpenAI vision.",
-    "groq": "Using Groq vision (free tier). Gemini is not required.",
-    "gemini": (
-        "Using Gemini vision. If Google AI Studio is blocked in your region, "
-        "leave GEMINI_API_KEY empty."
-    ),
-    "local_llm": (
-        "Using your OpenAI-compatible node (LM Studio / Ollama / vLLM). "
-        "Load a vision model such as Qwen2.5-VL."
-    ),
+    "groq": "Groq vision is on. A screenshot scan usually takes 15–45 seconds.",
     "local": (
-        "No vision backend. Enter a tracked ticker — desk engines still map "
-        "WAIT / WATCH / EXECUTE. Optional: LOCAL_LLM_BASE_URL or GROQ_API_KEY."
+        "No Groq key. Enter a tracked ticker — desk engines still map "
+        "WAIT / WATCH / EXECUTE."
     ),
 }
 
@@ -71,8 +62,7 @@ async def analyze_chart_screenshot(
 ) -> ChartAnalysisSchema:
     """Read a chart screenshot and return possible positions with a thesis.
 
-    Vision models explain what is on the image when a key or local node is
-    configured. Without vision (Gemini geo-blocked, no Groq/OpenAI/local LLM),
+    Groq vision reads the screenshot when GROQ_API_KEY is set. Without a key,
     pass a tracked symbol and the decision pipeline still navigates
     WAIT / WATCH / EXECUTE.
     """
