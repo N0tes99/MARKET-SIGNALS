@@ -17,6 +17,7 @@ from app.schemas.expansion import (
     CompressionSchema,
     ExpansionCandidateSchema,
     ExpansionFeedResponse,
+    ExpansionPolicySchema,
     ExpansionReplayResponse,
     ReplayEventSchema,
     ScoreContributorSchema,
@@ -141,6 +142,20 @@ def get_expansion_replay(
         ],
         benchmark_symbols=list(BENCHMARK_UNIVERSE),
         scanned_at=datetime.now(UTC),
+    )
+
+
+@router.get("/policy", response_model=ExpansionPolicySchema)
+def get_expansion_policy() -> ExpansionPolicySchema:
+    """Live expansion knobs (Postgres when migrated, else file defaults)."""
+    from app.memory.procedural.config_store import policy_meta
+
+    meta = policy_meta()
+    return ExpansionPolicySchema(
+        name=str(meta["name"]),
+        source=str(meta["source"]),
+        version=int(meta["version"]),
+        knobs=dict(meta["knobs"]),  # type: ignore[arg-type]
     )
 
 

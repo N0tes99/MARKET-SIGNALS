@@ -59,5 +59,65 @@ class ExpansionConfig:
 DEFAULT_EXPANSION_CONFIG = ExpansionConfig()
 
 
-def default_expansion_config() -> ExpansionConfig:
+def expansion_config_to_dict(cfg: ExpansionConfig) -> dict[str, object]:
+    """JSON-friendly knobs (universe as a list)."""
+    return {
+        "universe": list(cfg.universe),
+        "compression_lookback": cfg.compression_lookback,
+        "compression_min_bars": cfg.compression_min_bars,
+        "compression_primedd_atr_pctile": cfg.compression_primedd_atr_pctile,
+        "compression_high_atr_pctile": cfg.compression_high_atr_pctile,
+        "compression_primedd_score": cfg.compression_primedd_score,
+        "compression_high_score": cfg.compression_high_score,
+        "trigger_timeframe": cfg.trigger_timeframe,
+        "trigger_confirm_timeframe": cfg.trigger_confirm_timeframe,
+        "trigger_volume_lookback": cfg.trigger_volume_lookback,
+        "trigger_volume_mult": cfg.trigger_volume_mult,
+        "trigger_range_lookback": cfg.trigger_range_lookback,
+        "squeeze_funding_soft_bps": cfg.squeeze_funding_soft_bps,
+        "squeeze_funding_extreme_bps": cfg.squeeze_funding_extreme_bps,
+        "squeeze_oi_build_pct": cfg.squeeze_oi_build_pct,
+        "squeeze_oi_unwind_pct": cfg.squeeze_oi_unwind_pct,
+        "primed_min_compression": cfg.primed_min_compression,
+        "expanding_min_momentum_pct": cfg.expanding_min_momentum_pct,
+        "weight_compression": cfg.weight_compression,
+        "weight_squeeze": cfg.weight_squeeze,
+        "weight_trigger": cfg.weight_trigger,
+        "weight_momentum": cfg.weight_momentum,
+        "weight_derivatives": cfg.weight_derivatives,
+        "watch_net_score": cfg.watch_net_score,
+        "primed_net_score": cfg.primed_net_score,
+        "trigger_net_score": cfg.trigger_net_score,
+    }
+
+
+def expansion_config_from_dict(data: dict[str, object] | None) -> ExpansionConfig:
+    """Overlay a knobs dict on file defaults; unknown keys ignored."""
+    if not data:
+        return DEFAULT_EXPANSION_CONFIG
+    kwargs: dict[str, object] = {}
+    allowed = set(expansion_config_to_dict(DEFAULT_EXPANSION_CONFIG))
+    for key, value in data.items():
+        if key not in allowed:
+            continue
+        if key == "universe":
+            if isinstance(value, (list, tuple)) and value:
+                kwargs[key] = tuple(str(s).upper() for s in value)
+            continue
+        kwargs[key] = value
+    try:
+        return ExpansionConfig(**kwargs)  # type: ignore[arg-type]
+    except TypeError:
+        return DEFAULT_EXPANSION_CONFIG
+
+
+def file_expansion_config() -> ExpansionConfig:
+    """Compiled-in defaults (ignores Postgres)."""
     return DEFAULT_EXPANSION_CONFIG
+
+
+def default_expansion_config() -> ExpansionConfig:
+    """Live knobs: Postgres policy when migrated, else file defaults."""
+    from app.memory.procedural.config_store import load_expansion_config
+
+    return load_expansion_config()

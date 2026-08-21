@@ -6,7 +6,7 @@
 |-------|-------|
 | Version | 0.6.1 |
 | Last updated | 2026-08-20 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; chart screenshot analyzer |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; OHLCV warehouse; tape CVD; SSE desk |
 
 ---
 
@@ -118,6 +118,8 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP (BTC/SOL/SUI)** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
 | Episodic memory | `backend/app/memory/episodic/` | **Postgres + in-memory fallback** |
+| Procedural knobs | `backend/app/memory/procedural/` | **Postgres + file defaults** |
+| OHLCV warehouse | `backend/app/data_lake/` | **Write-through MVP** |
 | Execution Engine | `backend/app/engines/execution_engine/` | **Implemented** |
 | Learning Engine | `backend/app/engines/learning_engine/` | **Implemented** |
 | AI Analyst | `backend/app/engines/ai_engine/` | **Implemented** |
@@ -517,7 +519,7 @@ Does **not** fold into 13-category grades. Parallel to Surfaces 2–4. Paper con
 
 ```
 Cortex tick (120s)
-    → expansion + regime + derivatives + CVD proxy + news + global macro
+    → expansion + regime + derivatives + tape CVD (Kraken; OHLCV proxy fallback) + news + global macro
     → WorkingMemory (blackboard)
     → episodic store (Postgres when migrated)
     → semantic consolidator (lead time + calibration)
@@ -529,13 +531,17 @@ Cortex tick (120s)
 | `GET /api/v1/expansion` | Benchmark feed (BTC, SOL, SUI) |
 | `GET /api/v1/expansion/{symbol}` | Decomposed scores |
 | `GET /api/v1/expansion/replay` | Lead time vs perp v2 |
+| `GET /api/v1/expansion/policy` | Live expansion knobs (file or Postgres) |
 | `GET /api/v1/cortex` | Latest working memory |
 | `POST /api/v1/cortex/tick` | Run heartbeat |
 | `GET /api/v1/cortex/history` | Episodic snapshots |
 | `GET /api/v1/cortex/semantic` | Lead-time + calibration stats |
 | `GET /api/v1/cortex/health` | Tick freshness + store backend |
+| `GET /api/v1/data-lake/ohlcv/{symbol}` | Warehouse candles |
+| `GET /api/v1/sse/dashboard` | Live asset summaries (SSE; Netlify-safe) |
+| `WS /api/v1/ws/dashboard` | Same payload over WebSocket (direct API) |
 
-**Status:** `MVP + Phase B` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, CVD proxy, news/calendar, global macro), paper bridge, `/expansion` radar (blackboard + health + semantic lead-time). Episodic ticks persist to Postgres when migrated (`cortex_episodes`); semantic lead-time/calibration consolidates from that history. No true exchange-tape CVD, no headline NLP news feed, no OHLCV data-lake warehouse yet.
+**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No headline NLP news feed, no live broker execution, no Surface 4 fundamentals vendor.
 
 ---
 
@@ -757,7 +763,7 @@ IGNORE ──→ WATCH ──→ EXECUTE ──→ MANAGE ──→ EXIT
 - Final `trade_state` is resolved by `DecisionPipelineService` (Opportunity does not emit EXECUTE)
 - Risk veto can downgrade EXECUTE → WATCH when quality/R:R fails
 - MANAGE/EXIT use learning open-signal / recent-outcome context (no broker adapter yet)
-- Dashboard polls `/api/v1/assets`; backend `WS /api/v1/ws/dashboard` exists (frontend client deferred)
+- Dashboard polls `/api/v1/assets` and listens to `GET /api/v1/sse/dashboard` (SSE through the Next proxy). `WS /api/v1/ws/dashboard` serves the same payload for direct API clients.
 
 ### Status
 
@@ -892,7 +898,10 @@ Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 | `GET` | `/api/v1/assets/{symbol}/evidence` | Full evidence bundle | **Live** |
 | `GET` | `/api/v1/assets/{symbol}/decision` | Full decision pipeline | **Live** |
 | `GET` | `/api/v1/assets/{symbol}/analysis` | AI explanation | **Live** |
-| `WS` | `/api/v1/ws/dashboard` | Real-time dashboard updates | **Live** (backend; FE deferred) |
+| `WS` | `/api/v1/ws/dashboard` | Real-time dashboard updates | **Live** (direct API) |
+| `GET` | `/api/v1/sse/dashboard` | Same payload over SSE | **Live** (frontend + proxy) |
+| `GET` | `/api/v1/expansion/policy` | Expansion knobs | **Live** |
+| `GET` | `/api/v1/data-lake/ohlcv/{symbol}` | Warehouse OHLCV | **Live** |
 
 ### Design Rules
 

@@ -13,6 +13,11 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
+/** Same-origin SSE through the proxy, or direct API when not proxied. */
+export function dashboardStreamUrl(): string {
+  return apiUrl("/api/v1/sse/dashboard");
+}
+
 export interface AssetSummary {
   symbol: string;
   confidence: number;

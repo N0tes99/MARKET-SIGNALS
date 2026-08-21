@@ -12,6 +12,7 @@ from app.api.routes import (
     backtests,
     chart_analysis,
     cortex,
+    data_lake,
     decision,
     equity_setups,
     evidence,
@@ -30,6 +31,7 @@ from app.api.routes import (
     runners,
     setups,
     social,
+    sse,
     ticker_requests,
     tuning,
     wallet_auth,
@@ -67,6 +69,7 @@ api_router.include_router(
 api_router.include_router(runners.router, prefix="/runners", tags=["runners"])
 api_router.include_router(expansion.router, prefix="/expansion", tags=["expansion"])
 api_router.include_router(cortex.router, prefix="/cortex", tags=["cortex"])
+api_router.include_router(data_lake.router, prefix="/data-lake", tags=["data-lake"])
 api_router.include_router(options_tape.router, prefix="/options-tape", tags=["options-tape"])
 api_router.include_router(perps.router, prefix="/perps", tags=["perps"])
 api_router.include_router(futures.router, prefix="/futures", tags=["futures"])
@@ -78,3 +81,4 @@ api_router.include_router(backtests.router, prefix="/backtests", tags=["backtest
 api_router.include_router(tuning.router, prefix="/tuning", tags=["tuning"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 api_router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+api_router.include_router(sse.router, prefix="/sse", tags=["sse"])

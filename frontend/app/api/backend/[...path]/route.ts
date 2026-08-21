@@ -94,8 +94,11 @@ async function proxyRequest(
   // Default stays short so other routes fail fast; these get a longer budget
   // so Netlify does not 504 mid-compute when keep-warm has not run yet.
   const PROXY_TIMEOUT_MS = proxyTimeoutMs(targetPath);
+  const isSse = targetPath.replace(/\/$/, "").startsWith("api/v1/sse");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+  const timer = isSse
+    ? null
+    : setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
 
   const init: RequestInit = {
     method: request.method,
@@ -116,6 +119,16 @@ async function proxyRequest(
       responseHeaders.set("content-type", upstreamType);
     }
     forwardSetCookies(upstream, responseHeaders);
+
+    if (isSse && upstream.body) {
+      responseHeaders.set("cache-control", "no-cache");
+      responseHeaders.set("connection", "keep-alive");
+      responseHeaders.set("x-accel-buffering", "no");
+      return new NextResponse(upstream.body, {
+        status: upstream.status,
+        headers: responseHeaders,
+      });
+    }
 
     // Response/NextResponse reject a body on 204/205/304.
     if (
@@ -152,7 +165,7 @@ async function proxyRequest(
     const message = error instanceof Error ? error.message : "Upstream error";
     return NextResponse.json({ detail: message }, { status: 502 });
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
   }
 }
 

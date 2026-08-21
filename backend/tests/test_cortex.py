@@ -157,3 +157,15 @@ async def test_cortex_api_health_and_semantic(client: AsyncClient) -> None:
     semantic = await client.get("/api/v1/cortex/semantic")
     assert semantic.status_code == 200
     assert "stats" in semantic.json()
+
+
+@pytest.mark.asyncio
+async def test_expansion_policy_and_warehouse_api(client: AsyncClient) -> None:
+    policy = await client.get("/api/v1/expansion/policy")
+    assert policy.status_code == 200
+    body = policy.json()
+    assert body["source"] in {"file", "memory", "postgres"}
+    assert "trigger_net_score" in body["knobs"]
+    lake = await client.get("/api/v1/data-lake/ohlcv/BTC?timeframe=1h")
+    assert lake.status_code == 200
+    assert "bars" in lake.json()

@@ -1,1 +1,1 @@
-"""Data lake — historical OHLCV warehouse (Phase B)."""
+"""Data lake — OHLCV warehouse (write-through MVP)."""

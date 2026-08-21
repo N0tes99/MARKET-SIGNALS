@@ -1,6 +1,7 @@
 """Unified market data access for analysis engines."""
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
@@ -105,6 +106,13 @@ class MarketDataService:
                 symbol,
                 observed_at=_ohlcv_observed_at(raw),
             )
+            try:
+                from app.data_lake.warehouse.ohlcv import persist_ohlcv_frame
+
+                if not os.environ.get("PYTEST_CURRENT_TEST"):
+                    persist_ohlcv_frame(raw, symbol=symbol, timeframe=timeframe)
+            except Exception:
+                logger.debug("OHLCV warehouse persist skipped for %s", symbol, exc_info=True)
             return raw
 
         cache = _CHART_OHLCV_CACHE if timeframe in _CHART_TIMEFRAMES else _OHLCV_CACHE

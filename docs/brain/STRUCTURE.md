@@ -9,7 +9,7 @@ backend/app/
 │   ├── orchestrator.py              # Heartbeat tick
 │   ├── types.py                     # WorkingMemory, SpecialistOpinion
 │   ├── attention.py                 # Which specialists fire
-│   ├── specialists.py               # expansion, regime, derivatives, CVD proxy, news, macro
+│   ├── specialists.py               # expansion, regime, derivatives, tape CVD, news, macro
 │   ├── synthesis.py                 # Cross-specialist notes + alerts
 │   └── lifecycle.py                 # Health / stale ticks
 │
@@ -28,14 +28,14 @@ backend/app/
 │   │   ├── postgres.py
 │   │   ├── factory.py
 │   │   └── types.py
-│   └── procedural/                  # How to behave (still config-backed)
-│       └── config_store.py
+│   └── procedural/                  # How to behave ✅
+│       └── config_store.py          # Postgres overlay; file defaults otherwise
 │
-├── data_lake/                       # Historical senses (still scaffold)
-│   ├── schemas.py                   # Normalized bar/snapshot types
-│   ├── ingest/                      # Backfill jobs
-│   ├── warehouse/                   # Postgres / parquet storage
-│   └── replay/                      # Point-in-time rewind (feeds expansion replay)
+├── data_lake/                       # Historical senses (write-through MVP)
+│   ├── schemas.py                   # Normalized bar types
+│   ├── ingest/                      # Live fetch → warehouse
+│   ├── warehouse/                   # ohlcv_bars (+ in-memory fallback)
+│   └── replay/                      # Warehouse rewind for expansion replay
 │
 ├── engines/
 │   └── expansion_engine/            # Surface 5 specialists (MVP ✅)
@@ -77,10 +77,15 @@ frontend/components/
 | `/api/v1/cortex` | `api/routes/cortex.py` |
 | `/api/v1/cortex/semantic` | lead-time + calibration |
 | `/api/v1/cortex/health` | tick freshness + store backend |
+| `/api/v1/expansion/policy` | live knobs (file or Postgres) |
+| `/api/v1/data-lake/ohlcv/{symbol}` | warehouse candles |
+| `/api/v1/sse/dashboard` | live desk rankings (SSE) |
 
-## Phase B notes
+## Phase B/C notes
 
-- CVD specialist is an **OHLCV buying-pressure proxy**, not exchange-tape cumulative volume delta.
+- CVD specialist prefers **Kraken (or Binance) public trades**; OHLCV buying-pressure proxy is the fallback.
 - News specialist is the **macro/event calendar** (FRED when keyed), not a headline NLP feed.
 - Macro is a **global** opinion once per tick.
-- Run `alembic upgrade head` so `cortex_episodes` / `cortex_semantic_stats` exist; otherwise the factory stays in-memory.
+- Expansion knobs live in `procedural_policies` when migrated; otherwise compiled defaults.
+- Live fetches write 5m/15m/1h/4h/1d bars into `ohlcv_bars` (fail-open).
+- Run `alembic upgrade head` so `cortex_episodes` / `cortex_semantic_stats` / `procedural_policies` / `ohlcv_bars` exist.
