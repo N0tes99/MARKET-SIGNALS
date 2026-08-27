@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import {
+  downloadPaperTradesCsv,
   fetchPaperSummary,
   resetPaperAgent,
   type PaperLedger,
@@ -254,6 +255,8 @@ export function PaperAgentPanel() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [tradesOpen, setTradesOpen] = useState(false);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvError, setCsvError] = useState(false);
 
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ["paper-summary"],
@@ -329,6 +332,20 @@ export function PaperAgentPanel() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+            disabled={csvBusy}
+            onClick={() => {
+              setCsvError(false);
+              setCsvBusy(true);
+              void downloadPaperTradesCsv()
+                .catch(() => setCsvError(true))
+                .finally(() => setCsvBusy(false));
+            }}
+          >
+            {csvBusy ? "exporting…" : "export csv"}
+          </button>
           {user?.is_admin ? (
             <button
               type="button"
@@ -378,6 +395,10 @@ export function PaperAgentPanel() {
             Retry
           </button>
         </div>
+      ) : null}
+
+      {csvError ? (
+        <p className="mt-2 font-mono text-[10px] text-bearish/80">CSV export failed</p>
       ) : null}
 
       {resetMutation.isError ? (

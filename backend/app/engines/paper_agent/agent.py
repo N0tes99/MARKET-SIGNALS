@@ -970,6 +970,10 @@ class PaperAgent:
             blockers=list(raw.blockers or []),
         )
 
+    def all_trades(self) -> list[PaperTrade]:
+        """Full book for CSV export — not capped like recent_closed."""
+        return self._store.list_all()
+
     def summary(self, *, tick_notes: list[str] | None = None) -> PaperAgentSummary:
         trades = self._store.list_all()
         open_trades = [t for t in trades if t.status in {"pending_honest", "open"}]

@@ -9,12 +9,14 @@ from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.agent import PaperAgent
+from app.engines.paper_agent.tune_csv import paper_trades_to_csv
 from app.engines.paper_agent.types import PaperTrade
 from app.models.user import User
 from app.schemas.paper import (
@@ -143,6 +145,21 @@ async def paper_summary(
     if tick:
         notes = await asyncio.to_thread(_maybe_auto_tick, agent)
     return await asyncio.to_thread(_summary_schema, agent, notes)
+
+
+@router.get("/trades.csv")
+async def paper_trades_csv(
+    agent: PaperAgent = Depends(get_paper_agent),
+) -> Response:
+    """Full paper book as a tuning CSV (honest ledger when present). Does not tick."""
+    body = await asyncio.to_thread(paper_trades_to_csv, agent.all_trades())
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
+    filename = f"paper-trades-{stamp}.csv"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/tick", response_model=PaperSummarySchema)
