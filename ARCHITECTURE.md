@@ -6,7 +6,7 @@
 |-------|-------|
 | Version | 0.7.0 |
 | Last updated | 2026-08-27 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; expansion scoring composer; Surface 6 Rail Phase A (paper clerk); OHLCV warehouse; tape CVD; SSE desk |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; expansion scoring composer; Surface 6 Rail Phase B (HL scanners, paper fills); OHLCV warehouse; tape CVD; SSE desk |
 
 ---
 
@@ -116,7 +116,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP + scoring composer** |
-| Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase A (paper-only)** |
+| Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase B (HL scanners, paper fills)** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
 | Episodic memory | `backend/app/memory/episodic/` | **Postgres + in-memory fallback** |
 | Procedural knobs | `backend/app/memory/procedural/` | **Postgres + file defaults** |
@@ -440,7 +440,7 @@ Surface 2 — Crypto setups          funding_extreme / liq_flush / basis_rich (p
 Surface 3 — Equity options setups  momentum_continuation / breakout_convexity + option pick + staged plan
 Surface 4 — Runner detection       Fundamental inflection → discovery gap → ignition (equities)
 Surface 5 — Expansion radar        Compression → squeeze fuel → trigger (crypto perps)
-Surface 6 — Rail (nested /rail)    Blind clerk: opportunity envelopes → paper dry-run (live stubs off)
+Surface 6 — Rail (nested /rail)    HL-native scanners → blind envelopes → paper dry-run
 ```
 
 Surface 4 **does not** alter 13-category grades, crypto scanners, or Layer 3 options scores. It is an opportunity detector (WATCHLIST / ALERT), not an EXECUTE path in M10.
@@ -909,7 +909,8 @@ class BrokerAdapter(Protocol):
 `PARTIAL` — directory created; Alpaca **read-only** mirror (`GET /api/v1/brokers/alpaca/mirror`)
 fetches account + positions + recent closed fills via official REST. No execution path.
 Other brokers (Binance, Coinbase) and place/cancel remain deferred.
-Surface 6 Rail Phase A adds a **paper** clerk plus hard-off Hyperliquid/Drift/Polymarket stubs.
+Surface 6 Rail Phase B reads Hyperliquid `/info` (L2, funding, HIP-4) and fills only
+on the paper clerk. Live adapters hard-refuse even if `RAIL_ARMED` / `RAIL_LIVE_ENABLED`.
 
 ---
 
@@ -951,8 +952,8 @@ Surface 6 Rail Phase A adds a **paper** clerk plus hard-off Hyperliquid/Drift/Po
 | `GET` | `/api/v1/sse/dashboard` | Same payload over SSE | **Live** (frontend + proxy) |
 | `GET` | `/api/v1/expansion/policy` | Expansion knobs | **Live** |
 | `GET` | `/api/v1/data-lake/ohlcv/{symbol}` | Warehouse OHLCV | **Live** |
-| `GET` | `/api/v1/rail/desk` | Surface 6 blind clerk snapshot | **Phase A** |
-| `POST` | `/api/v1/rail/clerk/simulate` | Paper dry-run fill (no live order) | **Phase A** |
+| `GET` | `/api/v1/rail/desk` | Surface 6 blind clerk snapshot | **Phase B** |
+| `POST` | `/api/v1/rail/clerk/simulate` | Paper dry-run fill (no live order) | **Phase B** |
 
 ### Design Rules
 
@@ -971,7 +972,7 @@ Surface 6 Rail Phase A adds a **paper** clerk plus hard-off Hyperliquid/Drift/Po
 |-------|---------|--------|
 | `/` | Asset grid (BTC, ETH, SOL, SUI) | **Live** |
 | `/assets/[symbol]` | Detail view with analysis sections | **Live** |
-| `/rail` | Surface 6 nested clerk (blind envelopes) | **Phase A** |
+| `/rail` | Surface 6 nested clerk (blind envelopes) | **Phase B** |
 
 ### Detail View Sections (per asset)
 
@@ -1084,7 +1085,7 @@ When adding a new system, follow this checklist:
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
 | M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview** |
-| M11 — Surface 6 Rail | Blind opportunity clerk, nested `/rail`, paper dry-run, live venue stubs | **Phase A** |
+| M11 — Surface 6 Rail | HL-native scanners, nested `/rail`, paper dry-run, live venue stubs | **Phase B** |
 
 ---
 

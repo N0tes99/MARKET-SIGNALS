@@ -68,11 +68,13 @@ backend/app/
     └── pump_events.v1.yaml          # BTC / SOL / SUI labeled events ✅
 
 frontend/app/
-└── expansion/                       # Radar UI ✅ (blackboard + health + semantic)
+├── expansion/                       # Radar UI ✅ (blackboard + health + semantic)
+└── rail/                            # Surface 6 nested clerk ✅ (blind envelopes)
 
 frontend/components/
 ├── expansion-preview-strip.tsx      # Desk preview ✅
-└── asset-expansion-card.tsx         # Asset detail (specialist notes, parallel to grades) ✅
+├── asset-expansion-card.tsx         # Asset detail (specialist notes, parallel to grades) ✅
+└── rail-header.tsx                  # Nested Rail chrome ✅
 ```
 
 ## Paper bridge
@@ -90,6 +92,8 @@ frontend/components/
 | `/api/v1/expansion/policy` | live knobs (file or Postgres) |
 | `/api/v1/data-lake/ohlcv/{symbol}` | warehouse candles |
 | `/api/v1/sse/dashboard` | live desk rankings (SSE) |
+| `/api/v1/rail/desk` | Surface 6 blind clerk |
+| `/api/v1/rail/clerk/simulate` | paper dry-run (live venues refuse) |
 
 ## Phase B/C notes
 
@@ -99,3 +103,4 @@ frontend/components/
 - Expansion knobs live in `procedural_policies` when migrated; otherwise compiled defaults.
 - Live fetches write 5m/15m/1h/4h/1d bars into `ohlcv_bars` (fail-open).
 - Run `alembic upgrade head` so `cortex_episodes` / `cortex_semantic_stats` / `procedural_policies` / `ohlcv_bars` exist.
+- Rail HL L2 / funding / HIP-4 stay on Surface 6. They do **not** fold into cortex CVD.
