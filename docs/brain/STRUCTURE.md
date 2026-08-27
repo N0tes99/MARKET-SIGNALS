@@ -48,7 +48,9 @@ backend/app/
 │       ├── config.py
 │       ├── types.py
 │       ├── specialists/             # Package mirror (re-exports)
-│       └── scoring/                 # Composer / weights (still scaffold)
+│       └── scoring/                 # Composer / weights ✅
+│           ├── composer.py          # Named weights → up/down + Policy line
+│           └── weights.py           # Normalize to 1.0; live policy provenance
 │
 ├── tasks/
 │   ├── cortex_tick.py               # Brain heartbeat ✅
