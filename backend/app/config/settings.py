@@ -119,6 +119,10 @@ class Settings(BaseSettings):
     hyperliquid_info_url: str = "https://api.hyperliquid.xyz"
     # Local parquet dump of ohlcv_bars. Empty = disabled (Render has no persistent disk).
     data_lake_path: str = ""
+    # SEC EDGAR requires a descriptive User-Agent (URL or email).
+    sec_user_agent: str = (
+        "SignalEngine/1.0 (research; +https://github.com/N0tes99/MARKET-SIGNALS)"
+    )
 
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"

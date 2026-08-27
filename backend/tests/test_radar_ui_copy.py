@@ -14,7 +14,7 @@ _PWA_GEN = _ROOT / "frontend" / "scripts" / "gen_pwa_icons.py"
 
 def test_radar_page_mentions_yahoo_fundamentals() -> None:
     text = _RADAR.read_text(encoding="utf-8")
-    assert "Yahoo tape + fundamentals" in text
+    assert "Yahoo tape + fundamentals + SEC 8-K" in text
     assert "em dash" in text
     assert "No names on early, ignition, or running lists today." in text
     assert "fundamentals_filled" in text
@@ -31,7 +31,7 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
     text = _DETAIL.read_text(encoding="utf-8")
-    assert "yahoo tape + fundamentals" in text
+    assert "yahoo tape + fundamentals + sec 8-k" in text
     assert "fundamentals not scored" not in text
     assert "runner failure" in text
     assert "stage" in text
@@ -77,6 +77,6 @@ def test_legacy_pwa_script_uses_signal_mark() -> None:
 
 def test_home_strip_mentions_yahoo_fundamentals() -> None:
     text = _STRIP.read_text(encoding="utf-8")
-    assert "yahoo tape + fundamentals" in text
+    assert "yahoo tape + fundamentals + sec 8-k" in text
     assert "fundamentals not scored" not in text
     assert "fundamentals_filled" in text

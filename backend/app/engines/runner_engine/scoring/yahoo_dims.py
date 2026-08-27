@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
+from app.engines.runner_engine.scoring.edgar import EdgarSnapshot
 from app.engines.runner_engine.scoring.yahoo_snapshot import YahooRunnerSnapshot
 from app.engines.runner_engine.types import DimensionScore
 from app.utils.scoring_helpers import clamp_score
@@ -114,46 +115,63 @@ def score_fundamental(snap: YahooRunnerSnapshot) -> DimensionScore:
     )
 
 
-def score_catalyst(snap: YahooRunnerSnapshot, *, today: date | None = None) -> DimensionScore:
-    """Days-to-earnings from Yahoo timestamps. Missing if no date."""
-    if snap.earnings_date is None:
-        return _missing("catalyst", "Yahoo had no earnings date")
-
+def score_catalyst(
+    snap: YahooRunnerSnapshot,
+    *,
+    today: date | None = None,
+    edgar: EdgarSnapshot | None = None,
+) -> DimensionScore:
+    """Yahoo earnings date plus optional EDGAR 8-K overlay."""
     now = today or datetime.now(UTC).date()
-    days = (snap.earnings_date - now).days
-    score = 50.0
-    factors = [f"Earnings {snap.earnings_date.isoformat()} ({days:+d}d)"]
+    factors: list[str] = []
     conflicts: list[str] = []
+    score = 50.0
+    quality = "missing"
 
-    if 0 <= days <= 7:
-        score = 82.0
-        factors.append("Print inside 7 days")
-    elif 8 <= days <= 21:
-        score = 74.0
-        factors.append("Print inside 21 days")
-    elif 22 <= days <= 45:
-        score = 64.0
-    elif 46 <= days <= 90:
-        score = 56.0
-    elif -7 <= days < 0:
-        score = 68.0
-        factors.append("Just reported — reaction window")
-    elif days < -7:
-        score = 48.0
-        factors.append("Last print already aged")
-    else:
-        score = 52.0
+    if snap.earnings_date is not None:
+        days = (snap.earnings_date - now).days
+        quality = "good"
+        factors.append(f"Earnings {snap.earnings_date.isoformat()} ({days:+d}d)")
+        if 0 <= days <= 7:
+            score = 82.0
+            factors.append("Print inside 7 days")
+        elif 8 <= days <= 21:
+            score = 74.0
+            factors.append("Print inside 21 days")
+        elif 22 <= days <= 45:
+            score = 64.0
+        elif 46 <= days <= 90:
+            score = 56.0
+        elif -7 <= days < 0:
+            score = 68.0
+            factors.append("Just reported — reaction window")
+        elif days < -7:
+            score = 48.0
+            factors.append("Last print already aged")
+        else:
+            score = 52.0
+        if 0 <= days <= 5:
+            conflicts.append("Near-term earnings — gap risk")
 
-    if 0 <= days <= 5:
-        conflicts.append("Near-term earnings — gap risk")
+    if edgar is not None and edgar.eight_k_count > 0:
+        quality = "good"
+        label = edgar.latest_form or "8-K"
+        when = edgar.latest_date.isoformat() if edgar.latest_date else "recent"
+        factors.append(f"EDGAR {label} x{edgar.eight_k_count} (latest {when})")
+        score = clamp_score(score + min(12.0, 6.0 + edgar.eight_k_count * 2.0))
+        if edgar.latest_date is not None and (now - edgar.latest_date).days <= 3:
+            conflicts.append("Fresh 8-K — event risk")
+
+    if quality == "missing":
+        return _missing("catalyst", "Yahoo had no earnings date and EDGAR had no 8-K")
 
     return DimensionScore(
         name="catalyst",
         score=clamp_score(score),
-        confidence=0.7,
+        confidence=0.7 if snap.earnings_date is not None else 0.55,
         factors=factors,
         conflicts=conflicts,
-        data_quality="good",
+        data_quality=quality,
     )
 
 

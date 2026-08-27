@@ -17,6 +17,7 @@ from app.engines.runner_engine import (
 )
 from app.engines.runner_engine.compose import compose_runner_scores
 from app.engines.runner_engine.config import RunnerConfig, StageThresholds
+from app.engines.runner_engine.scoring.edgar import EdgarSnapshot
 from app.engines.runner_engine.scoring.structure import score_structure
 from app.engines.runner_engine.scoring.stubs import score_all_dimensions
 from app.engines.runner_engine.scoring.yahoo_snapshot import (
@@ -33,10 +34,14 @@ from app.market_data.symbols import TRACKED_SYMBOLS, is_tracked
 
 @pytest.fixture(autouse=True)
 def _quiet_yahoo(monkeypatch) -> None:
-    """Runner unit tests must not hit live Yahoo."""
+    """Runner unit tests must not hit live Yahoo or SEC."""
     monkeypatch.setattr(
         "app.engines.runner_engine.scoring.stubs.fetch_yahoo_runner_snapshot",
         lambda symbol: empty_yahoo_snapshot(symbol),
+    )
+    monkeypatch.setattr(
+        "app.engines.runner_engine.scoring.stubs.fetch_edgar_snapshot",
+        lambda symbol: EdgarSnapshot(symbol=symbol),
     )
 
 

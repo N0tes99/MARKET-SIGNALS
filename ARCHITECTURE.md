@@ -114,7 +114,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
-| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
+| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview + EDGAR v0** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP + scoring composer** |
 | Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase B (HL scanners, paper fills)** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
@@ -509,7 +509,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Seed universe is for testing/benchmarking — not hard-coded recommendations
 - Backtest must measure **lead time** and forbid look-ahead bias
 
-**Status:** `PHASE 2 PREVIEW` — real daily structure (momentum + RS) and optional market-cap asymmetry. Fundamentals/catalyst still missing. Runner Score is structure-only capped. UI `/radar` is labeled preview. Ignition/running lists stay empty until Phase 3. See `docs/research/10x-runner-detection-layer.md`.
+**Status:** `PHASE 2 PREVIEW + EDGAR v0` — real daily structure (momentum + RS), Yahoo snippet fundamentals when present, and free SEC 8-K/6-K catalyst overlay. Runner Score still caps when Yahoo fundamentals are missing. UI `/radar` is labeled preview. Ignition/running lists stay conservative until Phase 3 Discovery Gap vs valuation is done. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 
@@ -543,7 +543,7 @@ Cortex tick (120s)
 | `GET /api/v1/sse/dashboard` | Live asset summaries (SSE; Netlify-safe) |
 | `WS /api/v1/ws/dashboard` | Same payload over WebSocket (direct API) |
 
-**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, **named scoring composer** (`scoring/composer.py`) that normalizes live procedural weights and logs a Policy contributor, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar + **headline RSS v0**, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No live broker execution, no Surface 4 EDGAR filings vendor.
+**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, **named scoring composer** (`scoring/composer.py`) that normalizes live procedural weights and logs a Policy contributor, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar + **headline RSS v0**, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No live broker execution. Surface 4 has Yahoo snippets + EDGAR 8-K v0, not a paid fundamentals vendor.
 
 ---
 
@@ -1085,7 +1085,7 @@ When adding a new system, follow this checklist:
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
-| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview** |
+| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 2 preview + EDGAR v0** |
 | M11 — Surface 6 Rail | HL-native scanners, nested `/rail`, paper dry-run, live venue stubs | **Phase B** |
 
 ---

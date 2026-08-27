@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from app.engines.runner_engine.config import RunnerConfig, default_runner_config
 from app.engines.runner_engine.scoring.asymmetry import score_asymmetry
+from app.engines.runner_engine.scoring.edgar import fetch_edgar_snapshot
 from app.engines.runner_engine.scoring.structure import score_structure
 from app.engines.runner_engine.scoring.yahoo_dims import (
     score_catalyst,
@@ -42,10 +43,11 @@ def score_all_dimensions(
     cfg = config or default_runner_config()
     structure, tape = score_structure(normalized, market_data=md)
     snap = snapshot or (snapshot_fetcher or fetch_yahoo_runner_snapshot)(normalized)
+    edgar = fetch_edgar_snapshot(normalized)
 
     dimensions = {
         "fundamental": score_fundamental(snap),
-        "catalyst": score_catalyst(snap),
+        "catalyst": score_catalyst(snap, edgar=edgar),
         "structure": structure,
         "asymmetry": score_asymmetry(normalized, market_data=md, config=cfg),
         "discovery_gap": score_discovery_gap(snap),
