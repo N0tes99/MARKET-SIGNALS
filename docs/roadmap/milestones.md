@@ -82,6 +82,10 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
 - [ ] Phase 3 — Fundamentals provider, catalyst detection, Discovery Gap (+ optional SI/ownership)
   - [x] Yahoo snippet fundamentals / ownership / SI (Phase 2 leftover)
   - [x] EDGAR 8-K / 6-K catalyst overlay (free SEC, fail-open)
+  - [x] QoQ revenue acceleration from Yahoo quarterly statements (fail-open)
+  - [x] Discovery Gap vs valuation (PEG / P/S / 52-week expansion; not a 50-fill)
+  - [ ] Beat/guidance NLP
+  - [ ] Paid SI / 13F flow vendor (Yahoo ownership snapshot remains)
 - [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)

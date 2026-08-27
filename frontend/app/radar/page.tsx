@@ -183,7 +183,8 @@ function EquitiesTrack() {
   return (
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Yahoo tape + fundamentals + SEC 8-K. Missing fields stay as em dash — no fake 50s. Seed names are a
+        Yahoo tape + fundamentals + SEC 8-K. Discovery gap is followership vs valuation when
+        both exist. Missing fields stay as em dash — no fake 50s. Seed names are a
         benchmark set, not recommendations.
       </p>
 

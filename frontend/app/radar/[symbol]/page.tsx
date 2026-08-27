@@ -25,7 +25,7 @@ export default function RadarDetailPage() {
         </Link>
 
         <p className="mt-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-          yahoo tape + fundamentals + sec 8-k · missing fields stay —
+          yahoo tape + fundamentals + sec 8-k · discovery vs valuation · missing fields stay —
         </p>
 
         {isLoading ? <div className="surface skeleton mt-6 h-40" /> : null}

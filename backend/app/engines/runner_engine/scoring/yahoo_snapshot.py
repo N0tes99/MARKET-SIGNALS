@@ -42,6 +42,9 @@ class YahooRunnerSnapshot:
     sector: str | None = None
     industry: str | None = None
     earnings_date: date | None = None
+    price_to_sales: float | None = None
+    week52_change: float | None = None
+    quarterly_revenue: tuple[float, ...] = ()
 
 
 def _num(info: dict, *keys: str) -> float | None:
@@ -114,7 +117,66 @@ def _earnings_from_calendar(calendar: object) -> date | None:
             return None
 
 
-def _parse_info(symbol: str, info: dict, calendar: object | None) -> YahooRunnerSnapshot:
+def quarterly_revenues_from_frame(frame: object) -> tuple[float, ...]:
+    """Newest-first Total Revenue column from a Yahoo quarterly statement."""
+    if frame is None or not hasattr(frame, "index"):
+        return ()
+    try:
+        if getattr(frame, "empty", False):
+            return ()
+    except Exception:
+        return ()
+    labels = [str(idx).strip().lower() for idx in frame.index]
+    row_idx = None
+    for needle in ("total revenue", "operating revenue", "revenue"):
+        for i, label in enumerate(labels):
+            if label == needle or needle in label:
+                row_idx = i
+                break
+        if row_idx is not None:
+            break
+    if row_idx is None:
+        return ()
+    row = frame.iloc[row_idx]
+    pairs: list[tuple[str, float]] = []
+    columns = list(getattr(frame, "columns", []))
+    values = list(row.tolist()) if hasattr(row, "tolist") else list(row)
+    for col, raw in zip(columns, values, strict=False):
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if number != number:
+            continue
+        pairs.append((str(col), number))
+    if not pairs:
+        return ()
+
+    def _col_key(item: tuple[str, float]) -> str:
+        return item[0]
+
+    pairs.sort(key=_col_key, reverse=True)
+    return tuple(value for _col, value in pairs[:8])
+
+
+def _quarterly_revenues(ticker: object) -> tuple[float, ...]:
+    for attr in ("quarterly_income_stmt", "quarterly_financials"):
+        try:
+            frame = getattr(ticker, attr)
+        except Exception:
+            continue
+        revenues = quarterly_revenues_from_frame(frame)
+        if revenues:
+            return revenues
+    return ()
+
+
+def _parse_info(
+    symbol: str,
+    info: dict,
+    calendar: object | None,
+    quarterly_revenue: tuple[float, ...] = (),
+) -> YahooRunnerSnapshot:
     earnings = _earnings_from_info(info) or _earnings_from_calendar(calendar)
     return YahooRunnerSnapshot(
         symbol=symbol,
@@ -140,6 +202,9 @@ def _parse_info(symbol: str, info: dict, calendar: object | None) -> YahooRunner
         sector=_text(info, "sector"),
         industry=_text(info, "industry"),
         earnings_date=earnings,
+        price_to_sales=_num(info, "priceToSalesTrailing12Months"),
+        week52_change=_num(info, "52WeekChange", "fiftyTwoWeekChange"),
+        quarterly_revenue=quarterly_revenue,
     )
 
 
@@ -168,7 +233,12 @@ def fetch_yahoo_runner_snapshot(symbol: str) -> YahooRunnerSnapshot:
         if not info:
             snap = empty_yahoo_snapshot(normalized)
         else:
-            snap = _parse_info(normalized, info, calendar)
+            quarterly: tuple[float, ...] = ()
+            try:
+                quarterly = _quarterly_revenues(ticker)
+            except Exception:
+                quarterly = ()
+            snap = _parse_info(normalized, info, calendar, quarterly)
     except Exception:
         logger.warning("Yahoo runner snapshot failed for %s", normalized, exc_info=True)
         snap = empty_yahoo_snapshot(normalized)
