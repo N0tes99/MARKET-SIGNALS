@@ -42,8 +42,32 @@ def _pct(value: float | None) -> str:
     return f"{value * 100:.1f}%"
 
 
+def qoq_acceleration(
+    revenues: tuple[float, ...],
+) -> tuple[float | None, float | None]:
+    """Newest-first revenues → (latest QoQ growth, QoQ acceleration)."""
+    if len(revenues) < 3:
+        return None, None
+    rates: list[float] = []
+    for index in range(len(revenues) - 1):
+        prior = revenues[index + 1]
+        if abs(prior) < 1.0:
+            return None, None
+        rates.append((revenues[index] - prior) / abs(prior))
+        if len(rates) == 2:
+            break
+    if len(rates) < 2:
+        return None, None
+    return rates[0], rates[0] - rates[1]
+
+
+def _pp(value: float) -> str:
+    return f"{value * 100:+.1f}pp"
+
+
 def score_fundamental(snap: YahooRunnerSnapshot) -> DimensionScore:
     """Revenue/EPS acceleration + margins from Yahoo. No 50-fill when empty."""
+    latest_qoq, accel = qoq_acceleration(snap.quarterly_revenue)
     fields = [
         snap.revenue_growth,
         snap.earnings_quarterly_growth or snap.earnings_growth,
@@ -51,6 +75,7 @@ def score_fundamental(snap: YahooRunnerSnapshot) -> DimensionScore:
         snap.return_on_equity,
         snap.trailing_pe,
         snap.forward_pe,
+        latest_qoq,
     ]
     present = sum(1 for item in fields if item is not None)
     if present == 0:
@@ -65,6 +90,17 @@ def score_fundamental(snap: YahooRunnerSnapshot) -> DimensionScore:
         factors.append(f"Revenue growth {_pct(snap.revenue_growth)}")
         if snap.revenue_growth < -0.05:
             conflicts.append("Revenue contracting")
+
+    if latest_qoq is not None:
+        score += clamp_score(latest_qoq * 20.0, -10, 12)
+        factors.append(f"QoQ revenue {_pct(latest_qoq)}")
+    if accel is not None:
+        score += clamp_score(accel * 40.0, -12, 14)
+        factors.append(f"QoQ acceleration {_pp(accel)}")
+        if accel < -0.08:
+            conflicts.append("Revenue growth decelerating")
+        elif accel >= 0.05:
+            factors.append("Growth accelerating")
 
     earn = snap.earnings_quarterly_growth
     if earn is None:
@@ -104,7 +140,7 @@ def score_fundamental(snap: YahooRunnerSnapshot) -> DimensionScore:
             f"Forward P/E {snap.forward_pe:.1f} below trailing {snap.trailing_pe:.1f}"
         )
 
-    quality = "good" if present >= 2 else "degraded"
+    quality = "good" if present >= 2 or accel is not None else "degraded"
     return DimensionScore(
         name="fundamental",
         score=clamp_score(score),
@@ -176,13 +212,33 @@ def score_catalyst(
 
 
 def score_discovery_gap(snap: YahooRunnerSnapshot) -> DimensionScore:
-    """Underfollowed = higher gap. Uses analyst count + market cap."""
-    if snap.number_of_analysts is None and snap.market_cap is None:
-        return _missing("discovery_gap", "Yahoo had no analyst count or market cap")
+    """Followership vs whether growth/catalyst already sits in the multiple."""
+    analysts = snap.number_of_analysts
+    cap = snap.market_cap
+    growth = snap.revenue_growth
+    if growth is None:
+        growth = snap.earnings_quarterly_growth or snap.earnings_growth
+    _, accel = qoq_acceleration(snap.quarterly_revenue)
+    pe: float | None = None
+    if snap.forward_pe is not None and snap.forward_pe > 0:
+        pe = snap.forward_pe
+    elif snap.trailing_pe is not None and snap.trailing_pe > 0:
+        pe = snap.trailing_pe
+    ps = snap.price_to_sales if snap.price_to_sales and snap.price_to_sales > 0 else None
+    has_follow = analysts is not None or cap is not None
+    has_value = (pe is not None or ps is not None) and (
+        growth is not None or accel is not None
+    )
+    if not has_follow and not has_value:
+        return _missing(
+            "discovery_gap",
+            "Yahoo had no analyst/cap and no growth-vs-valuation pair",
+        )
 
     score = 50.0
     factors: list[str] = []
-    analysts = snap.number_of_analysts
+    conflicts: list[str] = []
+
     if analysts is not None:
         if analysts <= 2:
             score = 84.0
@@ -196,8 +252,8 @@ def score_discovery_gap(snap: YahooRunnerSnapshot) -> DimensionScore:
             score = 34.0
         factors.append(f"{analysts} analyst opinions")
 
-    if snap.market_cap is not None:
-        billions = snap.market_cap / 1_000_000_000.0
+    if cap is not None:
+        billions = cap / 1_000_000_000.0
         factors.append(f"Market cap ${billions:.2f}B")
         if billions < 2 and (analysts is None or analysts <= 8):
             score += 8.0
@@ -205,13 +261,56 @@ def score_discovery_gap(snap: YahooRunnerSnapshot) -> DimensionScore:
             score -= 14.0
             factors.append("Mega-cap — discovery already done")
 
+    if growth is not None and pe is not None and growth > 0.02:
+        peg = pe / (growth * 100.0)
+        factors.append(f"PEG {peg:.2f} (P/E {pe:.1f} / growth {_pct(growth)})")
+        if peg < 0.8:
+            score += 14.0
+            factors.append("Growth ahead of valuation")
+        elif peg < 1.3:
+            score += 7.0
+        elif peg > 3.0:
+            score -= 16.0
+            conflicts.append("Valuation already expanded vs growth")
+        elif peg > 2.0:
+            score -= 10.0
+            factors.append("Price has discounted a lot of the growth")
+    elif growth is not None and pe is None and ps is not None:
+        factors.append(f"P/S {ps:.1f} with growth {_pct(growth)}")
+        if ps < 6 and growth >= 0.20:
+            score += 8.0
+            factors.append("Sales multiple still quiet vs growth")
+        elif ps > 25:
+            score -= 10.0
+            conflicts.append("Sales multiple already rich")
+
+    if accel is not None:
+        factors.append(f"QoQ acceleration {_pp(accel)}")
+        if accel >= 0.05:
+            score += 10.0
+        elif accel <= -0.08:
+            score -= 10.0
+            conflicts.append("Deceleration — discovery may be a trap")
+
+    if snap.week52_change is not None:
+        factors.append(f"52-week change {_pct(snap.week52_change)}")
+        if snap.week52_change >= 1.0:
+            score -= 12.0
+            factors.append("Price already expanded")
+        elif snap.week52_change >= 0.50:
+            score -= 6.0
+        elif snap.week52_change < 0.15 and (growth or 0) >= 0.20:
+            score += 8.0
+            factors.append("Price has not followed growth")
+
+    quality = "good" if (analysts is not None or has_value) else "degraded"
     return DimensionScore(
         name="discovery_gap",
         score=clamp_score(score),
-        confidence=0.62 if analysts is not None else 0.45,
+        confidence=0.62 if analysts is not None else (0.52 if has_value else 0.45),
         factors=factors,
-        conflicts=[],
-        data_quality="good" if analysts is not None else "degraded",
+        conflicts=conflicts,
+        data_quality=quality,
     )
 
 

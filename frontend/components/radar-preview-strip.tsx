@@ -45,7 +45,7 @@ export function RadarPreviewStrip() {
             </Link>
           </h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            yahoo tape + fundamentals + sec 8-k · missing fields stay —
+            yahoo tape + fundamentals + sec 8-k · discovery vs valuation · missing fields stay —
           </p>
         </div>
         <div className="flex flex-wrap gap-x-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
