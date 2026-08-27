@@ -10,6 +10,7 @@ from app.engines.buyer_seller_engine.engine import BuyerSellerEngine
 from app.engines.derivatives_engine.engine import DerivativesEngine
 from app.engines.event_engine.engine import EventEngine
 from app.engines.macro_engine.engine import MacroEngine
+from app.engines.news_nlp.headlines import fetch_headline_bundle
 from app.engines.regime_engine.engine import MarketRegime, RegimeEngine
 from app.market_data.service import MarketDataService
 
@@ -185,7 +186,7 @@ def collect_cvd_opinion(engine: BuyerSellerEngine, symbol: str) -> SpecialistOpi
 
 
 def collect_news_opinion(engine: EventEngine, symbol: str) -> SpecialistOpinion:
-    """Macro calendar / catalyst timing (FRED when keyed; not a headline NLP feed)."""
+    """Macro calendar / catalyst timing plus headline RSS v0 (not a grade input)."""
     try:
         snap = engine.snapshot(symbol, include_earnings=False)
     except Exception:
@@ -201,15 +202,29 @@ def collect_news_opinion(engine: EventEngine, symbol: str) -> SpecialistOpinion:
     if snap.nearest_days is not None and snap.nearest_days <= 1:
         conflicts.append("Imminent macro event — expansion trigger is higher-risk")
 
+    headlines = fetch_headline_bundle(symbol)
+    factors = [snap.description, *list(snap.events[:3])]
+    if headlines.titles:
+        factors.append(f"Headline: {headlines.titles[0][:160]}")
+        factors.extend(f"Headline: {title[:120]}" for title in headlines.titles[1:3])
+        score = round(0.7 * snap.score + 0.3 * headlines.score, 2)
+    else:
+        score = round(snap.score, 2)
+    if headlines.direction == "down":
+        conflicts.append("Recent headlines lean negative")
+
     return SpecialistOpinion(
         specialist="news",
-        score=round(snap.score, 2),
-        direction=None,
-        factors=[snap.description, *list(snap.events[:3])],
+        score=score,
+        direction=headlines.direction,
+        factors=factors[:6],
         conflicts=conflicts,
         metadata={
             "nearest_days": snap.nearest_days,
             "events": list(snap.events[:6]),
+            "headline_score": headlines.score,
+            "headlines": list(headlines.titles[:4]),
+            "headline_source": headlines.source if headlines.titles else None,
         },
     )
 

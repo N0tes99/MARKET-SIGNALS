@@ -59,7 +59,13 @@ def test_cvd_opinion_is_marked_proxy() -> None:
     assert op.direction == "up"
 
 
-def test_news_opinion_flags_imminent_event() -> None:
+def test_news_opinion_flags_imminent_event(monkeypatch) -> None:
+    from app.engines.news_nlp.headlines import HeadlineBundle
+
+    monkeypatch.setattr(
+        "app.cortex.specialists.fetch_headline_bundle",
+        lambda _symbol: HeadlineBundle(),
+    )
     op = collect_news_opinion(_News(), "SOL")  # type: ignore[arg-type]
     assert op.specialist == "news"
     assert op.conflicts

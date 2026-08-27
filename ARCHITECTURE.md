@@ -543,7 +543,7 @@ Cortex tick (120s)
 | `GET /api/v1/sse/dashboard` | Live asset summaries (SSE; Netlify-safe) |
 | `WS /api/v1/ws/dashboard` | Same payload over WebSocket (direct API) |
 
-**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, **named scoring composer** (`scoring/composer.py`) that normalizes live procedural weights and logs a Policy contributor, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No headline NLP news feed, no live broker execution, no Surface 4 fundamentals vendor.
+**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, **named scoring composer** (`scoring/composer.py`) that normalizes live procedural weights and logs a Policy contributor, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar + **headline RSS v0**, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No live broker execution, no Surface 4 EDGAR filings vendor.
 
 ---
 
