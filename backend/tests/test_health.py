@@ -28,6 +28,32 @@ async def test_health_check(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_does_not_construct_paper_agent(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep-warm /health must stay a cheap ping after Render sleep."""
+
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("heavy service constructed on /health")
+
+    monkeypatch.setattr(
+        "app.core.service_dependencies.get_paper_agent",
+        _boom,
+    )
+    monkeypatch.setattr(
+        "app.core.service_dependencies.get_learning_engine",
+        _boom,
+    )
+    monkeypatch.setattr(
+        "app.core.service_dependencies.get_alert_service",
+        _boom,
+    )
+    response = await client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+
+
+@pytest.mark.asyncio
 async def test_list_assets(client: AsyncClient) -> None:
     """Assets endpoint returns tracked dashboard assets (sync fills ranks)."""
     response = await client.get("/api/v1/assets?sync=true")

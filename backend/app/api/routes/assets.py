@@ -1,6 +1,7 @@
 """Asset dashboard endpoints."""
 
 import asyncio
+import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -34,8 +35,12 @@ _ASSET_SUMMARY_LIST = TypeAdapter(list[AssetSummary])
 _DISK_CACHE_PATH = Path(
     os.environ.get("ASSETS_DISK_CACHE_PATH", "/tmp/se_assets_dashboard.json")
 )
+# Postgres paper_agent_state key — /tmp is ephemeral on Render free.
+DASHBOARD_META_KEY = "dashboard_assets_v1"
 _REDDIT_WARM_LOCK = Lock()
 _REDDIT_WARM_STARTED = False
+_DASHBOARD_STORE_LOCK = Lock()
+_DASHBOARD_STORE = None
 
 
 def _kick_reddit_warm() -> None:
@@ -107,6 +112,40 @@ def _record_decisions(learning: LearningEngine, decisions) -> None:
         learning.record_decision(decision)
 
 
+def _dashboard_kv_store():
+    """Lazy paper-store handle for durable ranking JSON (process-local)."""
+    global _DASHBOARD_STORE
+    with _DASHBOARD_STORE_LOCK:
+        if _DASHBOARD_STORE is None:
+            from app.engines.paper_agent.factory import build_paper_store
+
+            _DASHBOARD_STORE = build_paper_store()
+        return _DASHBOARD_STORE
+
+
+def _parse_summaries(raw) -> list[AssetSummary] | None:
+    if raw is None:
+        return None
+    try:
+        return _ASSET_SUMMARY_LIST.validate_python(raw)
+    except Exception:
+        logger.exception("Invalid assets dashboard payload")
+        return None
+
+
+def _persist_summaries(assets: list[AssetSummary]) -> None:
+    """Write ranking snapshot to /tmp and Postgres so cold starts stay seeded."""
+    payload = _ASSET_SUMMARY_LIST.dump_python(assets, mode="json")
+    write_json(_DISK_CACHE_PATH, payload)
+    try:
+        store = _dashboard_kv_store()
+        set_meta = getattr(store, "set_meta", None)
+        if callable(set_meta):
+            set_meta(DASHBOARD_META_KEY, json.dumps(payload, default=str))
+    except Exception:
+        logger.debug("Durable dashboard seed write skipped", exc_info=True)
+
+
 def _load_asset_summaries(
     pipeline: DecisionPipelineService,
     learning: LearningEngine,
@@ -115,19 +154,31 @@ def _load_asset_summaries(
     decisions = pipeline.rank_all(list(TRACKED_SYMBOLS))
     _record_decisions(learning, decisions)
     assets = [_build_summary(d) for d in decisions]
-    write_json(_DISK_CACHE_PATH, _ASSET_SUMMARY_LIST.dump_python(assets, mode="json"))
+    _persist_summaries(assets)
     return assets
 
 
 def _read_disk_summaries() -> list[AssetSummary] | None:
     """Reload last successful dashboard payload from disk (survives restarts)."""
-    raw = read_json(_DISK_CACHE_PATH)
-    if raw is None:
-        return None
+    return _parse_summaries(read_json(_DISK_CACHE_PATH))
+
+
+def _read_durable_summaries() -> list[AssetSummary] | None:
+    """Disk first, then Postgres paper_agent_state (Render /tmp is wiped on sleep)."""
+    disk = _read_disk_summaries()
+    if disk:
+        return disk
     try:
-        return _ASSET_SUMMARY_LIST.validate_python(raw)
+        store = _dashboard_kv_store()
+        get_meta = getattr(store, "get_meta", None)
+        if not callable(get_meta):
+            return None
+        raw = get_meta(DASHBOARD_META_KEY)
+        if not raw:
+            return None
+        return _parse_summaries(json.loads(raw))
     except Exception:
-        logger.exception("Invalid assets disk cache at %s", _DISK_CACHE_PATH)
+        logger.debug("Durable dashboard seed read skipped", exc_info=True)
         return None
 
 
@@ -162,10 +213,10 @@ def _get_dashboard(
 
     cached, _, _, _ = _ASSETS_LIST_CACHE.meta("dashboard")
     if cached is None:
-        disk = _read_disk_summaries()
+        seed = _read_durable_summaries()
         # Seed stale so SWR returns immediately and refreshes in background.
         # Empty list = true cold start (placeholders on the client until warm).
-        _ASSETS_LIST_CACHE.seed_stale("dashboard", disk if disk else [])
+        _ASSETS_LIST_CACHE.seed_stale("dashboard", seed if seed else [])
 
     assets = _ASSETS_LIST_CACHE.get_stale_while_revalidate("dashboard", factory)
     _, fresh, refreshing, age = _ASSETS_LIST_CACHE.meta("dashboard")

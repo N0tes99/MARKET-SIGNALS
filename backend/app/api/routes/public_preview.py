@@ -32,7 +32,7 @@ def _hot_picks(limit: int = 5) -> list[AssetSummary]:
     """Serve ranked symbols from memory/disk only — never block on cold rank_all."""
     cached = assets_routes._ASSETS_LIST_CACHE.get("dashboard", allow_stale=True)
     if not cached:
-        cached = assets_routes._read_disk_summaries() or []
+        cached = assets_routes._read_durable_summaries() or []
     ranked = sorted(
         cached,
         key=lambda a: (a.confidence, a.expected_value),

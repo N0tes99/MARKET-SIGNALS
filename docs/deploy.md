@@ -173,9 +173,9 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 | Ping | Cadence | Purpose |
 |------|---------|---------|
-| `GET /api/v1/health` | ~every 10 min | Keep the API awake / reduce free-tier cold starts |
-| `GET /api/v1/assets?sync=true` | ~every 7 min | Full `rank_all` so memory + disk dashboard cache stay warm |
-| `POST /api/v1/paper/cron-tick` | ~every 7 min | Advance paper bot discovery so it can open when setups exist |
+| `GET /api/v1/health` | ~every 10 min | Cheap liveness ping — must **not** construct PaperAgent |
+| `POST /api/v1/paper/cron-tick` | right after health (retries 502) | Advance paper bot before the heavy rank |
+| `GET /api/v1/assets?sync=true` | after paper tick | Full `rank_all` so memory + Postgres dashboard cache stay warm |
 
 Browser dashboard calls `GET /api/v1/assets` **without** `sync` and receives a snapshot immediately (`ranking_status`: `fresh` / `stale` / `warming`). Cold misses refresh in the background so Netlify’s proxy does not wait on a full rank.
 
@@ -202,7 +202,7 @@ Do **not** set a URL to the bare hostname (`https://….onrender.com`) — that 
 
 If health still returns **401** after a full `/api/v1/health` URL, AUTH middleware is protecting health — exclude that path on Render (health must stay public).
 
-The assets job wakes health first, waits a few seconds, then hits `/assets?sync=true` (180s timeout). A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
+The assets job wakes health first, waits a few seconds, ticks the paper bot (with 502 retries), then hits `/assets?sync=true` (180s timeout). Ranking snapshots also persist in `paper_agent_state` (`dashboard_assets_v1`) so `hot_picks` survive Render disk wipes. A cold-start 502 or timeout is expected sometimes — the step exits 0 and uses `continue-on-error`, so the run stays green/yellow, not red. Health still fails the job on real errors. Schedules can drift on free Actions minutes; cost is $0 within the free allowance.
 
 ---
 

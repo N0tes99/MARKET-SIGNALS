@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from app.engines.learning_engine.postgres_store import to_sync_database_url
+from app.engines.paper_agent.store import is_preserved_meta_key
 from app.engines.paper_agent.types import PaperTrade
 from app.models.paper_trade import PaperAgentStateModel, PaperTradeModel
 
@@ -192,10 +193,13 @@ class PostgresPaperTradeStore:
             return row.value if row else None
 
     def clear_all(self) -> int:
-        """Wipe all paper trades + agent meta. Returns trades deleted."""
+        """Wipe paper trades + agent meta. Ranking seeds (dashboard_*) stay."""
         with self._lock, self._session_factory() as session:
             count = len(session.scalars(select(PaperTradeModel.id)).all())
             session.execute(delete(PaperTradeModel))
-            session.execute(delete(PaperAgentStateModel))
+            rows = session.scalars(select(PaperAgentStateModel)).all()
+            for row in rows:
+                if not is_preserved_meta_key(row.key):
+                    session.delete(row)
             session.commit()
             return count
