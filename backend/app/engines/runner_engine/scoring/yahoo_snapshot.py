@@ -45,6 +45,9 @@ class YahooRunnerSnapshot:
     price_to_sales: float | None = None
     week52_change: float | None = None
     quarterly_revenue: tuple[float, ...] = ()
+    eps_surprise_pct: float | None = None
+    eps_surprise_date: date | None = None
+    eps_beat_streak: int = 0
 
 
 def _num(info: dict, *keys: str) -> float | None:
@@ -171,11 +174,126 @@ def _quarterly_revenues(ticker: object) -> tuple[float, ...]:
     return ()
 
 
+def _as_date(value: object) -> date | None:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "date") and callable(value.date):
+        try:
+            parsed = value.date()
+        except Exception:
+            parsed = None
+        if isinstance(parsed, date):
+            return parsed
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _row_float(row: object, *names: str) -> float | None:
+    mapping: dict[str, object] = {}
+    if hasattr(row, "index"):
+        try:
+            for key, raw in zip(list(row.index), list(row.tolist()), strict=False):
+                mapping[
+                    str(key)
+                    .lower()
+                    .replace("%", "pct")
+                    .replace(" ", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace("_", "")
+                ] = raw
+        except Exception:
+            mapping = {}
+    for name in names:
+        raw = mapping.get(name)
+        if raw is None:
+            continue
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if number != number:
+            continue
+        return number
+    return None
+
+
+def eps_surprise_from_frame(
+    frame: object, *, today: date | None = None
+) -> tuple[date | None, float | None, int]:
+    """Newest reported EPS surprise. Surprise is Yahoo percent (12.5 = +12.5%)."""
+    now = today or datetime.now(UTC).date()
+    if frame is None or not hasattr(frame, "iterrows"):
+        return None, None, 0
+    try:
+        if getattr(frame, "empty", False):
+            return None, None, 0
+    except Exception:
+        return None, None, 0
+
+    last_date: date | None = None
+    last_surprise: float | None = None
+    streak = 0
+    streak_alive = True
+    try:
+        rows = list(frame.iterrows())
+    except Exception:
+        return None, None, 0
+
+    dated: list[tuple[date, object]] = []
+    for index, row in rows:
+        when = _as_date(index)
+        if when is None or when > now:
+            continue
+        dated.append((when, row))
+    dated.sort(key=lambda item: item[0], reverse=True)
+
+    for when, row in dated:
+        reported = _row_float(row, "reportedeps", "actual", "epsactual")
+        estimate = _row_float(row, "epsestimate", "estimate")
+        surprise = _row_float(row, "surprisepct", "surprise")
+        if reported is None:
+            continue
+        if surprise is None and estimate is not None and abs(estimate) > 1e-9:
+            surprise = (reported - estimate) / abs(estimate) * 100.0
+        if surprise is None:
+            continue
+        if last_surprise is None:
+            last_date = when
+            last_surprise = surprise
+        if streak_alive:
+            if surprise >= 0:
+                streak += 1
+            else:
+                streak_alive = False
+    return last_date, last_surprise, streak
+
+
+def _earnings_surprise(ticker: object) -> tuple[date | None, float | None, int]:
+    for attr in ("earnings_dates", "get_earnings_dates"):
+        try:
+            raw = getattr(ticker, attr)
+            frame = raw() if callable(raw) else raw
+        except Exception:
+            continue
+        when, surprise, streak = eps_surprise_from_frame(frame)
+        if surprise is not None:
+            return when, surprise, streak
+    return None, None, 0
+
+
 def _parse_info(
     symbol: str,
     info: dict,
     calendar: object | None,
     quarterly_revenue: tuple[float, ...] = (),
+    eps_surprise_pct: float | None = None,
+    eps_surprise_date: date | None = None,
+    eps_beat_streak: int = 0,
 ) -> YahooRunnerSnapshot:
     earnings = _earnings_from_info(info) or _earnings_from_calendar(calendar)
     return YahooRunnerSnapshot(
@@ -205,6 +323,9 @@ def _parse_info(
         price_to_sales=_num(info, "priceToSalesTrailing12Months"),
         week52_change=_num(info, "52WeekChange", "fiftyTwoWeekChange"),
         quarterly_revenue=quarterly_revenue,
+        eps_surprise_pct=eps_surprise_pct,
+        eps_surprise_date=eps_surprise_date,
+        eps_beat_streak=eps_beat_streak,
     )
 
 
@@ -238,7 +359,20 @@ def fetch_yahoo_runner_snapshot(symbol: str) -> YahooRunnerSnapshot:
                 quarterly = _quarterly_revenues(ticker)
             except Exception:
                 quarterly = ()
-            snap = _parse_info(normalized, info, calendar, quarterly)
+            surprise_date, surprise_pct, beat_streak = None, None, 0
+            try:
+                surprise_date, surprise_pct, beat_streak = _earnings_surprise(ticker)
+            except Exception:
+                surprise_date, surprise_pct, beat_streak = None, None, 0
+            snap = _parse_info(
+                normalized,
+                info,
+                calendar,
+                quarterly,
+                surprise_pct,
+                surprise_date,
+                beat_streak,
+            )
     except Exception:
         logger.warning("Yahoo runner snapshot failed for %s", normalized, exc_info=True)
         snap = empty_yahoo_snapshot(normalized)

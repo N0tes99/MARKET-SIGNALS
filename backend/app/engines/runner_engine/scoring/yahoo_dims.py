@@ -157,7 +157,7 @@ def score_catalyst(
     today: date | None = None,
     edgar: EdgarSnapshot | None = None,
 ) -> DimensionScore:
-    """Yahoo earnings date plus optional EDGAR 8-K overlay."""
+    """Yahoo earnings date, EPS surprise, plus optional EDGAR 8-K overlay."""
     now = today or datetime.now(UTC).date()
     factors: list[str] = []
     conflicts: list[str] = []
@@ -198,13 +198,47 @@ def score_catalyst(
         if edgar.latest_date is not None and (now - edgar.latest_date).days <= 3:
             conflicts.append("Fresh 8-K — event risk")
 
+    surprise = snap.eps_surprise_pct
+    surprise_when = snap.eps_surprise_date
+    if surprise is not None and surprise_when is not None:
+        age = (now - surprise_when).days
+        if 0 <= age <= 120:
+            quality = "good"
+            factors.append(
+                f"EPS surprise {surprise:+.1f}% ({surprise_when.isoformat()})"
+            )
+            if surprise >= 20:
+                score = clamp_score(score + 12.0)
+            elif surprise >= 5:
+                score = clamp_score(score + 8.0)
+            elif surprise >= 0:
+                score = clamp_score(score + 4.0)
+            elif surprise > -8:
+                score = clamp_score(score - 6.0)
+                conflicts.append("EPS miss vs estimate")
+            else:
+                score = clamp_score(score - 12.0)
+                conflicts.append("Large EPS miss vs estimate")
+            if snap.eps_beat_streak >= 3:
+                factors.append(f"{snap.eps_beat_streak}-quarter beat streak")
+                score = clamp_score(score + 4.0)
+
     if quality == "missing":
-        return _missing("catalyst", "Yahoo had no earnings date and EDGAR had no 8-K")
+        return _missing(
+            "catalyst",
+            "Yahoo had no earnings date, surprise, or EDGAR 8-K",
+        )
 
     return DimensionScore(
         name="catalyst",
         score=clamp_score(score),
-        confidence=0.7 if snap.earnings_date is not None else 0.55,
+        confidence=(
+            0.7
+            if snap.earnings_date is not None
+            else 0.68
+            if snap.eps_surprise_pct is not None
+            else 0.55
+        ),
         factors=factors,
         conflicts=conflicts,
         data_quality=quality,

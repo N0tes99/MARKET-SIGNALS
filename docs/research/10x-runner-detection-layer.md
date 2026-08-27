@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 3 partial** (structure + Yahoo snippets + QoQ acceleration + SEC 8-K/6-K + discovery vs valuation; paid SI and beat/guidance NLP still open; `/radar` labeled preview).
+> Status: **Phase 3 partial** (structure + Yahoo snippets + QoQ acceleration + SEC 8-K/6-K + Yahoo EPS surprise + discovery vs valuation; paid SI and 8-K beat/guidance NLP still open; `/radar` labeled preview).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -196,7 +196,7 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 
 - Fundamentals provider protocol + first adapter
 - Acceleration features (QoQ/YoY deltas of growth rates) — **v0:** QoQ revenue acceleration from Yahoo quarterly statements
-- Catalyst overlay v0 (Yahoo earnings date + recent EDGAR 8-K/6-K count). Beat/guidance NLP still open.
+- Catalyst overlay v0 (Yahoo earnings date + recent EDGAR 8-K/6-K count + Yahoo EPS surprise vs estimate). Beat/guidance NLP from 8-K text still open.
 - `DISCOVERY_GAP_SCORE` = fundamental/catalyst change vs price/valuation expansion — **v0:** analyst/cap followership + PEG/P/S + 52-week expansion
 - Institutional / SI providers as optional (degrade if missing)
 
