@@ -52,5 +52,6 @@ Thumbs.db
 # Docker
 *.log
 
-# Alembic
-# Keep versions tracked; ignore local overrides if any
+# Local parquet lake dumps
+data/lake/
+backend/data/lake/

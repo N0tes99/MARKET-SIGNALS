@@ -75,6 +75,7 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `RAIL_ARMED` | optional; default `false`. Master kill switch for Surface 6 clerk submits. Leave off. |
 | `RAIL_LIVE_ENABLED` | optional; default `false`. Live adapters **refuse even when true**. Do not put venue signing keys on Render. |
 | `HYPERLIQUID_INFO_URL` | optional; default `https://api.hyperliquid.xyz` — public `/info` only (Phase B scanners). Never point this at `/exchange`. |
+| `DATA_LAKE_PATH` | optional local parquet dump of `ohlcv_bars`. **Leave empty on Render** (ephemeral disk). Empty warehouse → no files. |
 
 ### Optional alert / email-verify vars
 

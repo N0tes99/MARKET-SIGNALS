@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     rail_live_enabled: bool = False
     # Public Hyperliquid info API (read-only). No key. Never the /exchange URL.
     hyperliquid_info_url: str = "https://api.hyperliquid.xyz"
+    # Local parquet dump of ohlcv_bars. Empty = disabled (Render has no persistent disk).
+    data_lake_path: str = ""
 
     # Shared site TOTP (Authenticator) — empty secret disables the gate
     # Generate with: python -c "import pyotp; print(pyotp.random_base32())"

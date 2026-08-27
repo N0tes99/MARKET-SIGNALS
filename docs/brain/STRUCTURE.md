@@ -35,6 +35,7 @@ backend/app/
 │   ├── schemas.py                   # Normalized bar types
 │   ├── ingest/                      # Live fetch → warehouse
 │   ├── warehouse/                   # ohlcv_bars (+ in-memory fallback)
+│   ├── lake/parquet.py              # Optional local dump (empty warehouse = no-op)
 │   └── replay/                      # Warehouse rewind for expansion replay
 │
 ├── engines/
