@@ -80,6 +80,8 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
 - [x] Phase 1 — Data model, config, stub `RunnerEngine` + `/api/v1/runners`
 - [x] Phase 2 — Structure + asymmetry from existing OHLCV/RS helpers; seed universe scan; preview `/radar` UI
 - [ ] Phase 3 — Fundamentals provider, catalyst detection, Discovery Gap (+ optional SI/ownership)
+  - [x] Yahoo snippet fundamentals / ownership / SI (Phase 2 leftover)
+  - [x] EDGAR 8-K / 6-K catalyst overlay (free SEC, fail-open)
 - [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
