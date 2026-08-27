@@ -437,6 +437,33 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export async function downloadPaperTradesCsv(): Promise<void> {
+  const response = await fetch(apiUrl("/api/v1/paper/trades.csv"), {
+    credentials: FETCH_CREDENTIALS,
+  });
+  if (!response.ok) {
+    const payload = await readErrorJson(response);
+    maybeRedirectGate(payload?.code);
+    throw new Error(
+      typeof payload?.detail === "string"
+        ? payload.detail
+        : `API error: ${response.status} ${response.statusText}`,
+    );
+  }
+  const blob = await response.blob();
+  const header = response.headers.get("content-disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(header);
+  const filename = match?.[1] ?? "paper-trades.csv";
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(href);
+}
+
 export type RailVenueId = "paper" | "hyperliquid" | "drift" | "polymarket";
 
 export interface RailEnvelope {
