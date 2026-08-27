@@ -215,6 +215,24 @@ def get_bars(
     return matching[-limit:]
 
 
+def list_series() -> list[tuple[str, str]]:
+    """Distinct (symbol, timeframe) pairs in the warehouse."""
+    found: set[tuple[str, str]] = set()
+    try:
+        Session = _session_factory()
+        if Session is not None:
+            with Session() as session:
+                rows = session.execute(
+                    select(OhlcvBarModel.symbol, OhlcvBarModel.timeframe).distinct()
+                ).all()
+            found.update((str(sym).upper(), str(tf)) for sym, tf in rows)
+    except Exception:
+        logger.debug("ohlcv warehouse list skipped", exc_info=True)
+    with _lock:
+        found.update((sym, tf) for (sym, tf, _ts) in _memory)
+    return sorted(found)
+
+
 def bars_to_frame(bars: list[OhlcvBar]) -> pd.DataFrame:
     """Warehouse bars → engine OHLCV frame."""
     if not bars:
