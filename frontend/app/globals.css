@@ -43,12 +43,15 @@
 
   html[data-display-mode="standalone"] {
     background: #06090c;
+    overflow-x: clip;
   }
 
   /* Installed desktop window — don't pretend this is a phone */
   @media (display-mode: standalone) and (min-width: 768px) {
     html[data-display-mode="standalone"] body {
       overscroll-behavior-y: auto;
+      overflow-x: clip;
+      max-width: 100%;
     }
   }
 
