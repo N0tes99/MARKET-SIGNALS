@@ -99,7 +99,7 @@ frontend/components/
 ## Phase B/C notes
 
 - CVD specialist prefers **Kraken (or Binance) public trades**; OHLCV buying-pressure proxy is the fallback.
-- News specialist is the **macro/event calendar** (FRED when keyed), not a headline NLP feed.
+- News specialist is the **macro/event calendar** (FRED when keyed) plus **headline RSS v0** (Yahoo titles, keyword polarity). Headlines do **not** enter 13-category grades.
 - Macro is a **global** opinion once per tick.
 - Expansion knobs live in `procedural_policies` when migrated; otherwise compiled defaults.
 - Live fetches write 5m/15m/1h/4h/1d bars into `ohlcv_bars` (fail-open).
