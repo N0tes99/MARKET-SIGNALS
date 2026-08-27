@@ -99,10 +99,12 @@ def test_paper_store_clear_all() -> None:
         )
     )
     store.set_meta("last_tick_at", now.isoformat())
+    store.set_meta("dashboard_assets_v1", "[]")
     assert len(store.list_all()) == 1
     assert store.clear_all() == 1
     assert store.list_all() == []
     assert store.get_meta("last_tick_at") is None
+    assert store.get_meta("dashboard_assets_v1") == "[]"
 
 
 def test_agent_opens_from_watch_ideas(monkeypatch) -> None:

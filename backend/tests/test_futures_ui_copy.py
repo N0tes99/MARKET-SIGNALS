@@ -42,5 +42,12 @@ def test_keep_warm_pings_futures_board() -> None:
     assert "Ping futures board" not in text
     assert "/api/v1/futures/board" in text
     assert "X-Cron-Secret" in text
-    assert "--max-time 180" in text
+    assert 'http_get "$ASSETS" 180' in text
+    assert 'http_get "$FUTURES" 180' in text
+    assert "--max-time 90" in text
     assert text.count("sync=true") >= 2
+    # Paper tick must run before the heavy assets rank (Render 502s otherwise).
+    paper_at = text.find("POST paper cron-tick")
+    assets_at = text.find("Pinging assets")
+    assert 0 <= paper_at < assets_at
+    assert "3 attempts" in text
