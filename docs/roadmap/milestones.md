@@ -83,3 +83,14 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
 - [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
+
+## Milestone 11 — Surface 6 Rail Engine
+
+Architecture: `ARCHITECTURE.md` §5.7, `docs/research/rail-execution-surface.md`.
+
+Separate engine: identify what SE cannot, on Hyperliquid, where we can also execute later.
+
+- [x] Phase A — clerk shell, paper dry-run, live stubs, `/rail` UI
+- [x] Phase B — HL read-only `l2Book` / funding / HIP-4 scanners (replace paper-agent mint)
+- [ ] Phase C — private micro-live in a **separate process** (agent wallet; SE paper maturity is not the gate — Rail’s own paper book is)
+- [ ] Phase D — perp↔outcome inventory, HIP-3, portfolio caps

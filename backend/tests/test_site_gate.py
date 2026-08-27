@@ -145,10 +145,13 @@ async def test_runners_and_perps_still_require_login_with_cron_when_gate_on(
         headers = {"X-Cron-Secret": "test-cron-secret"}
         runners = await client.get("/api/v1/runners", headers=headers)
         perps = await client.get("/api/v1/perps/board", headers=headers)
+        rail = await client.get("/api/v1/rail/desk", headers=headers)
     assert runners.status_code == 401
     assert runners.json()["code"] == "LOGIN_REQUIRED"
     assert perps.status_code == 401
     assert perps.json()["code"] == "LOGIN_REQUIRED"
+    assert rail.status_code == 401
+    assert rail.json()["code"] == "LOGIN_REQUIRED"
 
 
 @pytest.mark.asyncio

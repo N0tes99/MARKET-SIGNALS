@@ -48,6 +48,11 @@ def test_required_scope_for_path_expansion() -> None:
     assert required_scope_for_path("/api/v1/expansion", "POST") is None
 
 
+def test_required_scope_for_path_rail() -> None:
+    assert required_scope_for_path("/api/v1/rail/desk", "GET") == "rail:read"
+    assert required_scope_for_path("/api/v1/rail/clerk/simulate", "POST") is None
+
+
 def test_scope_allows_wildcard() -> None:
     assert scope_allows("cortex:read", ("*:read",))
 

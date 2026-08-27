@@ -424,6 +424,82 @@ export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
 }
 
+export type RailVenueId = "paper" | "hyperliquid" | "drift" | "polymarket";
+
+export interface RailEnvelope {
+  envelope_id: string;
+  venue: RailVenueId;
+  target_venue: RailVenueId;
+  market_kind: "perp" | "prediction" | "outcome";
+  side: "buy" | "sell";
+  size_band: "xs" | "s" | "m" | "l";
+  urgency: "passive" | "normal" | "aggressive";
+  edge_score: number;
+  ttl_seconds: number;
+  invalidation: string;
+  instrument_handle: string;
+  status: "open" | "closed";
+  created_at: string;
+}
+
+export interface RailFill {
+  fill_id: string;
+  envelope_id: string;
+  venue: RailVenueId;
+  side: "buy" | "sell";
+  size_band: "xs" | "s" | "m" | "l";
+  status: "paper_ack" | "rejected";
+  latency_ms: number;
+  reason: string;
+  created_at: string;
+}
+
+export interface RailVenue {
+  id: RailVenueId;
+  label: string;
+  chain: string;
+  market_kind: "perp" | "prediction" | "outcome";
+  role: string;
+  status: "ready" | "planned" | "refused";
+  note: string;
+}
+
+export interface RailDesk {
+  as_of: string;
+  armed: boolean;
+  live_enabled: boolean;
+  phase: string;
+  default_venue: RailVenueId;
+  sitting_out: boolean;
+  venues: RailVenue[];
+  envelopes: RailEnvelope[];
+  fills: RailFill[];
+  notes: string[];
+}
+
+export async function fetchRailDesk(): Promise<RailDesk> {
+  return apiFetch<RailDesk>("/api/v1/rail/desk", 30_000);
+}
+
+export async function simulateRailEnvelope(
+  envelopeId: string,
+): Promise<{ ok: boolean; fill: RailFill | null; detail: string | null }> {
+  const response = await fetch(apiUrl("/api/v1/rail/clerk/simulate"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ envelope_id: envelopeId }),
+  });
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<{
+    ok: boolean;
+    fill: RailFill | null;
+    detail: string | null;
+  }>;
+}
+
 export interface PerpsFundingRow {
   symbol: string;
   funding_rate: number | null;

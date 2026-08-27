@@ -7,6 +7,7 @@ Place research findings, data source evaluations, and strategy notes here.
 | Plan | Status | Doc |
 |------|--------|-----|
 | Surface 4 — 10X Runner Detection Layer | Phase 2 preview | [10x-runner-detection-layer.md](./10x-runner-detection-layer.md) |
+| Surface 6 — Rail (HL-native discovery + clerk) | Phase B scanners, paper fill | [rail-execution-surface.md](./rail-execution-surface.md) |
 | Dashboard smoothness | Applied (PR) | [dashboard-smoothness.md](./dashboard-smoothness.md) |
 | Futures positioning / COT overlay | Phase 1 overlay | [futures-social-positioning.md](./futures-social-positioning.md) |
 | Logo boot / hologram | Implemented (hero boot + header soft) | [logo-holo-boot.md](./logo-holo-boot.md) |
