@@ -20,6 +20,8 @@ def test_rail_page_is_blind_clerk() -> None:
     assert "not live exchange orders" in text
     assert "No trade is a valid decision" in text
     assert "Phase B reads Hyperliquid books" in text
+    assert 'desk?.phase ?? "A"' not in text
+    assert "waiting for clerk snapshot" in text
     assert "HIP-4" in text
     assert "Hyperliquid" in text
     assert "Drift" in text

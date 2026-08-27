@@ -140,7 +140,9 @@ export default function RailPage() {
             {desk?.armed ? "armed" : "safe"} · live {desk?.live_enabled ? "on" : "off"}
           </p>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
-            phase {desk?.phase ?? "A"} · venue {desk?.default_venue ?? "paper"}
+            {desk
+              ? `phase ${desk.phase} · venue ${desk.default_venue}`
+              : "waiting for clerk snapshot"}
           </p>
         </div>
         <div className="surface p-4">
