@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.auth_deps import require_admin_user
 from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.tune_csv import (
     CSV_COLUMNS,
@@ -99,14 +100,39 @@ class _StubAgent:
 
 
 @pytest.mark.asyncio
-async def test_trades_csv_endpoint() -> None:
+async def test_trades_csv_endpoint_requires_admin() -> None:
     app.dependency_overrides[get_paper_agent] = lambda: _StubAgent()
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res = await client.get("/api/v1/paper/trades.csv")
-    app.dependency_overrides.pop(get_paper_agent, None)
-    assert res.status_code == 200
-    assert "text/csv" in res.headers["content-type"]
-    assert "paper-trades-" in res.headers.get("content-disposition", "")
-    assert res.text.split("\n")[0].startswith("timestamp,asset_symbol")
-    assert "BTC" in res.text
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.get("/api/v1/paper/trades.csv")
+        assert res.status_code in {401, 403}
+    finally:
+        app.dependency_overrides.pop(get_paper_agent, None)
+
+
+@pytest.mark.asyncio
+async def test_trades_csv_endpoint() -> None:
+    from app.models.user import User
+
+    admin = User(
+        id=uuid4(),
+        email="admin@test.local",
+        username="Admin",
+        password_hash="test",
+        email_verified_at=datetime.now(UTC),
+    )
+    app.dependency_overrides[get_paper_agent] = lambda: _StubAgent()
+    app.dependency_overrides[require_admin_user] = lambda: admin
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.get("/api/v1/paper/trades.csv")
+        assert res.status_code == 200
+        assert "text/csv" in res.headers["content-type"]
+        assert "paper-trades-" in res.headers.get("content-disposition", "")
+        assert res.text.split("\n")[0].startswith("timestamp,asset_symbol")
+        assert "BTC" in res.text
+    finally:
+        app.dependency_overrides.pop(get_paper_agent, None)
+        app.dependency_overrides.pop(require_admin_user, None)

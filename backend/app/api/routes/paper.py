@@ -150,8 +150,9 @@ async def paper_summary(
 @router.get("/trades.csv")
 async def paper_trades_csv(
     agent: PaperAgent = Depends(get_paper_agent),
+    _admin: User = Depends(require_admin_user),
 ) -> Response:
-    """Full paper book as a tuning CSV (honest ledger when present). Does not tick."""
+    """Admin: full paper book as a tuning CSV. Does not tick."""
     body = await asyncio.to_thread(paper_trades_to_csv, agent.all_trades())
     stamp = datetime.now(UTC).strftime("%Y%m%d")
     filename = f"paper-trades-{stamp}.csv"

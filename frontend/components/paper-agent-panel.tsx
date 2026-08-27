@@ -332,37 +332,39 @@ export function PaperAgentPanel() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
-            disabled={csvBusy}
-            onClick={() => {
-              setCsvError(false);
-              setCsvBusy(true);
-              void downloadPaperTradesCsv()
-                .catch(() => setCsvError(true))
-                .finally(() => setCsvBusy(false));
-            }}
-          >
-            {csvBusy ? "exporting…" : "export csv"}
-          </button>
           {user?.is_admin ? (
-            <button
-              type="button"
-              className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
-              disabled={resetMutation.isPending}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Reset paper agent to $15,000 on both ledgers and clear all trades?",
-                  )
-                ) {
-                  resetMutation.mutate();
-                }
-              }}
-            >
-              {resetMutation.isPending ? "resetting…" : "reset $15k"}
-            </button>
+            <>
+              <button
+                type="button"
+                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+                disabled={csvBusy}
+                onClick={() => {
+                  setCsvError(false);
+                  setCsvBusy(true);
+                  void downloadPaperTradesCsv()
+                    .catch(() => setCsvError(true))
+                    .finally(() => setCsvBusy(false));
+                }}
+              >
+                {csvBusy ? "exporting…" : "export csv"}
+              </button>
+              <button
+                type="button"
+                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+                disabled={resetMutation.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Reset paper agent to $15,000 on both ledgers and clear all trades?",
+                    )
+                  ) {
+                    resetMutation.mutate();
+                  }
+                }}
+              >
+                {resetMutation.isPending ? "resetting…" : "reset $15k"}
+              </button>
+            </>
           ) : null}
           {isFetching && !isLoading ? (
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
