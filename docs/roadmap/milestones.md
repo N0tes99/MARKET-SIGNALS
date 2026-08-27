@@ -87,7 +87,11 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] Yahoo EPS surprise vs estimate (fail-open; not 8-K NLP)
   - [ ] Beat/guidance NLP from filings text
   - [ ] Paid SI / 13F flow vendor (Yahoo ownership snapshot remains)
-- [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
+- [ ] Phase 4 — Late stages, alerts, Radar UI
+  - [x] Stage 0–7 + signal types + EARLY / IGNITION / RUNNING lists
+  - [x] Alert gates early vs high-priority (Discord after silent baseline)
+  - [x] Dashboard table + stage rail; Opp vs Risk columns
+  - [ ] Paper agent auto-log EARLY→IGNITION (deferred)
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
 

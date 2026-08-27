@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
+import { StageRail } from "@/components/stage-rail";
 import { useRunnerDetail } from "@/hooks/use-runners";
 import { dimDisplay, formatRelVol, formatTapePct } from "@/lib/runner-display";
 
@@ -25,7 +26,8 @@ export default function RadarDetailPage() {
         </Link>
 
         <p className="mt-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-          yahoo tape + fundamentals + sec 8-k · discovery vs valuation · missing fields stay —
+          yahoo tape + fundamentals + sec 8-k · discovery vs valuation · lists can fill · preview
+          — not orders · missing fields stay —
         </p>
 
         {isLoading ? <div className="surface skeleton mt-6 h-40" /> : null}
@@ -63,10 +65,13 @@ export default function RadarDetailPage() {
                 {c.watchlist === "none" ? "off list" : c.watchlist}
               </p>
               <p className="mt-2 font-mono text-xs text-muted-foreground">
-                runner {c.scores.runner_score.toFixed(0)} · risk{" "}
-                {c.scores.risk_score.toFixed(0)} · conf {c.confidence.toFixed(0)} ·{" "}
-                {c.phase}
+                opp {c.scores.runner_score.toFixed(0)} · risk {c.scores.risk_score.toFixed(0)} ·
+                conf {c.confidence.toFixed(0)} · {c.phase}
+                {c.alert_gate && c.alert_gate !== "none" ? ` · gate ${c.alert_gate}` : ""}
               </p>
+              <div className="mt-4">
+                <StageRail stage={c.stage} />
+              </div>
               <p className="mt-2 font-mono text-xs text-muted-foreground">
                 struct {dimDisplay(c, "structure")} · 20d {formatTapePct(c.ret_20d_pct)} ·
                 vol {formatRelVol(c.relative_volume)} · rs {c.rs_benchmark ?? "—"}{" "}

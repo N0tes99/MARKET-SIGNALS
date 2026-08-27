@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 
-from app.engines.runner_engine.config import RunnerConfig, StageThresholds
+from app.engines.runner_engine.config import AlertThresholds, RunnerConfig, StageThresholds
 from app.engines.runner_engine.types import (
+    AlertGate,
     RunnerScores,
     RunnerSignalType,
     RunnerStage,
@@ -104,6 +105,35 @@ def classify_watchlist(stage: RunnerStage, signal: RunnerSignalType) -> Watchlis
     return "none"
 
 
+def classify_alert_gate(
+    scores: RunnerScores,
+    watchlist: WatchlistBucket,
+    alerts: AlertThresholds,
+) -> AlertGate:
+    """Early vs high-priority gates — risk-capped, not fired constantly."""
+    if scores.risk_score > alerts.max_risk_for_alert:
+        return "none"
+
+    if (
+        watchlist in {"ignition", "running"}
+        and scores.runner_score >= alerts.high_runner_min
+        and scores.fundamental >= alerts.high_fundamental_min
+        and scores.catalyst >= alerts.high_catalyst_min
+        and scores.structure >= alerts.high_structure_min
+    ):
+        return "high"
+
+    if (
+        watchlist == "early"
+        and scores.fundamental >= alerts.early_fundamental_min
+        and scores.discovery_gap >= alerts.early_discovery_gap_min
+        and alerts.early_structure_min <= scores.structure <= alerts.early_structure_max
+    ):
+        return "early"
+
+    return "none"
+
+
 def classify(
     scores: RunnerScores,
     config: RunnerConfig,
@@ -113,8 +143,9 @@ def classify(
 ) -> tuple[RunnerStage, RunnerSignalType, WatchlistBucket]:
     """Full classification with logging.
 
-    Until fundamentals are real, only dormant / early_accumulation may emit.
-    Ignition and running lists stay empty.
+    Structure-only (Yahoo fundamentals missing) stays capped at dormant /
+    early_accumulation. When fundamentals are filled, ignition and running
+    lists may emit.
     """
     if not fundamentals_available:
         if scores.structure >= config.stages.structure_accumulation:

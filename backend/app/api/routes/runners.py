@@ -78,6 +78,7 @@ def _to_schema(candidate: RunnerCandidate) -> RunnerCandidateSchema:
         stage=candidate.stage,
         signal_type=candidate.signal_type,
         watchlist=candidate.watchlist,
+        alert_gate=candidate.alert_gate,
         scores=_scores_to_schema(candidate.scores),
         factors=list(candidate.factors),
         conflicts=list(candidate.conflicts),

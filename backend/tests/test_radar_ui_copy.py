@@ -29,6 +29,11 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "Crypto" in text
     assert 'crypto: "Crypto"' in text
     assert "learning from paper" in text
+    assert "Lists can fill when Yahoo fundamentals exist" in text
+    assert "Preview — not orders" in text
+    assert ">Opp<" in text
+    assert "StageRail" in text
+    assert "opp {c.scores.runner_score" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
@@ -37,6 +42,10 @@ def test_radar_detail_does_not_claim_structure_only() -> None:
     assert "fundamentals not scored" not in text
     assert "runner failure" in text
     assert "stage" in text
+    assert "StageRail" in text
+    assert "opp {c.scores.runner_score" in text
+    assert "preview" in text
+    assert "not orders" in text
 
 
 def test_compact_header_stacks_on_mobile() -> None:
@@ -77,8 +86,24 @@ def test_legacy_pwa_script_uses_signal_mark() -> None:
     assert 'text = "SE"' not in text
 
 
+def test_stage_rail_covers_all_stages() -> None:
+    text = (_ROOT / "frontend" / "components" / "stage-rail.tsx").read_text(encoding="utf-8")
+    assert "dormant" in text
+    assert "fundamental_inflection" in text
+    assert "early_accumulation" in text
+    assert "catalyst" in text
+    assert "ignition" in text
+    assert "discovery" in text
+    assert "momentum" in text
+    assert "extended" in text
+    assert "compact" in text
+
+
 def test_home_strip_mentions_yahoo_fundamentals() -> None:
     text = _STRIP.read_text(encoding="utf-8")
     assert "yahoo tape + fundamentals + sec 8-k · discovery vs valuation" in text
     assert "fundamentals not scored" not in text
     assert "fundamentals_filled" in text
+    assert "opp {c.scores.runner_score" in text
+    assert "preview" in text
+    assert "not orders" in text

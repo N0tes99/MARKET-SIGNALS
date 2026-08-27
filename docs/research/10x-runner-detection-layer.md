@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 3 partial** (structure + Yahoo snippets + QoQ acceleration + SEC 8-K/6-K + Yahoo EPS surprise + discovery vs valuation; paid SI and 8-K beat/guidance NLP still open; `/radar` labeled preview).
+> Status: **Phase 4 v0** (lists + alert gates + stage rail; ignition/running may emit when Yahoo fundamentals exist; still preview, not orders. Paid SI and 8-K beat/guidance NLP still open; Phase 5 backtests not started).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -200,13 +200,13 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 - `DISCOVERY_GAP_SCORE` = fundamental/catalyst change vs price/valuation expansion — **v0:** analyst/cap followership + PEG/P/S + 52-week expansion
 - Institutional / SI providers as optional (degrade if missing)
 
-### Phase 4 — Stages, alerts, 10X Radar UI
+### Phase 4 — Stages, alerts, 10X Radar UI (**v0**)
 
 - Stage 0–7 classifier prioritizing Stages 1–4
 - Signal types: EARLY_RUNNER, ACCUMULATION, IGNITION, CONFIRMED_RUNNER, EXTENDED_RUNNER, RUNNER_FAILURE
-- Watchlists EARLY / IGNITION / RUNNING
-- Alert gates per spec (early vs high-priority)
-- Dashboard “10X Radar” table + stage progression viz
+- Watchlists EARLY / IGNITION / RUNNING (may fill when Yahoo fundamentals exist; structure-only still capped)
+- Alert gates per spec (early vs high-priority); Discord after silent baseline
+- Dashboard “10X Radar” table + stage progression rail
 - Separate Opportunity vs Risk columns
 
 ### Phase 5 — Historical backtest / lead time

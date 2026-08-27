@@ -13,7 +13,7 @@ from app.engines.runner_engine.compose import (
 )
 from app.engines.runner_engine.config import RUNNER_PHASE, RunnerConfig, default_runner_config
 from app.engines.runner_engine.scoring import score_all_dimensions
-from app.engines.runner_engine.stage import classify
+from app.engines.runner_engine.stage import classify, classify_alert_gate
 from app.engines.runner_engine.types import DataQuality, RunnerCandidate
 from app.market_data.service import MarketDataService
 
@@ -57,6 +57,7 @@ class RunnerEngine:
             has_severe_risk=has_severe,
             fundamentals_available=fundamentals_available,
         )
+        alert_gate = classify_alert_gate(scores, watchlist, self.config.alerts)
         quality = aggregate_data_quality(dimensions)
         confidence = confidence_from_dimensions(dimensions)
         qualities: dict[str, DataQuality] = {
@@ -80,6 +81,7 @@ class RunnerEngine:
             stage=stage,
             signal_type=signal,
             watchlist=watchlist,
+            alert_gate=alert_gate,
             scores=scores,
             factors=factors,
             conflicts=conflicts,
@@ -92,13 +94,14 @@ class RunnerEngine:
         )
         logger.info(
             "runner_evaluate symbol=%s runner=%.1f risk=%.1f stage=%s signal=%s "
-            "watchlist=%s quality=%s phase=%s",
+            "watchlist=%s gate=%s quality=%s phase=%s",
             normalized,
             scores.runner_score,
             scores.risk_score,
             stage,
             signal,
             watchlist,
+            alert_gate,
             quality,
             RUNNER_PHASE,
         )
