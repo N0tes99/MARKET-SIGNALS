@@ -46,7 +46,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 function MainNav() {
   const { user } = useAuth();
   return (
-    <nav className="app-nav-scroll flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-1.5 md:min-w-0 md:flex-1 md:flex-nowrap md:overflow-x-auto">
+    <nav className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1">
       {user ? <NavLink href="/" label="Desk" /> : null}
       <NavLink href="/social" label="Social" />
       {user ? (
@@ -85,19 +85,26 @@ function DesktopBar({
 }) {
   return (
     <div className="hidden md:block">
-      <div className="container mx-auto flex h-14 items-center gap-6 px-4">
-        <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-          <SignalEngineLogo size="sm" />
-          <p className="max-w-[10rem] truncate font-mono text-[11px] uppercase tracking-widest text-muted-foreground/70 lg:max-w-none">
-            {title}
-          </p>
+      {/*
+        Installed desktop PWAs (Windows/Edge “app”) often open ~800px wide.
+        A single nowrap h-14 row clips Desk/Perps/Rail behind Sign in.
+        Stack logo+auth, then wrap the tabs. Wide browsers still fit one row at xl.
+      */}
+      <div className="container mx-auto flex flex-col gap-2 px-4 py-2.5 xl:flex-row xl:items-center xl:gap-6">
+        <div className="flex min-w-0 items-center justify-between gap-3 xl:contents">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <SignalEngineLogo size="sm" />
+            <p className="hidden truncate font-mono text-[11px] uppercase tracking-widest text-muted-foreground/70 lg:block">
+              {title}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            {trailing}
+            {subtitle ? <div className="hidden max-w-[18rem] 2xl:block">{subtitle}</div> : null}
+            <AuthNav />
+          </div>
         </div>
         <MainNav />
-        <div className="flex shrink-0 items-center gap-4">
-          {trailing}
-          {subtitle ? <div className="hidden max-w-[18rem] xl:block">{subtitle}</div> : null}
-          <AuthNav />
-        </div>
       </div>
     </div>
   );

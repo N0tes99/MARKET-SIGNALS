@@ -31,9 +31,12 @@ type BeforeInstallPromptEvent = Event & {
 
 function detectStandalone(): boolean {
   if (typeof window === "undefined") return false;
-  const mq = window.matchMedia("(display-mode: standalone)").matches;
+  const modes = ["standalone", "minimal-ui", "window-controls-overlay"] as const;
+  if (modes.some((mode) => window.matchMedia(`(display-mode: ${mode})`).matches)) {
+    return true;
+  }
   const ios = "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-  return mq || ios;
+  return ios;
 }
 
 function detectApple(): boolean {
@@ -58,9 +61,13 @@ export function HomescreenProvider({ children }: { children: ReactNode }) {
       document.documentElement.dataset.apple = apple ? "true" : "false";
     };
     apply();
-    const mq = window.matchMedia("(display-mode: standalone)");
+    const mqs = (["standalone", "minimal-ui", "window-controls-overlay"] as const).map((mode) =>
+      window.matchMedia(`(display-mode: ${mode})`),
+    );
     const onChange = () => apply();
-    mq.addEventListener?.("change", onChange);
+    for (const mq of mqs) {
+      mq.addEventListener?.("change", onChange);
+    }
 
     const onBip = (event: Event) => {
       event.preventDefault();
@@ -69,7 +76,9 @@ export function HomescreenProvider({ children }: { children: ReactNode }) {
     window.addEventListener("beforeinstallprompt", onBip);
 
     return () => {
-      mq.removeEventListener?.("change", onChange);
+      for (const mq of mqs) {
+        mq.removeEventListener?.("change", onChange);
+      }
       window.removeEventListener("beforeinstallprompt", onBip);
     };
   }, []);

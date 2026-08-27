@@ -17,7 +17,7 @@ export function AuthNav() {
 
   if (!user) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <Link
           href="/login"
           className="nav-link text-muted-foreground hover:text-foreground"
@@ -26,7 +26,7 @@ export function AuthNav() {
         </Link>
         <Link
           href="/register"
-          className="btn-glass px-3 py-1.5"
+          className="btn-glass whitespace-nowrap px-2.5 py-1.5 sm:px-3"
         >
           Create account
         </Link>
