@@ -509,7 +509,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Seed universe is for testing/benchmarking — not hard-coded recommendations
 - Backtest must measure **lead time** and forbid look-ahead bias
 
-**Status:** `PHASE 3 PARTIAL` — real daily structure (momentum + RS), Yahoo snippet fundamentals when present (including QoQ revenue acceleration from quarterly statements), free SEC 8-K/6-K catalyst overlay, and Discovery Gap as followership vs valuation (PEG / P/S / 52-week expansion). Runner Score still caps when Yahoo fundamentals are missing. UI `/radar` is labeled preview. Ignition/running lists stay conservative until Phase 4. Paid SI vendor and beat/guidance NLP still open. See `docs/research/10x-runner-detection-layer.md`.
+**Status:** `PHASE 3 PARTIAL` — real daily structure (momentum + RS), Yahoo snippet fundamentals when present (including QoQ revenue acceleration from quarterly statements), free SEC 8-K/6-K catalyst overlay, Yahoo EPS surprise vs estimate, and Discovery Gap as followership vs valuation (PEG / P/S / 52-week expansion). Runner Score still caps when Yahoo fundamentals are missing. UI `/radar` is labeled preview. Ignition/running lists stay conservative until Phase 4. Paid SI vendor and 8-K beat/guidance NLP still open. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 

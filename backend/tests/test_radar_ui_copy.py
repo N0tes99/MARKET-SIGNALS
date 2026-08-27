@@ -16,6 +16,7 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     text = _RADAR.read_text(encoding="utf-8")
     assert "Yahoo tape + fundamentals + SEC 8-K" in text
     assert "Discovery gap is followership vs valuation" in text
+    assert "EPS surprise when Yahoo has a print" in text
     assert "em dash" in text
     assert "No names on early, ignition, or running lists today." in text
     assert "fundamentals_filled" in text

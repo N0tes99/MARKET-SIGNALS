@@ -84,7 +84,8 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] EDGAR 8-K / 6-K catalyst overlay (free SEC, fail-open)
   - [x] QoQ revenue acceleration from Yahoo quarterly statements (fail-open)
   - [x] Discovery Gap vs valuation (PEG / P/S / 52-week expansion; not a 50-fill)
-  - [ ] Beat/guidance NLP
+  - [x] Yahoo EPS surprise vs estimate (fail-open; not 8-K NLP)
+  - [ ] Beat/guidance NLP from filings text
   - [ ] Paid SI / 13F flow vendor (Yahoo ownership snapshot remains)
 - [ ] Phase 4 — Late stages, alerts; Radar remains preview until fundamentals exist
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
