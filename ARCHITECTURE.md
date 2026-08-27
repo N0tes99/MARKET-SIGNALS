@@ -941,7 +941,7 @@ on the paper clerk. Live adapters hard-refuse even if `RAIL_ARMED` / `RAIL_LIVE_
 
 | Method | Path | Description | Status |
 |--------|------|-------------|--------|
-| `GET` | `/api/v1/health` | Service health check | **Live** |
+| `GET` | `/api/v1/health` | Service health + warehouse/Alembic snapshot | **Live** |
 | `GET` | `/api/v1/assets` | Dashboard asset summaries | **Live** |
 | `GET` | `/api/v1/assets/{symbol}` | Single asset summary | **Live** |
 | `GET` | `/api/v1/opportunities` | Ranked opportunities | **Live** |
@@ -952,6 +952,7 @@ on the paper clerk. Live adapters hard-refuse even if `RAIL_ARMED` / `RAIL_LIVE_
 | `GET` | `/api/v1/sse/dashboard` | Same payload over SSE | **Live** (frontend + proxy) |
 | `GET` | `/api/v1/expansion/policy` | Expansion knobs | **Live** |
 | `GET` | `/api/v1/data-lake/ohlcv/{symbol}` | Warehouse OHLCV | **Live** |
+| `GET` | `/api/v1/data-lake/status` | Warehouse fill + Alembic revision | **Live** |
 | `GET` | `/api/v1/rail/desk` | Surface 6 blind clerk snapshot | **Phase B** |
 | `POST` | `/api/v1/rail/clerk/simulate` | Paper dry-run fill (no live order) | **Phase B** |
 

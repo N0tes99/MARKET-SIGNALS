@@ -48,6 +48,19 @@ export interface HealthResponse {
   app_name: string;
   version: string;
   environment: string;
+  warehouse?: {
+    backend: string;
+    table_present: boolean;
+    bar_count: number;
+    symbol_count: number;
+    latest_ts: string | null;
+  };
+  alembic?: {
+    current: string | null;
+    head: string | null;
+    at_head: boolean;
+    source: string;
+  };
 }
 
 export interface EvidenceItem {

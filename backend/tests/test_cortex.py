@@ -169,3 +169,9 @@ async def test_expansion_policy_and_warehouse_api(client: AsyncClient) -> None:
     lake = await client.get("/api/v1/data-lake/ohlcv/BTC?timeframe=1h")
     assert lake.status_code == 200
     assert "bars" in lake.json()
+    status = await client.get("/api/v1/data-lake/status")
+    assert status.status_code == 200
+    body = status.json()
+    assert "warehouse" in body
+    assert "alembic" in body
+    assert body["alembic"]["head"]
