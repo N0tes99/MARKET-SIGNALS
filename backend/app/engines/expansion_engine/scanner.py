@@ -13,10 +13,10 @@ from app.engines.expansion_engine.config import (
     ExpansionConfig,
     default_expansion_config,
 )
+from app.engines.expansion_engine.scoring.composer import compose_scores
 from app.engines.expansion_engine.squeeze_fuel import analyze_squeeze_fuel
 from app.engines.expansion_engine.state import (
     build_guidance,
-    compose_scores,
     confidence_from_scores,
     resolve_direction_bias,
     resolve_state,

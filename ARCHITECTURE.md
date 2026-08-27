@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Version | 0.6.1 |
-| Last updated | 2026-08-20 |
-| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; OHLCV warehouse; tape CVD; SSE desk |
+| Last updated | 2026-08-27 |
+| Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; expansion scoring composer; OHLCV warehouse; tape CVD; SSE desk |
 
 ---
 
@@ -115,7 +115,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
 | Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
-| Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP (BTC/SOL/SUI)** |
+| Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP + scoring composer** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
 | Episodic memory | `backend/app/memory/episodic/` | **Postgres + in-memory fallback** |
 | Procedural knobs | `backend/app/memory/procedural/` | **Postgres + file defaults** |
@@ -541,7 +541,7 @@ Cortex tick (120s)
 | `GET /api/v1/sse/dashboard` | Live asset summaries (SSE; Netlify-safe) |
 | `WS /api/v1/ws/dashboard` | Same payload over WebSocket (direct API) |
 
-**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No headline NLP news feed, no live broker execution, no Surface 4 fundamentals vendor.
+**Status:** `MVP + Phase B/C` — compression/squeeze/trigger/state, **named scoring composer** (`scoring/composer.py`) that normalizes live procedural weights and logs a Policy contributor, cortex v2 specialists (regime, derivatives, Kraken/Binance **tape CVD** with OHLCV proxy fallback, news/calendar, global macro), paper bridge, `/expansion` radar, procedural knobs in Postgres (`procedural_policies`), OHLCV write-through warehouse (`ohlcv_bars`). Dashboard live feed is SSE through the Next proxy (WebSocket still there for local/direct). No headline NLP news feed, no live broker execution, no Surface 4 fundamentals vendor.
 
 ---
 
