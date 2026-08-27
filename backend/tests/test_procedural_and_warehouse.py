@@ -4,12 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
+from app.data_lake.ops import alembic_head, lake_ops_snapshot
 from app.data_lake.schemas import OhlcvBar
 from app.data_lake.warehouse.ohlcv import (
     get_bars,
     persist_ohlcv_frame,
     reset_memory_store,
     upsert_bars,
+    warehouse_status,
 )
 from app.engines.expansion_engine.config import (
     DEFAULT_EXPANSION_CONFIG,
@@ -105,3 +107,23 @@ def test_warehouse_orders_bars_oldest_first() -> None:
     )
     closes = [b.close for b in get_bars("WH1", "1h")]
     assert closes == [1.0, 2.0, 3.0]
+
+
+def test_warehouse_status_counts_memory_bars() -> None:
+    ts = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
+    upsert_bars(
+        [
+            OhlcvBar("AAA", "1h", ts, 1, 1, 1, 1, 1),
+            OhlcvBar("BBB", "1h", ts, 2, 2, 2, 2, 1),
+        ]
+    )
+    status = warehouse_status()
+    assert status["backend"] == "memory"
+    assert status["table_present"] is False
+    assert status["bar_count"] == 2
+    assert status["symbol_count"] == 2
+    assert status["latest_ts"] == ts
+    snap = lake_ops_snapshot()
+    assert snap["warehouse"]["bar_count"] == 2
+    assert snap["alembic"]["source"] == "skipped"
+    assert alembic_head()

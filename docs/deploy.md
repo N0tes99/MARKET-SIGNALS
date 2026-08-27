@@ -99,9 +99,15 @@ reuse the same `CELERY_BROKER_URL` / beat schedule from `app.core.celery_app`.
 ```bash
 curl https://YOUR-RENDER-URL/api/v1/health
 # → 200 healthy; check stores.learning / stores.paper / stores.alerts == "postgres"
+# After 020: alembic.at_head true, alembic.current "020" (or later),
+# warehouse.table_present true. warehouse.bar_count grows after keep-warm /assets
+# and cortex ticks write 5m/15m/1h/4h/1d bars. Zero bars = lake not ready (no parquet yet).
 
 curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/alerts/status
 # → 200; state_backend should be "postgres"
+
+curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/data-lake/status
+# → warehouse + alembic snapshot (same fields as health, behind Basic Auth)
 ```
 
 ---

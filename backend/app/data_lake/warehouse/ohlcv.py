@@ -241,3 +241,56 @@ def backend_name() -> str:
     except Exception:
         pass
     return "memory"
+
+
+def warehouse_status() -> dict[str, object]:
+    """Public ops snapshot: backend, table, bar counts. Fail-open."""
+    status: dict[str, object] = {
+        "backend": "memory",
+        "table_present": False,
+        "bar_count": 0,
+        "symbol_count": 0,
+        "latest_ts": None,
+    }
+    try:
+        Session = _session_factory()
+    except Exception:
+        Session = None
+    if Session is not None:
+        try:
+            from sqlalchemy import distinct, func
+
+            with Session() as session:
+                bar_count = int(
+                    session.scalar(select(func.count()).select_from(OhlcvBarModel)) or 0
+                )
+                symbol_count = int(
+                    session.scalar(select(func.count(distinct(OhlcvBarModel.symbol)))) or 0
+                )
+                latest = session.scalar(select(func.max(OhlcvBarModel.ts)))
+            status.update(
+                {
+                    "backend": "postgres",
+                    "table_present": True,
+                    "bar_count": bar_count,
+                    "symbol_count": symbol_count,
+                    "latest_ts": _normalize_ts(latest) if latest is not None else None,
+                }
+            )
+            return status
+        except Exception:
+            logger.debug("ohlcv warehouse status skipped", exc_info=True)
+
+    with _lock:
+        bars = list(_memory.values())
+    latest_mem = max((bar.ts for bar in bars), default=None)
+    status.update(
+        {
+            "backend": "memory",
+            "table_present": False,
+            "bar_count": len(bars),
+            "symbol_count": len({bar.symbol for bar in bars}),
+            "latest_ts": latest_mem,
+        }
+    )
+    return status

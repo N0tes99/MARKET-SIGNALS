@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
+from app.data_lake.ops import lake_ops_snapshot
 from app.data_lake.warehouse.ohlcv import backend_name, get_bars
 
 router = APIRouter()
+
+
+@router.get("/status")
+def get_warehouse_status() -> dict:
+    """Alembic revision + ohlcv_bars fill. Empty bars means the lake is not ready."""
+    return lake_ops_snapshot()
 
 
 @router.get("/ohlcv/{symbol}")
