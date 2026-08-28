@@ -10,6 +10,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_learning_engine, get_runner_scanner
+from app.engines.runner_engine.backtest.dataset import PATTERN_STUDY_SYMBOLS
+from app.engines.runner_engine.backtest.study import cached_live_study
 from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
 from app.engines.runner_engine.crypto_learn import (
     get_crypto_learn_coefficients,
@@ -24,6 +26,10 @@ from app.engines.runner_engine.scanner import RunnerScanner
 from app.engines.runner_engine.types import RunnerCandidate
 from app.schemas.crypto_radar import CryptoRadarCandidateSchema, CryptoRadarFeedResponse
 from app.schemas.runners import (
+    RunnerBacktestCaseSchema,
+    RunnerBacktestMetricsSchema,
+    RunnerBacktestResponse,
+    RunnerBacktestSnapshotSchema,
     RunnerCandidateSchema,
     RunnerConfigMetaResponse,
     RunnerDetailResponse,
@@ -219,6 +225,71 @@ async def get_runner_config_meta() -> RunnerConfigMetaResponse:
         alert_early_fundamental_min=cfg.alerts.early_fundamental_min,
         alert_early_discovery_gap_min=cfg.alerts.early_discovery_gap_min,
         phase=RUNNER_PHASE,
+    )
+
+
+def _snapshot_schema(point) -> RunnerBacktestSnapshotSchema:
+    return RunnerBacktestSnapshotSchema(
+        offset_days=point.offset_days,
+        as_of=point.as_of,
+        last_close=point.last_close,
+        stage=point.stage,
+        watchlist=point.watchlist,
+        runner_score=point.scores.runner_score,
+        structure=point.scores.structure,
+        fundamentals_available=point.fundamentals_available,
+    )
+
+
+def _case_schema(case) -> RunnerBacktestCaseSchema:
+    return RunnerBacktestCaseSchema(
+        symbol=case.symbol,
+        bars=case.bars,
+        error=case.error,
+        trough_date=case.trough_date,
+        hit_2x=case.hit_2x,
+        hit_5x=case.hit_5x,
+        hit_10x=case.hit_10x,
+        date_2x=case.date_2x,
+        date_5x=case.date_5x,
+        date_10x=case.date_10x,
+        days_to_2x=case.days_to_2x,
+        days_to_5x=case.days_to_5x,
+        days_to_10x=case.days_to_10x,
+        first_early=case.first_early,
+        first_ignition=case.first_ignition,
+        first_running=case.first_running,
+        lead_days_to_2x=case.lead_days_to_2x,
+        late_for_2x=case.late_for_2x,
+        max_dd_after_early_pct=case.max_dd_after_early_pct,
+        snapshots=[_snapshot_schema(s) for s in case.snapshots],
+    )
+
+
+@router.get("/backtest", response_model=RunnerBacktestResponse)
+async def get_runner_backtest() -> RunnerBacktestResponse:
+    """Phase 5 v0: structure-tape lead-time study on pattern names.
+
+    Truncates daily bars at each as-of. Does not score live Yahoo fundamentals
+    back through history (that would look ahead).
+    """
+    try:
+        study = await asyncio.to_thread(cached_live_study)
+    except Exception:
+        logger.exception("Runner lead-time study failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Runner lead-time study failed",
+        ) from None
+
+    return RunnerBacktestResponse(
+        phase=study.phase,
+        mode=study.mode,
+        generated_at=study.generated_at,
+        look_ahead=study.look_ahead,
+        symbols=list(PATTERN_STUDY_SYMBOLS),
+        cases=[_case_schema(c) for c in study.cases],
+        metrics=RunnerBacktestMetricsSchema(**study.metrics.__dict__),
     )
 
 

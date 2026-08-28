@@ -33,6 +33,7 @@ function proxyTimeoutMs(targetPath: string): number {
     "api/v1/runners",
     "api/v1/runners/lists",
     "api/v1/runners/crypto",
+    "api/v1/runners/backtest",
     "api/v1/options-tape",
     "api/v1/perps/board",
     "api/v1/futures/board",

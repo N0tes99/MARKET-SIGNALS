@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 4 v0** (lists + alert gates + stage rail; ignition/running may emit when Yahoo fundamentals exist; still preview, not orders. Paid SI and 8-K beat/guidance NLP still open; Phase 5 backtests not started).
+> Status: **Phase 5 v0** (structure-tape lead-time study on truncated daily bars; current Yahoo fundamentals unused in replay. Lists + alert gates + stage rail remain. Paid SI and 8-K NLP still open; Phase 6 weight tuning not started).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -95,7 +95,7 @@ backend/app/schemas/runner.py
 backend/app/api/routes/runners.py
 backend/tests/test_runner_engine_*.py
 frontend/ … 10X Radar UI
-docs/research/runner-historical-study.md   # NBIS/SMCI/CRDO/… case notes
+docs/research/runner-case-studies/   # NBIS/SMCI/CRDO/… case notes
 ```
 
 **Why not under `opportunity_engine/`?**  
@@ -209,11 +209,13 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 - Dashboard “10X Radar” table + stage progression rail
 - Separate Opportunity vs Risk columns
 
-### Phase 5 — Historical backtest / lead time
+### Phase 5 — Historical backtest / lead time (**v0**)
 
 - Labeled multi-bagger dataset (2×/3×/5×/10×) with point-in-time features at T-180…T0
 - Metrics: precision/recall, false-positive rate, **lead time**, time-to-N×, max DD
-- Strict no look-ahead (as-of dates on fundamentals/ownership)
+- Strict no look-ahead: replay truncates daily bars at each as-of; live Yahoo snippets are not used as historical fundamentals
+- Case notes: `docs/research/runner-case-studies/`
+- API: `GET /api/v1/runners/backtest` + Radar Study track
 
 ### Phase 6 — Weight optimization
 
@@ -229,7 +231,7 @@ NBIS, CRWV, SMCI, IREN, AAOI, CRDO, ALAB, POET, INDI, COHR, LITE, MXL, AIP, ICHR
 
 **Pattern studies:** NBIS, SMCI, CRDO, ALAB, AAOI, LITE, CLS, VRT + other historical 5×/10× names.
 
-Store case writeups under `docs/research/runner-case-studies/` when Phase 5 starts.
+Case notes: `docs/research/runner-case-studies/`.
 
 ---
 
@@ -240,7 +242,7 @@ Store case writeups under `docs/research/runner-case-studies/` when Phase 5 star
 | `GET /api/v1/runners` | Ranked feed; filters: `list=early\|ignition\|running`, `min_score`, `stage` |
 | `GET /api/v1/runners/{symbol}` | Full candidate + score breakdown + factors/conflicts/risks |
 | `GET /api/v1/runners/meta/config` | Public thresholds (no secrets) |
-| `POST /api/v1/runners/backtest` (later) | Kick or fetch lead-time study jobs |
+| `GET /api/v1/runners/backtest` | Structure-tape lead-time study (Phase 5 v0) |
 
 Response always includes explainability fields — never bare “BUY / 87”.
 

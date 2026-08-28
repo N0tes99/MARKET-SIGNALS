@@ -1,6 +1,6 @@
 """Surface 4 Runner Detection API schemas."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -62,7 +62,7 @@ class RunnerCandidateSchema(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     data_quality: DataQuality = "missing"
     as_of: datetime
-    phase: str = "4_lists"
+    phase: str = "5_leadtime"
     qualities: dict[str, DataQuality] = Field(default_factory=dict)
     ret_20d_pct: float | None = None
     relative_volume: float | None = None
@@ -110,4 +110,74 @@ class RunnerConfigMetaResponse(BaseModel):
     alert_standard_runner_min: float
     alert_early_fundamental_min: float
     alert_early_discovery_gap_min: float
-    phase: str = "4_lists"
+    phase: str = "5_leadtime"
+
+
+class RunnerBacktestSnapshotSchema(BaseModel):
+    """Classify at T-N using only bars on or before that date."""
+
+    offset_days: int | None = None
+    as_of: date
+    last_close: float | None = None
+    stage: RunnerStage
+    watchlist: WatchlistBucket
+    runner_score: float
+    structure: float
+    fundamentals_available: bool = False
+
+
+class RunnerBacktestCaseSchema(BaseModel):
+    """One study path — multiples are outcome labels, not features."""
+
+    symbol: str
+    bars: int
+    error: str | None = None
+    trough_date: date | None = None
+    hit_2x: bool = False
+    hit_5x: bool = False
+    hit_10x: bool = False
+    date_2x: date | None = None
+    date_5x: date | None = None
+    date_10x: date | None = None
+    days_to_2x: int | None = None
+    days_to_5x: int | None = None
+    days_to_10x: int | None = None
+    first_early: date | None = None
+    first_ignition: date | None = None
+    first_running: date | None = None
+    lead_days_to_2x: int | None = None
+    late_for_2x: bool = False
+    max_dd_after_early_pct: float | None = None
+    snapshots: list[RunnerBacktestSnapshotSchema] = Field(default_factory=list)
+
+
+class RunnerBacktestMetricsSchema(BaseModel):
+    """Precision / recall / FPR / lead time on the study set."""
+
+    n_cases: int = 0
+    n_2x: int = 0
+    n_5x: int = 0
+    n_10x: int = 0
+    n_signaled_early: int = 0
+    true_positives_2x: int = 0
+    false_positives_2x: int = 0
+    false_negatives_2x: int = 0
+    precision_2x: float | None = None
+    recall_2x: float | None = None
+    false_positive_rate_2x: float | None = None
+    median_lead_days_2x: float | None = None
+    median_days_to_2x: float | None = None
+    median_days_to_5x: float | None = None
+    median_max_dd_pct: float | None = None
+
+
+class RunnerBacktestResponse(BaseModel):
+    """Phase 5 v0 lead-time study. Structure tape only unless dated snapshots."""
+
+    phase: str
+    mode: str
+    generated_at: datetime
+    look_ahead: str
+    symbols: list[str] = Field(default_factory=list)
+    cases: list[RunnerBacktestCaseSchema] = Field(default_factory=list)
+    metrics: RunnerBacktestMetricsSchema
