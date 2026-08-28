@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Version | 0.7.0 |
-| Last updated | 2026-08-27 |
+| Last updated | 2026-08-28 |
 | Status | M4–M9 MVP complete; Surface 4 preview; Surface 5 expansion + cortex Phase B; expansion scoring composer; Surface 6 Rail Phase B (HL scanners, paper fills); OHLCV warehouse; tape CVD; SSE desk |
 
 ---
@@ -904,6 +904,7 @@ class BrokerAdapter(Protocol):
 - Each adapter has its own rate limit and error handling
 - Broker adapters are **never** called directly by engines — only by a dedicated Execution Service
 - Crypto live execution is **Rail** (`§5.7`), not Alpaca. Alpaca stays read-only equities.
+- Robinhood Agentic Trading is a **user-owned MCP**, not a hosted broker adapter. Parked: `docs/research/robinhood-agentic-mcp.md`. Do not call `place_*` from this API.
 
 ### Status
 
@@ -912,6 +913,7 @@ fetches account + positions + recent closed fills via official REST. No executio
 Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 Surface 6 Rail Phase B reads Hyperliquid `/info` (L2, funding, HIP-4) and fills only
 on the paper clerk. Live adapters hard-refuse even if `RAIL_ARMED` / `RAIL_LIVE_ENABLED`.
+Robinhood dual-MCP (SE read tools + RH trading MCP in the user's client) is **parked**.
 
 ---
 
@@ -1101,6 +1103,7 @@ When adding a new system, follow this checklist:
 | Milestone tracker | `docs/roadmap/milestones.md` |
 | Research notes | `docs/research/` |
 | Surface 6 Rail plan | `docs/research/rail-execution-surface.md` |
+| Robinhood Agentic dual-MCP (parked) | `docs/research/robinhood-agentic-mcp.md` |
 
 ---
 

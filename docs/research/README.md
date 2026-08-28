@@ -12,6 +12,12 @@ Place research findings, data source evaluations, and strategy notes here.
 | Futures positioning / COT overlay | Phase 1 overlay | [futures-social-positioning.md](./futures-social-positioning.md) |
 | Logo boot / hologram | Implemented (hero boot + header soft) | [logo-holo-boot.md](./logo-holo-boot.md) |
 
+## Parked (not scheduled)
+
+| Idea | Status | Doc |
+|------|--------|-----|
+| Robinhood Agentic dual-MCP | Open — do not build | [robinhood-agentic-mcp.md](./robinhood-agentic-mcp.md) |
+
 ## Data Sources (To Evaluate)
 
 - Exchange APIs (Binance, Coinbase, etc.)
