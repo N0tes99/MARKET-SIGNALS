@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.service_dependencies import get_learning_engine, get_runner_scanner
-from app.engines.runner_engine.backtest.dataset import PATTERN_STUDY_SYMBOLS
+from app.engines.runner_engine.backtest.dataset import STUDY_SYMBOLS
 from app.engines.runner_engine.backtest.study import cached_live_study
 from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
 from app.engines.runner_engine.crypto_learn import (
@@ -287,7 +287,7 @@ async def get_runner_backtest() -> RunnerBacktestResponse:
         mode=study.mode,
         generated_at=study.generated_at,
         look_ahead=study.look_ahead,
-        symbols=list(PATTERN_STUDY_SYMBOLS),
+        symbols=list(STUDY_SYMBOLS),
         cases=[_case_schema(c) for c in study.cases],
         metrics=RunnerBacktestMetricsSchema(**study.metrics.__dict__),
     )

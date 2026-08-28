@@ -19,6 +19,11 @@ PATTERN_STUDY_SYMBOLS: tuple[str, ...] = (
     "VRT",
 )
 
+# Staples used as a false-positive denominator — not a prediction they cannot 2×.
+CONTROL_SYMBOLS: tuple[str, ...] = ("KO", "JNJ")
+
+STUDY_SYMBOLS: tuple[str, ...] = PATTERN_STUDY_SYMBOLS + CONTROL_SYMBOLS
+
 # Extra names fetched so relative strength is truncated at the same as-of.
 STUDY_BENCHMARKS: tuple[str, ...] = ("SPY", "SMH")
 

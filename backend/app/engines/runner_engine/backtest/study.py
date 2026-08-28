@@ -11,8 +11,8 @@ from datetime import UTC, date, datetime
 import pandas as pd
 
 from app.engines.runner_engine.backtest.dataset import (
-    PATTERN_STUDY_SYMBOLS,
     STUDY_BENCHMARKS,
+    STUDY_SYMBOLS,
     DatedFundamentals,
 )
 from app.engines.runner_engine.backtest.multiples import (
@@ -82,6 +82,12 @@ class StudyMetrics:
     precision_2x: float | None = None
     recall_2x: float | None = None
     false_positive_rate_2x: float | None = None
+    true_positives_5x: int = 0
+    false_positives_5x: int = 0
+    false_negatives_5x: int = 0
+    precision_5x: float | None = None
+    recall_5x: float | None = None
+    false_positive_rate_5x: float | None = None
     median_lead_days_2x: float | None = None
     median_days_to_2x: float | None = None
     median_days_to_5x: float | None = None
@@ -198,6 +204,13 @@ def aggregate_metrics(cases: list[CaseResult]) -> StudyMetrics:
     precision = (tp / (tp + fp)) if (tp + fp) else None
     recall = (tp / (tp + fn)) if (tp + fn) else None
     fpr = (fp / len(controls)) if controls else None
+    tp5 = sum(1 for c in signaled if c.hit_5x)
+    fp5 = sum(1 for c in signaled if not c.hit_5x)
+    fn5 = sum(1 for c in usable if c.hit_5x and c.first_early is None)
+    controls5 = [c for c in usable if not c.hit_5x]
+    precision5 = (tp5 / (tp5 + fp5)) if (tp5 + fp5) else None
+    recall5 = (tp5 / (tp5 + fn5)) if (tp5 + fn5) else None
+    fpr5 = (fp5 / len(controls5)) if controls5 else None
     leads = [float(c.lead_days_to_2x) for c in usable if c.lead_days_to_2x is not None]
     d2 = [float(c.days_to_2x) for c in usable if c.days_to_2x is not None]
     d5 = [float(c.days_to_5x) for c in usable if c.days_to_5x is not None]
@@ -214,6 +227,12 @@ def aggregate_metrics(cases: list[CaseResult]) -> StudyMetrics:
         precision_2x=round(precision, 3) if precision is not None else None,
         recall_2x=round(recall, 3) if recall is not None else None,
         false_positive_rate_2x=round(fpr, 3) if fpr is not None else None,
+        true_positives_5x=tp5,
+        false_positives_5x=fp5,
+        false_negatives_5x=fn5,
+        precision_5x=round(precision5, 3) if precision5 is not None else None,
+        recall_5x=round(recall5, 3) if recall5 is not None else None,
+        false_positive_rate_5x=round(fpr5, 3) if fpr5 is not None else None,
         median_lead_days_2x=_median(leads),
         median_days_to_2x=_median(d2),
         median_days_to_5x=_median(d5),
@@ -223,7 +242,7 @@ def aggregate_metrics(cases: list[CaseResult]) -> StudyMetrics:
 
 def run_study(
     frames: dict[str, pd.DataFrame],
-    symbols: tuple[str, ...] = PATTERN_STUDY_SYMBOLS,
+    symbols: tuple[str, ...] = STUDY_SYMBOLS,
     *,
     config: RunnerConfig | None = None,
     dated_fundamentals: dict[str, tuple[DatedFundamentals, ...]] | None = None,
@@ -304,7 +323,7 @@ def fetch_daily_history(symbol: str, period: str = "5y") -> pd.DataFrame | None:
 
 
 def load_study_frames(
-    symbols: tuple[str, ...] = PATTERN_STUDY_SYMBOLS,
+    symbols: tuple[str, ...] = STUDY_SYMBOLS,
     *,
     fetcher: FrameFetcher | None = None,
 ) -> dict[str, pd.DataFrame]:
@@ -330,7 +349,7 @@ def load_study_frames(
 def cached_live_study(
     *,
     fetcher: FrameFetcher | None = None,
-    symbols: tuple[str, ...] = PATTERN_STUDY_SYMBOLS,
+    symbols: tuple[str, ...] = STUDY_SYMBOLS,
 ) -> LeadTimeStudy:
     """TTL-cached live Yahoo 5y structure-tape study."""
 
@@ -340,4 +359,4 @@ def cached_live_study(
 
     if fetcher is not None:
         return _build()
-    return _CACHE.get_or_set("pattern_study_v0", _build)
+    return _CACHE.get_or_set("study_v0_with_controls", _build)

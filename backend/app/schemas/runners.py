@@ -165,6 +165,12 @@ class RunnerBacktestMetricsSchema(BaseModel):
     precision_2x: float | None = None
     recall_2x: float | None = None
     false_positive_rate_2x: float | None = None
+    true_positives_5x: int = 0
+    false_positives_5x: int = 0
+    false_negatives_5x: int = 0
+    precision_5x: float | None = None
+    recall_5x: float | None = None
+    false_positive_rate_5x: float | None = None
     median_lead_days_2x: float | None = None
     median_days_to_2x: float | None = None
     median_days_to_5x: float | None = None

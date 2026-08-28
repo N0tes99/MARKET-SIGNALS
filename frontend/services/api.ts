@@ -1023,6 +1023,12 @@ export interface RunnerBacktestMetrics {
   precision_2x: number | null;
   recall_2x: number | null;
   false_positive_rate_2x: number | null;
+  true_positives_5x: number;
+  false_positives_5x: number;
+  false_negatives_5x: number;
+  precision_5x: number | null;
+  recall_5x: number | null;
+  false_positive_rate_5x: number | null;
   median_lead_days_2x: number | null;
   median_days_to_2x: number | null;
   median_days_to_5x: number | null;

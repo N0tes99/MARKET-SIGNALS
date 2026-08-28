@@ -21,8 +21,9 @@ EARLY list print to that 2× date. Ignition/running stay empty on this replay un
 | VRT | Power/thermal bottleneck name |
 | NBIS | Seed + pattern study (newer listing; 5y window may be short) |
 
-Controls are not hard-coded. Names that never 2× in the fetched window are the
-false-positive denominator.
+Controls are not assumed. KO and JNJ are fetched as a false-positive
+denominator; names that never 2× in the window are the FPR set. Pattern-study
+names that 2× are the recall set.
 
 Yahoo 5y daily is the live fetch. Famous 2022–23 legs may sit outside a short listing
 or a 5y cut — the engine still measures whatever path arrived, and this file stays the

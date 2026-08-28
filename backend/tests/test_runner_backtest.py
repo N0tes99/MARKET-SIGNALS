@@ -130,6 +130,10 @@ def test_aggregate_precision_recall() -> None:
     if winner.first_early is not None:
         assert metrics.true_positives_2x == 1
         assert metrics.recall_2x == 1.0
+        assert metrics.true_positives_5x == 1
+        if control.first_early is not None:
+            assert metrics.false_positives_5x == 1
+            assert metrics.false_positive_rate_5x == 1.0
         assert metrics.median_lead_days_2x is not None or winner.late_for_2x
 
 

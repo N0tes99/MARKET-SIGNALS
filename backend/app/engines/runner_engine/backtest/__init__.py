@@ -2,6 +2,7 @@
 
 from app.engines.runner_engine.backtest.dataset import (
     PATTERN_STUDY_SYMBOLS,
+    STUDY_SYMBOLS,
     DatedFundamentals,
 )
 from app.engines.runner_engine.backtest.replay import evaluate_as_of
@@ -15,6 +16,7 @@ __all__ = [
     "DatedFundamentals",
     "LeadTimeStudy",
     "PATTERN_STUDY_SYMBOLS",
+    "STUDY_SYMBOLS",
     "cached_live_study",
     "evaluate_as_of",
     "run_study",

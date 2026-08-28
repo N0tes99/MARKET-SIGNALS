@@ -471,8 +471,9 @@ function StudyTrack() {
         </p>
         <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
           precision {formatRatio(metrics?.precision_2x)} · recall {formatRatio(metrics?.recall_2x)} ·
-          fpr {formatRatio(metrics?.false_positive_rate_2x)} · lead{" "}
-          {formatDays(metrics?.median_lead_days_2x)}
+          fpr {formatRatio(metrics?.false_positive_rate_2x)} · 5× prec{" "}
+          {formatRatio(metrics?.precision_5x)} · 5× fpr {formatRatio(metrics?.false_positive_rate_5x)}{" "}
+          · lead {formatDays(metrics?.median_lead_days_2x)}
         </p>
         {isFetching && !isLoading ? (
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">

@@ -39,6 +39,7 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "that would look ahead" in text
     assert "Lead 2×" in text
     assert "precision" in text
+    assert "5× fpr" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
