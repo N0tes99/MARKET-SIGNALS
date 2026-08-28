@@ -1,9 +1,14 @@
-# Runner case studies (Phase 5)
+# Runner case studies (Phase 5–6)
 
 Research notes for the pattern-study set. **Not recommendations.** Live `/radar` Study
 replays **structure tape only**: daily bars truncated at each as-of date. Current Yahoo
 fundamentals are not written back through history (that would look ahead). 2×/3×/5×/10×
 are outcome labels from the path after the fact.
+
+Phase 6 treats this pattern-study set as **holdout**. Threshold search runs on a disjoint
+train set (controls + non-famous seed names). Live Radar still uses
+`structure_accumulation` = 55 unless a human applies a later change — the tune endpoint
+never writes live defaults.
 
 T0 for offset snapshots is the first 2× close after a trough in the first 40% of the
 window (or the last bar if 2× never prints). Lead time is calendar days from the first

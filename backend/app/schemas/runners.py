@@ -62,7 +62,7 @@ class RunnerCandidateSchema(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     data_quality: DataQuality = "missing"
     as_of: datetime
-    phase: str = "5_leadtime"
+    phase: str = "6_tune"
     qualities: dict[str, DataQuality] = Field(default_factory=dict)
     ret_20d_pct: float | None = None
     relative_volume: float | None = None
@@ -110,7 +110,7 @@ class RunnerConfigMetaResponse(BaseModel):
     alert_standard_runner_min: float
     alert_early_fundamental_min: float
     alert_early_discovery_gap_min: float
-    phase: str = "5_leadtime"
+    phase: str = "6_tune"
 
 
 class RunnerBacktestSnapshotSchema(BaseModel):
@@ -187,3 +187,36 @@ class RunnerBacktestResponse(BaseModel):
     symbols: list[str] = Field(default_factory=list)
     cases: list[RunnerBacktestCaseSchema] = Field(default_factory=list)
     metrics: RunnerBacktestMetricsSchema
+
+
+class RunnerTuneGridRowSchema(BaseModel):
+    """One structure_accumulation setting on train + holdout."""
+
+    structure_accumulation: float
+    is_baseline: bool
+    train_score: float
+    holdout_score: float
+    train: RunnerBacktestMetricsSchema
+    holdout: RunnerBacktestMetricsSchema
+
+
+class RunnerTuneResponse(BaseModel):
+    """Phase 6 v0 OOS structure-threshold tune. Live Radar stays at 55."""
+
+    phase: str
+    mode: str
+    generated_at: datetime
+    note: str
+    train_symbols: list[str] = Field(default_factory=list)
+    holdout_symbols: list[str] = Field(default_factory=list)
+    grid: list[float] = Field(default_factory=list)
+    baseline_structure_accumulation: float
+    train_winner_structure_accumulation: float
+    recommended_structure_accumulation: float
+    applied_to_live: bool = False
+    holdout_accepts_tuned: bool
+    baseline_train: RunnerBacktestMetricsSchema
+    baseline_holdout: RunnerBacktestMetricsSchema
+    recommended_train: RunnerBacktestMetricsSchema
+    recommended_holdout: RunnerBacktestMetricsSchema
+    rows: list[RunnerTuneGridRowSchema] = Field(default_factory=list)

@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 5 v0** (structure-tape lead-time study on truncated daily bars; current Yahoo fundamentals unused in replay. Lists + alert gates + stage rail remain. Paid SI and 8-K NLP still open; Phase 6 weight tuning not started).
+> Status: **Phase 6 v0** (OOS structure-accumulation tune vs structure-only baseline; famous pattern-study names held out; live Radar still at 55. Phase 5 truncated-tape study remains. Paid SI and 8-K NLP still open).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -217,10 +217,13 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 - Case notes: `docs/research/runner-case-studies/`
 - API: `GET /api/v1/runners/backtest` + Radar Study track
 
-### Phase 6 — Weight optimization
+### Phase 6 — Weight optimization (**v0**)
 
-- Out-of-sample tuning; **do not** overfit famous winners
-- Compare against Structure-only baseline
+- Out-of-sample tuning; **do not** overfit famous winners (pattern-study set is holdout)
+- Compare against Structure-only baseline (`structure_accumulation` = 55)
+- Grid is the structure-only EARLY gate — modifier weights unused until dated fundamentals exist
+- Live Radar defaults are **not** auto-applied (`applied_to_live: false`)
+- API: `GET /api/v1/runners/tune` + Radar Study track “baseline vs tuned”
 
 ---
 
@@ -243,6 +246,7 @@ Case notes: `docs/research/runner-case-studies/`.
 | `GET /api/v1/runners/{symbol}` | Full candidate + score breakdown + factors/conflicts/risks |
 | `GET /api/v1/runners/meta/config` | Public thresholds (no secrets) |
 | `GET /api/v1/runners/backtest` | Structure-tape lead-time study (Phase 5 v0) |
+| `GET /api/v1/runners/tune` | OOS structure-threshold grid vs baseline (Phase 6 v0; not applied to live) |
 
 Response always includes explainability fields — never bare “BUY / 87”.
 

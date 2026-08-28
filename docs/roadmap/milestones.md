@@ -97,7 +97,12 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] 2×/3×/5×/10× labels, lead time, max DD, precision/recall/FPR
   - [x] `GET /api/v1/runners/backtest` + Radar Study track
   - [ ] Dated fundamentals/ownership as-of series (still missing — ignition/running stay empty in replay)
-- [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
+- [x] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
+  - [x] Train/holdout split (famous pattern-study names never pick the threshold)
+  - [x] Structure-accumulation grid vs structure-only baseline (55)
+  - [x] Recommend tuned only when holdout does not regress vs baseline
+  - [x] `GET /api/v1/runners/tune` + Study track comparison (not applied to live)
+  - [ ] Modifier-weight search (blocked on dated fundamentals)
 
 ## Milestone 11 — Surface 6 Rail Engine
 

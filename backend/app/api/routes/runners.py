@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.service_dependencies import get_learning_engine, get_runner_scanner
 from app.engines.runner_engine.backtest.dataset import STUDY_SYMBOLS
 from app.engines.runner_engine.backtest.study import cached_live_study
+from app.engines.runner_engine.backtest.tune import cached_live_tune
 from app.engines.runner_engine.config import RUNNER_PHASE, default_runner_config
 from app.engines.runner_engine.crypto_learn import (
     get_crypto_learn_coefficients,
@@ -36,6 +37,8 @@ from app.schemas.runners import (
     RunnerFeedResponse,
     RunnerListsResponse,
     RunnerScoresSchema,
+    RunnerTuneGridRowSchema,
+    RunnerTuneResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -290,6 +293,65 @@ async def get_runner_backtest() -> RunnerBacktestResponse:
         symbols=list(STUDY_SYMBOLS),
         cases=[_case_schema(c) for c in study.cases],
         metrics=RunnerBacktestMetricsSchema(**study.metrics.__dict__),
+    )
+
+
+def _tune_metrics(metrics) -> RunnerBacktestMetricsSchema:
+    return RunnerBacktestMetricsSchema(**metrics.__dict__)
+
+
+def _tune_row_schema(row) -> RunnerTuneGridRowSchema:
+    return RunnerTuneGridRowSchema(
+        structure_accumulation=row.structure_accumulation,
+        is_baseline=row.is_baseline,
+        train_score=row.train_score,
+        holdout_score=row.holdout_score,
+        train=_tune_metrics(row.train_metrics),
+        holdout=_tune_metrics(row.holdout_metrics),
+    )
+
+
+@router.get("/tune", response_model=RunnerTuneResponse)
+async def get_runner_tune() -> RunnerTuneResponse:
+    """Phase 6 v0: OOS structure-accumulation grid vs structure-only baseline.
+
+    Famous pattern-study names are holdout and never pick the threshold.
+    Does not change live Radar defaults.
+    """
+    try:
+        report = await asyncio.to_thread(cached_live_tune)
+    except Exception:
+        logger.exception("Runner structure-threshold tune failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Runner structure-threshold tune failed",
+        ) from None
+
+    def _row_at(threshold: float):
+        return next(
+            r for r in report.rows if r.structure_accumulation == threshold
+        )
+
+    baseline = _row_at(report.baseline_structure_accumulation)
+    recommended = _row_at(report.recommended_structure_accumulation)
+    return RunnerTuneResponse(
+        phase=report.phase,
+        mode=report.mode,
+        generated_at=report.generated_at,
+        note=report.note,
+        train_symbols=list(report.train_symbols),
+        holdout_symbols=list(report.holdout_symbols),
+        grid=list(report.grid),
+        baseline_structure_accumulation=report.baseline_structure_accumulation,
+        train_winner_structure_accumulation=report.train_winner_structure_accumulation,
+        recommended_structure_accumulation=report.recommended_structure_accumulation,
+        applied_to_live=report.applied_to_live,
+        holdout_accepts_tuned=report.holdout_accepts_tuned,
+        baseline_train=_tune_metrics(baseline.train_metrics),
+        baseline_holdout=_tune_metrics(baseline.holdout_metrics),
+        recommended_train=_tune_metrics(recommended.train_metrics),
+        recommended_holdout=_tune_metrics(recommended.holdout_metrics),
+        rows=[_tune_row_schema(r) for r in report.rows],
     )
 
 

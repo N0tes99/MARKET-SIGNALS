@@ -1061,6 +1061,39 @@ export async function fetchRunnerBacktest(): Promise<RunnerBacktestResponse> {
   return apiFetch<RunnerBacktestResponse>("/api/v1/runners/backtest", 180_000);
 }
 
+export interface RunnerTuneGridRow {
+  structure_accumulation: number;
+  is_baseline: boolean;
+  train_score: number;
+  holdout_score: number;
+  train: RunnerBacktestMetrics;
+  holdout: RunnerBacktestMetrics;
+}
+
+export interface RunnerTuneResponse {
+  phase: string;
+  mode: string;
+  generated_at: string;
+  note: string;
+  train_symbols: string[];
+  holdout_symbols: string[];
+  grid: number[];
+  baseline_structure_accumulation: number;
+  train_winner_structure_accumulation: number;
+  recommended_structure_accumulation: number;
+  applied_to_live: boolean;
+  holdout_accepts_tuned: boolean;
+  baseline_train: RunnerBacktestMetrics;
+  baseline_holdout: RunnerBacktestMetrics;
+  recommended_train: RunnerBacktestMetrics;
+  recommended_holdout: RunnerBacktestMetrics;
+  rows: RunnerTuneGridRow[];
+}
+
+export async function fetchRunnerTune(): Promise<RunnerTuneResponse> {
+  return apiFetch<RunnerTuneResponse>("/api/v1/runners/tune", 180_000);
+}
+
 export type CryptoRadarBucket = "watch" | "crowded" | "running" | "none";
 
 export interface CryptoRadarCandidate {

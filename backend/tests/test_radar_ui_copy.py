@@ -40,6 +40,11 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "Lead 2×" in text
     assert "precision" in text
     assert "5× fpr" in text
+    assert "out-of-sample" in text.lower()
+    assert "famous" in text.lower()
+    assert "structure-only baseline" in text
+    assert "not applied to live" in text
+    assert "Baseline vs tuned" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
@@ -81,6 +86,7 @@ def test_proxy_gives_radar_and_tape_long_timeout() -> None:
     assert "api/v1/runners/lists" in text
     assert "api/v1/runners/crypto" in text
     assert "api/v1/runners/backtest" in text
+    assert "api/v1/runners/tune" in text
     assert "api/v1/options-tape" in text
     assert "api/v1/perps/board" in text
     assert "api/v1/futures/board" in text
