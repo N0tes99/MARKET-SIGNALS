@@ -109,3 +109,11 @@ Separate engine: identify what SE cannot, on Hyperliquid, where we can also exec
 - [x] Phase B — HL read-only `l2Book` / funding / HIP-4 scanners (replace paper-agent mint)
 - [ ] Phase C — private micro-live in a **separate process** (agent wallet; SE paper maturity is not the gate — Rail’s own paper book is)
 - [ ] Phase D — perp↔outcome inventory, HIP-3, portfolio caps
+
+## Parked — Robinhood Agentic dual-MCP
+
+Not a milestone and not a Rail. Open idea only: `docs/research/robinhood-agentic-mcp.md`.
+
+- [ ] Read-only Signal Engine MCP (hot picks / decision / paper) for a user-owned client
+- [ ] Optional Robinhood **read** mirror (Alpaca-style); no `place_*` on Render
+- Do not start until the research note status changes.
