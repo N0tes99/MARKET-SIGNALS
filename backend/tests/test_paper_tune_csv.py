@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -44,7 +44,8 @@ def _trade(**overrides: object) -> PaperTrade:
         "honest_return_pct": 4.4,
         "factors": ["Funding +12.00 bps", "Greed zone soft-conflicts long"],
         "notes": "F&G 78 (Greed)",
-        "closed_at": now,
+        "closed_at": now + timedelta(hours=6),
+        "close_reason": "take_profit_+4.4%",
     }
     payload.update(overrides)
     return PaperTrade(**payload)  # type: ignore[arg-type]
@@ -60,6 +61,10 @@ def test_csv_columns_and_honest_ledger() -> None:
     assert "67990.00" in row
     assert "4.4%" in row
     assert "perp_momentum" in row
+    assert "crypto_perp_v2" in row
+    assert "long" in row
+    assert "take_profit_+4.4%" in row
+    assert ",6.0" in row or row.endswith("6.0")
     assert "Greed_Trend_Bullish" in row
     assert "Confident" in row
     assert "65000.00" not in row  # optimistic entry must not replace honest
@@ -78,6 +83,7 @@ def test_open_trade_leaves_exit_blank_and_marks_unrealized() -> None:
         confidence=58.0,
         setup_type="liq_flush",
         direction="long",
+        close_reason=None,
     )
     text = paper_trades_to_csv([trade])
     row = text.strip().split("\n")[1]
@@ -85,6 +91,10 @@ def test_open_trade_leaves_exit_blank_and_marks_unrealized() -> None:
     assert parts[3] == ""  # exit_price
     assert parts[4].endswith("%")
     assert parts[5] == "liq_flush"
+    assert parts[8] == "crypto_perp_v2"
+    assert parts[9] == "long"
+    assert parts[10] == ""
+    assert parts[11] != ""
     assert market_condition(trade) == "Fear_High_Vol_Bullish"
     assert user_feedback(58.0) == "Hesitant"
 
@@ -131,7 +141,11 @@ async def test_trades_csv_endpoint() -> None:
         assert res.status_code == 200
         assert "text/csv" in res.headers["content-type"]
         assert "paper-trades-" in res.headers.get("content-disposition", "")
-        assert res.text.split("\n")[0].startswith("timestamp,asset_symbol")
+        assert res.text.split("\n")[0].startswith(
+            "timestamp,asset_symbol,entry_price,exit_price,pnl_percent,"
+            "strategy_type,market_condition,user_feedback,source,direction,"
+            "close_reason,hold_hours"
+        )
         assert "BTC" in res.text
     finally:
         app.dependency_overrides.pop(get_paper_agent, None)
