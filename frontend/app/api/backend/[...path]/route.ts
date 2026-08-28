@@ -24,6 +24,9 @@ function authHeader(): string | null {
 function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
   if (normalized === "api/v1/chart-analysis") return 180_000;
+  if (normalized === "api/v1/runners/backtest" || normalized === "api/v1/runners/tune") {
+    return 180_000;
+  }
   if (normalized.endsWith("/analysis")) return 90_000;
   if (normalized.startsWith("api/v1/expansion") || normalized.startsWith("api/v1/cortex")) {
     return 100_000;
@@ -33,7 +36,6 @@ function proxyTimeoutMs(targetPath: string): number {
     "api/v1/runners",
     "api/v1/runners/lists",
     "api/v1/runners/crypto",
-    "api/v1/runners/backtest",
     "api/v1/options-tape",
     "api/v1/perps/board",
     "api/v1/futures/board",

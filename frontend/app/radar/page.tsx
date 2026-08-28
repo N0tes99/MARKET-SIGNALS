@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
 import { StageRail } from "@/components/stage-rail";
-import { useCryptoRadar, useRunnerBacktest, useRunnersFeed } from "@/hooks/use-runners";
+import { useCryptoRadar, useRunnerBacktest, useRunnerTune, useRunnersFeed } from "@/hooks/use-runners";
 import { dimDisplay, formatRelVol, formatTapePct } from "@/lib/runner-display";
 import type {
   CryptoRadarBucket,
@@ -451,6 +451,114 @@ function formatRatio(value: number | null | undefined): string {
   return `${(value * 100).toFixed(0)}%`;
 }
 
+function TuneCompare() {
+  const { data, isLoading, isError, refetch, isFetching } = useRunnerTune(true);
+  const rows = data?.rows ?? [];
+
+  return (
+    <section className="mt-8">
+      <h2 className="label-caps">Baseline vs tuned</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        Out-of-sample structure-threshold tune versus the structure-only baseline (55). Famous
+        pattern-study names are held out and never pick the threshold. Modifier weights unused
+        until dated fundamentals exist. Live Radar still uses 55 — not applied to live. Research
+        only — not orders.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-baseline gap-4">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          baseline {data?.baseline_structure_accumulation ?? 55} · train pick{" "}
+          {data?.train_winner_structure_accumulation ?? "—"} · recommended{" "}
+          {data?.recommended_structure_accumulation ?? "—"} · live 55
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          holdout{" "}
+          {data
+            ? data.holdout_accepts_tuned
+              ? "accepted tuned"
+              : "kept baseline"
+            : "—"}{" "}
+          · 5× prec {formatRatio(data?.recommended_holdout?.precision_5x)} · 5× fpr{" "}
+          {formatRatio(data?.recommended_holdout?.false_positive_rate_5x)}
+        </p>
+        {isFetching && !isLoading ? (
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
+            refreshing
+          </p>
+        ) : null}
+      </div>
+
+      {data ? (
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/45">
+          train {data.train_symbols.join(" ")} · holdout {data.holdout_symbols.join(" ")}
+        </p>
+      ) : null}
+
+      {isLoading ? (
+        <div className="mt-4 space-y-2">
+          <div className="surface skeleton h-10" />
+          <div className="surface skeleton h-10" />
+        </div>
+      ) : null}
+
+      {isError ? (
+        <div className="mt-4 flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground/60">OOS tune unavailable</p>
+          <button
+            type="button"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
+            onClick={() => void refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {!isLoading && !isError && rows.length > 0 ? (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[40rem] text-left text-sm">
+            <thead>
+              <tr className="label-caps border-b border-white/[0.06] text-muted-foreground/70">
+                <th className="py-2 pr-3 font-normal">Gate</th>
+                <th className="py-2 pr-3 font-normal">Train score</th>
+                <th className="py-2 pr-3 font-normal">Holdout score</th>
+                <th className="py-2 pr-3 font-normal">Holdout 5× prec</th>
+                <th className="py-2 font-normal">Holdout 5× fpr</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const picked =
+                  row.structure_accumulation === data?.recommended_structure_accumulation;
+                return (
+                  <tr
+                    key={row.structure_accumulation}
+                    className={`border-b border-white/[0.04] ${picked ? "bg-white/[0.03]" : ""}`}
+                  >
+                    <td className="py-2.5 pr-3 font-mono text-xs">
+                      {row.structure_accumulation}
+                      {row.is_baseline ? " baseline" : ""}
+                      {picked ? " rec" : ""}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-xs">{row.train_score.toFixed(2)}</td>
+                    <td className="py-2.5 pr-3 font-mono text-xs">{row.holdout_score.toFixed(2)}</td>
+                    <td className="py-2.5 pr-3 font-mono text-xs">
+                      {formatRatio(row.holdout.precision_5x)}
+                    </td>
+                    <td className="py-2.5 font-mono text-xs">
+                      {formatRatio(row.holdout.false_positive_rate_5x)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function StudyTrack() {
   const { data, isLoading, isError, refetch, isFetching } = useRunnerBacktest(true);
   const metrics = data?.metrics;
@@ -558,6 +666,8 @@ function StudyTrack() {
           </table>
         </div>
       ) : null}
+
+      <TuneCompare />
     </>
   );
 }

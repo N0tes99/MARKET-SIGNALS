@@ -8,6 +8,7 @@ from datetime import date
 from app.engines.runner_engine.types import DimensionScore
 
 # Pattern studies from the Phase 5 brief. Live labels come from the price path.
+# Phase 6 holdout — never used to pick a threshold (do not overfit famous winners).
 PATTERN_STUDY_SYMBOLS: tuple[str, ...] = (
     "NBIS",
     "SMCI",
@@ -23,6 +24,23 @@ PATTERN_STUDY_SYMBOLS: tuple[str, ...] = (
 CONTROL_SYMBOLS: tuple[str, ...] = ("KO", "JNJ")
 
 STUDY_SYMBOLS: tuple[str, ...] = PATTERN_STUDY_SYMBOLS + CONTROL_SYMBOLS
+
+# Phase 6 train — seed/control names that are not the famous pattern-study set.
+TRAIN_STUDY_SYMBOLS: tuple[str, ...] = (
+    "KO",
+    "JNJ",
+    "PWR",
+    "CEG",
+    "POET",
+    "INDI",
+    "COHR",
+    "MXL",
+)
+
+HOLDOUT_STUDY_SYMBOLS: tuple[str, ...] = PATTERN_STUDY_SYMBOLS
+
+if set(TRAIN_STUDY_SYMBOLS) & set(HOLDOUT_STUDY_SYMBOLS):
+    raise RuntimeError("Phase 6 train and holdout study sets must be disjoint")
 
 # Extra names fetched so relative strength is truncated at the same as-of.
 STUDY_BENCHMARKS: tuple[str, ...] = ("SPY", "SMH")

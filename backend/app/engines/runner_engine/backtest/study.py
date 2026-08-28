@@ -158,6 +158,28 @@ def replay_case(
     first_early = first_list_date(points, "early")
     first_ignition = first_list_date(points, "ignition")
     first_running = first_list_date(points, "running")
+    return case_from_labels(
+        symbol,
+        ohlcv,
+        labels,
+        first_early=first_early,
+        first_ignition=first_ignition,
+        first_running=first_running,
+        snapshots=snaps,
+    )
+
+
+def case_from_labels(
+    symbol: str,
+    ohlcv: pd.DataFrame,
+    labels: MultipleLabels,
+    *,
+    first_early: date | None,
+    first_ignition: date | None,
+    first_running: date | None,
+    snapshots: list[ReplayPoint] | None = None,
+) -> CaseResult:
+    """Build a case from path labels + already-chosen first-print dates."""
     lead = lead_days(first_early, labels.hit_date[2])
     late = bool(labels.hit_2x and first_early is not None and lead is None)
 
@@ -187,7 +209,7 @@ def replay_case(
         lead_days_to_2x=lead,
         late_for_2x=late,
         max_dd_after_early_pct=dd,
-        snapshots=snaps,
+        snapshots=list(snapshots or []),
     )
 
 

@@ -7,6 +7,7 @@ import {
   fetchRunnerBacktest,
   fetchRunnerDetail,
   fetchRunnerLists,
+  fetchRunnerTune,
   fetchRunnersFeed,
 } from "@/services/api";
 
@@ -52,6 +53,16 @@ export function useRunnerBacktest(enabled: boolean) {
   return useQuery({
     queryKey: ["runners-backtest"],
     queryFn: fetchRunnerBacktest,
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    enabled,
+  });
+}
+
+export function useRunnerTune(enabled: boolean) {
+  return useQuery({
+    queryKey: ["runners-tune"],
+    queryFn: fetchRunnerTune,
     staleTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     enabled,

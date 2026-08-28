@@ -101,6 +101,6 @@ class RunnerCandidate:
     data_quality: DataQuality = "missing"
     as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
     instrument_type: Literal["runner"] = "runner"
-    phase: str = "5_leadtime"
+    phase: str = "6_tune"
     qualities: dict[str, DataQuality] = field(default_factory=dict)
     tape: RunnerTapeSnapshot = field(default_factory=RunnerTapeSnapshot)
