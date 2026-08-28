@@ -87,12 +87,16 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] Yahoo EPS surprise vs estimate (fail-open; not 8-K NLP)
   - [ ] Beat/guidance NLP from filings text
   - [ ] Paid SI / 13F flow vendor (Yahoo ownership snapshot remains)
-- [ ] Phase 4 — Late stages, alerts, Radar UI
+- [x] Phase 4 — Late stages, alerts, Radar UI
   - [x] Stage 0–7 + signal types + EARLY / IGNITION / RUNNING lists
   - [x] Alert gates early vs high-priority (Discord after silent baseline)
   - [x] Dashboard table + stage rail; Opp vs Risk columns
   - [ ] Paper agent auto-log EARLY→IGNITION (deferred)
 - [ ] Phase 5 — Historical multi-bagger backtests with lead-time metrics (no look-ahead)
+  - [x] Truncated daily-tape replay (no live Yahoo look-ahead)
+  - [x] 2×/3×/5×/10× labels, lead time, max DD, precision/recall/FPR
+  - [x] `GET /api/v1/runners/backtest` + Radar Study track
+  - [ ] Dated fundamentals/ownership as-of series (still missing — ignition/running stay empty in replay)
 - [ ] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
 
 ## Milestone 11 — Surface 6 Rail Engine

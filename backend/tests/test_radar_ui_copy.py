@@ -34,6 +34,12 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert ">Opp<" in text
     assert "StageRail" in text
     assert "opp {c.scores.runner_score" in text
+    assert 'study: "Study"' in text
+    assert "Structure-tape replay on truncated daily bars" in text
+    assert "that would look ahead" in text
+    assert "Lead 2×" in text
+    assert "precision" in text
+    assert "5× fpr" in text
 
 
 def test_radar_detail_does_not_claim_structure_only() -> None:
@@ -74,6 +80,7 @@ def test_proxy_gives_radar_and_tape_long_timeout() -> None:
     assert "api/v1/runners" in text
     assert "api/v1/runners/lists" in text
     assert "api/v1/runners/crypto" in text
+    assert "api/v1/runners/backtest" in text
     assert "api/v1/options-tape" in text
     assert "api/v1/perps/board" in text
     assert "api/v1/futures/board" in text

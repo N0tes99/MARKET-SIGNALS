@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
 import { StageRail } from "@/components/stage-rail";
-import { useCryptoRadar, useRunnersFeed } from "@/hooks/use-runners";
+import { useCryptoRadar, useRunnerBacktest, useRunnersFeed } from "@/hooks/use-runners";
 import { dimDisplay, formatRelVol, formatTapePct } from "@/lib/runner-display";
 import type {
   CryptoRadarBucket,
@@ -14,7 +14,7 @@ import type {
   RunnerWatchlist,
 } from "@/services/api";
 
-type RadarTrack = "equities" | "crypto";
+type RadarTrack = "equities" | "crypto" | "study";
 
 const EQUITY_BUCKETS: {
   key: Exclude<RunnerWatchlist, "none">;
@@ -144,6 +144,7 @@ function CryptoBucketColumn({
 const TRACK_LABELS: Record<RadarTrack, string> = {
   equities: "Equities",
   crypto: "Crypto",
+  study: "Study",
 };
 
 function TrackToggle({
@@ -155,7 +156,7 @@ function TrackToggle({
 }) {
   return (
     <div className="inline-flex border border-white/[0.08]">
-      {(["equities", "crypto"] as const).map((key) => {
+      {(["equities", "crypto", "study"] as const).map((key) => {
         const active = track === key;
         return (
           <button
@@ -440,6 +441,127 @@ function CryptoTrack() {
   );
 }
 
+function formatDays(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${Math.round(value)}d`;
+}
+
+function formatRatio(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${(value * 100).toFixed(0)}%`;
+}
+
+function StudyTrack() {
+  const { data, isLoading, isError, refetch, isFetching } = useRunnerBacktest(true);
+  const metrics = data?.metrics;
+  const cases = data?.cases ?? [];
+
+  return (
+    <>
+      <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        Structure-tape replay on truncated daily bars. Current Yahoo fundamentals are not
+        scored back through history — that would look ahead. Multiples are labeled from the
+        path after the fact. Research only — not orders.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-baseline gap-4">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          {data?.mode ?? "structure tape"} · 2× {metrics?.n_2x ?? "—"} · 5× {metrics?.n_5x ?? "—"} ·
+          10× {metrics?.n_10x ?? "—"}
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
+          precision {formatRatio(metrics?.precision_2x)} · recall {formatRatio(metrics?.recall_2x)} ·
+          fpr {formatRatio(metrics?.false_positive_rate_2x)} · 5× prec{" "}
+          {formatRatio(metrics?.precision_5x)} · 5× fpr {formatRatio(metrics?.false_positive_rate_5x)}{" "}
+          · lead {formatDays(metrics?.median_lead_days_2x)}
+        </p>
+        {isFetching && !isLoading ? (
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/40">
+            refreshing
+          </p>
+        ) : null}
+      </div>
+
+      {isLoading ? (
+        <div className="mt-6 space-y-2">
+          <div className="surface skeleton h-10" />
+          <div className="surface skeleton h-10" />
+          <div className="surface skeleton h-10" />
+        </div>
+      ) : null}
+
+      {isError ? (
+        <div className="mt-6 flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground/60">Lead-time study unavailable</p>
+          <button
+            type="button"
+            className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
+            onClick={() => void refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {!isLoading && !isError && cases.length > 0 ? (
+        <div className="mt-8 overflow-x-auto">
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead>
+              <tr className="label-caps border-b border-white/[0.06] text-muted-foreground/70">
+                <th className="py-2 pr-3 font-normal">Symbol</th>
+                <th className="py-2 pr-3 font-normal">2×</th>
+                <th className="py-2 pr-3 font-normal">5×</th>
+                <th className="py-2 pr-3 font-normal">10×</th>
+                <th className="py-2 pr-3 font-normal">Days 2×</th>
+                <th className="py-2 pr-3 font-normal">First early</th>
+                <th className="py-2 pr-3 font-normal">Lead 2×</th>
+                <th className="py-2 pr-3 font-normal">Max DD</th>
+                <th className="py-2 font-normal">Ignition</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cases.map((c) => (
+                <tr key={c.symbol} className="border-b border-white/[0.04]">
+                  <td className="py-2.5 pr-3">
+                    {c.error ? (
+                      <span className="font-mono tracking-wide text-muted-foreground">{c.symbol}</span>
+                    ) : (
+                      <Link
+                        href={`/radar/${c.symbol}`}
+                        className="font-mono tracking-wide underline-offset-2 hover:underline"
+                      >
+                        {c.symbol}
+                      </Link>
+                    )}
+                  </td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">{c.hit_2x ? "yes" : "—"}</td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">{c.hit_5x ? "yes" : "—"}</td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">{c.hit_10x ? "yes" : "—"}</td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">{formatDays(c.days_to_2x)}</td>
+                  <td className="py-2.5 pr-3 font-mono text-xs text-muted-foreground">
+                    {c.first_early ?? "—"}
+                  </td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">
+                    {c.late_for_2x ? "late" : formatDays(c.lead_days_to_2x)}
+                  </td>
+                  <td className="py-2.5 pr-3 font-mono text-xs">
+                    {c.max_dd_after_early_pct != null
+                      ? `${c.max_dd_after_early_pct.toFixed(0)}%`
+                      : "—"}
+                  </td>
+                  <td className="py-2.5 font-mono text-xs text-muted-foreground">
+                    {c.first_ignition ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export default function RadarPage() {
   const [track, setTrack] = useState<RadarTrack>("equities");
 
@@ -450,7 +572,13 @@ export default function RadarPage() {
         <div className="mb-6">
           <TrackToggle track={track} onChange={setTrack} />
         </div>
-        {track === "equities" ? <EquitiesTrack /> : <CryptoTrack />}
+        {track === "equities" ? (
+          <EquitiesTrack />
+        ) : track === "crypto" ? (
+          <CryptoTrack />
+        ) : (
+          <StudyTrack />
+        )}
       </div>
     </main>
   );

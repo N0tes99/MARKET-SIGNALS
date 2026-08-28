@@ -977,6 +977,74 @@ export interface RunnerDetailResponse {
   scanned_at: string;
 }
 
+export interface RunnerBacktestSnapshot {
+  offset_days: number | null;
+  as_of: string;
+  last_close: number | null;
+  stage: RunnerStage;
+  watchlist: RunnerWatchlist;
+  runner_score: number;
+  structure: number;
+  fundamentals_available: boolean;
+}
+
+export interface RunnerBacktestCase {
+  symbol: string;
+  bars: number;
+  error: string | null;
+  trough_date: string | null;
+  hit_2x: boolean;
+  hit_5x: boolean;
+  hit_10x: boolean;
+  date_2x: string | null;
+  date_5x: string | null;
+  date_10x: string | null;
+  days_to_2x: number | null;
+  days_to_5x: number | null;
+  days_to_10x: number | null;
+  first_early: string | null;
+  first_ignition: string | null;
+  first_running: string | null;
+  lead_days_to_2x: number | null;
+  late_for_2x: boolean;
+  max_dd_after_early_pct: number | null;
+  snapshots: RunnerBacktestSnapshot[];
+}
+
+export interface RunnerBacktestMetrics {
+  n_cases: number;
+  n_2x: number;
+  n_5x: number;
+  n_10x: number;
+  n_signaled_early: number;
+  true_positives_2x: number;
+  false_positives_2x: number;
+  false_negatives_2x: number;
+  precision_2x: number | null;
+  recall_2x: number | null;
+  false_positive_rate_2x: number | null;
+  true_positives_5x: number;
+  false_positives_5x: number;
+  false_negatives_5x: number;
+  precision_5x: number | null;
+  recall_5x: number | null;
+  false_positive_rate_5x: number | null;
+  median_lead_days_2x: number | null;
+  median_days_to_2x: number | null;
+  median_days_to_5x: number | null;
+  median_max_dd_pct: number | null;
+}
+
+export interface RunnerBacktestResponse {
+  phase: string;
+  mode: string;
+  generated_at: string;
+  look_ahead: string;
+  symbols: string[];
+  cases: RunnerBacktestCase[];
+  metrics: RunnerBacktestMetrics;
+}
+
 export async function fetchRunnersFeed(): Promise<RunnerFeedResponse> {
   return apiFetch<RunnerFeedResponse>("/api/v1/runners", 120_000);
 }
@@ -987,6 +1055,10 @@ export async function fetchRunnerLists(): Promise<RunnerListsResponse> {
 
 export async function fetchRunnerDetail(symbol: string): Promise<RunnerDetailResponse> {
   return apiFetch<RunnerDetailResponse>(`/api/v1/runners/${symbol}`, 90_000);
+}
+
+export async function fetchRunnerBacktest(): Promise<RunnerBacktestResponse> {
+  return apiFetch<RunnerBacktestResponse>("/api/v1/runners/backtest", 180_000);
 }
 
 export type CryptoRadarBucket = "watch" | "crowded" | "running" | "none";
