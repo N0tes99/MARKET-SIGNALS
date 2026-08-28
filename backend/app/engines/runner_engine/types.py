@@ -28,6 +28,7 @@ RunnerSignalType = Literal[
 ]
 
 WatchlistBucket = Literal["early", "ignition", "running", "none"]
+AlertGate = Literal["high", "early", "none"]
 DataQuality = Literal["good", "degraded", "missing"]
 
 STAGE_ORDER: tuple[RunnerStage, ...] = (
@@ -92,6 +93,7 @@ class RunnerCandidate:
     signal_type: RunnerSignalType
     watchlist: WatchlistBucket
     scores: RunnerScores
+    alert_gate: AlertGate = "none"
     factors: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
     risk_flags: list[str] = field(default_factory=list)
@@ -99,6 +101,6 @@ class RunnerCandidate:
     data_quality: DataQuality = "missing"
     as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
     instrument_type: Literal["runner"] = "runner"
-    phase: str = "2_structure"
+    phase: str = "4_lists"
     qualities: dict[str, DataQuality] = field(default_factory=dict)
     tape: RunnerTapeSnapshot = field(default_factory=RunnerTapeSnapshot)

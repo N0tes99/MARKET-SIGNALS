@@ -45,7 +45,8 @@ export function RadarPreviewStrip() {
             </Link>
           </h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/55">
-            yahoo tape + fundamentals + sec 8-k · discovery vs valuation · missing fields stay —
+            yahoo tape + fundamentals + sec 8-k · discovery vs valuation · lists can fill ·
+            preview — not orders · missing fields stay —
           </p>
         </div>
         <div className="flex flex-wrap gap-x-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50">
@@ -100,8 +101,9 @@ export function RadarPreviewStrip() {
                   </span>
                 </div>
                 <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                  struct {dimDisplay(c, "structure")} · 20d {formatTapePct(c.ret_20d_pct)} ·
-                  vol {formatRelVol(c.relative_volume)}
+                  opp {c.scores.runner_score.toFixed(0)} · risk {c.scores.risk_score.toFixed(0)} ·
+                  struct {dimDisplay(c, "structure")} · 20d {formatTapePct(c.ret_20d_pct)} · vol{" "}
+                  {formatRelVol(c.relative_volume)}
                 </p>
               </Link>
             </li>

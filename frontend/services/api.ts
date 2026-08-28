@@ -911,6 +911,7 @@ export type RunnerStage =
   | "extended";
 
 export type RunnerWatchlist = "early" | "ignition" | "running" | "none";
+export type RunnerAlertGate = "high" | "early" | "none";
 export type RunnerDataQuality = "good" | "degraded" | "missing";
 
 export interface RunnerScores {
@@ -934,6 +935,7 @@ export interface RunnerCandidate {
   stage: RunnerStage;
   signal_type: string;
   watchlist: RunnerWatchlist;
+  alert_gate?: RunnerAlertGate;
   scores: RunnerScores;
   factors: string[];
   conflicts: string[];

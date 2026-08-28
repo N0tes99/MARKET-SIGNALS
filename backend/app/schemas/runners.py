@@ -25,6 +25,7 @@ RunnerSignalType = Literal[
     "none",
 ]
 WatchlistBucket = Literal["early", "ignition", "running", "none"]
+AlertGate = Literal["high", "early", "none"]
 DataQuality = Literal["good", "degraded", "missing"]
 
 
@@ -53,6 +54,7 @@ class RunnerCandidateSchema(BaseModel):
     stage: RunnerStage
     signal_type: RunnerSignalType
     watchlist: WatchlistBucket
+    alert_gate: AlertGate = "none"
     scores: RunnerScoresSchema
     factors: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
@@ -60,7 +62,7 @@ class RunnerCandidateSchema(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     data_quality: DataQuality = "missing"
     as_of: datetime
-    phase: str = "2_structure"
+    phase: str = "4_lists"
     qualities: dict[str, DataQuality] = Field(default_factory=dict)
     ret_20d_pct: float | None = None
     relative_volume: float | None = None
@@ -108,4 +110,4 @@ class RunnerConfigMetaResponse(BaseModel):
     alert_standard_runner_min: float
     alert_early_fundamental_min: float
     alert_early_discovery_gap_min: float
-    phase: str = "2_structure"
+    phase: str = "4_lists"

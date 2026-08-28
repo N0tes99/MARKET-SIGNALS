@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
+import { StageRail } from "@/components/stage-rail";
 import { useCryptoRadar, useRunnersFeed } from "@/hooks/use-runners";
 import { dimDisplay, formatRelVol, formatTapePct } from "@/lib/runner-display";
 import type {
@@ -81,8 +82,8 @@ function EquityBucketColumn({
                   </span>
                 </div>
                 <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
-                  runner {c.scores.runner_score.toFixed(0)} · struct {dimDisplay(c, "structure")} ·
-                  fund {dimDisplay(c, "fundamental")}
+                  opp {c.scores.runner_score.toFixed(0)} · risk {c.scores.risk_score.toFixed(0)} ·
+                  struct {dimDisplay(c, "structure")} · fund {dimDisplay(c, "fundamental")}
                 </p>
               </Link>
             </li>
@@ -185,7 +186,8 @@ function EquitiesTrack() {
       <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
         Yahoo tape + fundamentals + SEC 8-K. Discovery gap is followership vs valuation when
         both exist. EPS surprise when Yahoo has a print. Missing fields stay as em dash — no fake
-        50s. Seed names are a benchmark set, not recommendations.
+        50s. Lists can fill when Yahoo fundamentals exist. Preview — not orders. Seed names are a
+        benchmark set, not recommendations.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -254,7 +256,7 @@ function EquitiesTrack() {
                 <th className="py-2 pr-3 font-normal">Rel vol</th>
                 <th className="py-2 pr-3 font-normal">20d</th>
                 <th className="py-2 pr-3 font-normal">Stage</th>
-                <th className="py-2 pr-3 font-normal">Runner</th>
+                <th className="py-2 pr-3 font-normal">Opp</th>
                 <th className="py-2 pr-3 font-normal">Risk</th>
                 <th className="py-2 pr-3 font-normal">Fund</th>
                 <th className="py-2 pr-3 font-normal">Cat</th>
@@ -283,8 +285,13 @@ function EquitiesTrack() {
                     {formatRelVol(c.relative_volume)}
                   </td>
                   <td className="py-2.5 pr-3 font-mono text-xs">{formatTapePct(c.ret_20d_pct)}</td>
-                  <td className="py-2.5 pr-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    {c.stage.replaceAll("_", " ")}
+                  <td className="py-2.5 pr-3">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {c.stage.replaceAll("_", " ")}
+                      </span>
+                      <StageRail stage={c.stage} compact />
+                    </div>
                   </td>
                   <td className="py-2.5 pr-3 font-mono text-xs">
                     {c.scores.runner_score.toFixed(0)}

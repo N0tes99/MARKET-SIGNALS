@@ -114,7 +114,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
-| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 3 partial (Yahoo + EDGAR + discovery/accel)** |
+| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 4 v0 (lists + alert gates + stage rail)** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP + scoring composer** |
 | Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase B (HL scanners, paper fills)** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
@@ -488,7 +488,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 
 | System | Path | Status |
 |--------|------|--------|
-| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 2 preview** |
+| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 4 v0** |
 | Integration research plan | `docs/research/10x-runner-detection-layer.md` | **Written** |
 
 #### API (planned → Phase 1 live)
@@ -509,7 +509,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Seed universe is for testing/benchmarking — not hard-coded recommendations
 - Backtest must measure **lead time** and forbid look-ahead bias
 
-**Status:** `PHASE 3 PARTIAL` — real daily structure (momentum + RS), Yahoo snippet fundamentals when present (including QoQ revenue acceleration from quarterly statements), free SEC 8-K/6-K catalyst overlay, Yahoo EPS surprise vs estimate, and Discovery Gap as followership vs valuation (PEG / P/S / 52-week expansion). Runner Score still caps when Yahoo fundamentals are missing. UI `/radar` is labeled preview. Ignition/running lists stay conservative until Phase 4. Paid SI vendor and 8-K beat/guidance NLP still open. See `docs/research/10x-runner-detection-layer.md`.
+**Status:** `PHASE 4 V0` — Stage 0–7 + EARLY / IGNITION / RUNNING lists emit when Yahoo fundamentals exist (structure-only still capped). Alert gates (`early` / `high`) fire Discord after a silent baseline. `/radar` table shows Opp vs Risk plus a stage rail. Still preview, not orders. Paid SI vendor and 8-K beat/guidance NLP still open. Phase 5 lead-time backtests not started. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 
@@ -1085,7 +1085,7 @@ When adding a new system, follow this checklist:
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
-| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 3 partial** |
+| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 4 v0** |
 | M11 — Surface 6 Rail | HL-native scanners, nested `/rail`, paper dry-run, live venue stubs | **Phase B** |
 
 ---

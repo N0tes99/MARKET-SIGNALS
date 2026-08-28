@@ -16,7 +16,7 @@ from app.engines.runner_engine import (
     default_runner_config,
 )
 from app.engines.runner_engine.compose import compose_runner_scores
-from app.engines.runner_engine.config import RunnerConfig, StageThresholds
+from app.engines.runner_engine.config import AlertThresholds, RunnerConfig, StageThresholds
 from app.engines.runner_engine.scoring.edgar import EdgarSnapshot
 from app.engines.runner_engine.scoring.structure import score_structure
 from app.engines.runner_engine.scoring.stubs import score_all_dimensions
@@ -24,7 +24,7 @@ from app.engines.runner_engine.scoring.yahoo_snapshot import (
     YahooRunnerSnapshot,
     empty_yahoo_snapshot,
 )
-from app.engines.runner_engine.stage import classify, classify_stage
+from app.engines.runner_engine.stage import classify, classify_alert_gate, classify_stage
 from app.engines.runner_engine.types import DimensionScore, RunnerScores
 from app.main import app
 from app.market_data.providers.mock import MockMarketDataProvider, generate_trending_ohlcv
@@ -236,6 +236,52 @@ def test_stage_classifier_prioritizes_inflection_to_ignition() -> None:
     assert classify_stage(extended, thresholds) == "extended"
 
 
+def test_classify_with_fundamentals_can_reach_ignition() -> None:
+    scores = RunnerScores(fundamental=70, catalyst=70, structure=75, discovery_gap=65)
+    stage, signal, watchlist = classify(
+        scores, default_runner_config(), fundamentals_available=True
+    )
+    assert stage == "ignition"
+    assert signal == "ignition"
+    assert watchlist == "ignition"
+
+
+def test_classify_alert_gate_high_early_none() -> None:
+    alerts = AlertThresholds()
+    high = RunnerScores(
+        fundamental=80,
+        catalyst=80,
+        structure=80,
+        discovery_gap=50,
+        runner_score=90,
+        risk_score=40,
+    )
+    assert classify_alert_gate(high, "ignition", alerts) == "high"
+    assert classify_alert_gate(high, "running", alerts) == "high"
+    assert classify_alert_gate(high, "early", alerts) == "none"
+
+    early = RunnerScores(
+        fundamental=80,
+        catalyst=40,
+        structure=55,
+        discovery_gap=75,
+        runner_score=60,
+        risk_score=40,
+    )
+    assert classify_alert_gate(early, "early", alerts) == "early"
+    assert classify_alert_gate(early, "ignition", alerts) == "none"
+
+    risky = RunnerScores(
+        fundamental=80,
+        catalyst=80,
+        structure=80,
+        discovery_gap=50,
+        runner_score=90,
+        risk_score=80,
+    )
+    assert classify_alert_gate(risky, "ignition", alerts) == "none"
+
+
 def test_classify_watchlist_early_for_inflection() -> None:
     scores = RunnerScores(fundamental=75, catalyst=40, structure=40, discovery_gap=80)
     stage, signal, watchlist = classify(
@@ -256,6 +302,7 @@ def test_engine_evaluate_without_yahoo() -> None:
     assert candidate.qualities["structure"] == "good"
     assert candidate.scores.runner_score <= default_runner_config().structure_only_cap
     assert candidate.stage in {"dormant", "early_accumulation"}
+    assert candidate.alert_gate == "none"
     assert any("Runner Score" in f for f in candidate.factors)
     assert not any("Insufficient data" in c for c in candidate.conflicts)
     assert not any(f.startswith("Missing data:") for f in candidate.risk_flags)
@@ -271,7 +318,23 @@ def test_engine_evaluate_with_yahoo_snapshot(monkeypatch) -> None:
     assert candidate.qualities["fundamental"] == "good"
     assert candidate.qualities["short_squeeze_potential"] == "good"
     assert candidate.scores.runner_score > 0
+    assert candidate.alert_gate in {"none", "early", "high"}
     assert not any("Insufficient data" in c for c in candidate.conflicts)
+
+
+def test_scanner_with_yahoo_may_fill_ignition(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.runner_engine.scoring.stubs.fetch_yahoo_runner_snapshot",
+        lambda symbol: _rich_snapshot(),
+    )
+    cfg = RunnerConfig(seed_universe=("CRDO",))
+    scanner = RunnerScanner(config=cfg, market_data=_mock_md())
+    results = scanner.scan(use_cache=False)
+    assert len(results) == 1
+    assert results[0].qualities["fundamental"] == "good"
+    assert results[0].scores.runner_score > default_runner_config().structure_only_cap
+    lists = scanner.lists()
+    assert set(lists) == {"early", "ignition", "running"}
 
 
 def test_scanner_covers_seed_universe() -> None:
@@ -302,6 +365,7 @@ async def test_runners_api_feed_and_detail(client: AsyncClient) -> None:
     assert len(body["candidates"]) == 2
     first = body["candidates"][0]
     assert first["phase"] == RUNNER_PHASE
+    assert first["alert_gate"] in {"none", "early", "high"}
     assert first["qualities"]["structure"] == "good"
     assert first["scores"]["runner_score"] <= 62.0
 
