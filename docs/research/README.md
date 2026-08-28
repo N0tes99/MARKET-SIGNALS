@@ -17,6 +17,7 @@ Place research findings, data source evaluations, and strategy notes here.
 | Idea | Status | Doc |
 |------|--------|-----|
 | Robinhood Agentic dual-MCP | Open — do not build | [robinhood-agentic-mcp.md](./robinhood-agentic-mcp.md) |
+| Paper execution → first live test | Diagnosis — paper first, no HL/options live | [paper-execution-and-live-test.md](./paper-execution-and-live-test.md) |
 
 ## Data Sources (To Evaluate)
 

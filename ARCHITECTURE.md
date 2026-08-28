@@ -914,6 +914,8 @@ Other brokers (Binance, Coinbase) and place/cancel remain deferred.
 Surface 6 Rail Phase B reads Hyperliquid `/info` (L2, funding, HIP-4) and fills only
 on the paper clerk. Live adapters hard-refuse even if `RAIL_ARMED` / `RAIL_LIVE_ENABLED`.
 Robinhood dual-MCP (SE read tools + RH trading MCP in the user's client) is **parked**.
+First live-test plan (paper execution before HL or listed options):
+`docs/research/paper-execution-and-live-test.md`.
 
 ---
 
@@ -1104,6 +1106,7 @@ When adding a new system, follow this checklist:
 | Research notes | `docs/research/` |
 | Surface 6 Rail plan | `docs/research/rail-execution-surface.md` |
 | Robinhood Agentic dual-MCP (parked) | `docs/research/robinhood-agentic-mcp.md` |
+| Paper execution / first live test | `docs/research/paper-execution-and-live-test.md` |
 
 ---
 
