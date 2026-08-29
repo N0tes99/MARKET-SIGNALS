@@ -271,9 +271,10 @@ def _case_schema(case) -> RunnerBacktestCaseSchema:
 
 @router.get("/backtest", response_model=RunnerBacktestResponse)
 async def get_runner_backtest() -> RunnerBacktestResponse:
-    """Phase 5 v0: structure-tape lead-time study on pattern names.
+    """Lead-time study on pattern names.
 
-    Truncates daily bars at each as-of. Does not score live Yahoo fundamentals
+    Truncates daily bars at each as-of. Dated 8-K filing dates and lagged
+    Yahoo quarterlies may fill fund/catalyst. Live Yahoo info is not scored
     back through history (that would look ahead).
     """
     try:

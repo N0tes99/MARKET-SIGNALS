@@ -120,8 +120,10 @@ def _earnings_from_calendar(calendar: object) -> date | None:
             return None
 
 
-def quarterly_revenues_from_frame(frame: object) -> tuple[float, ...]:
-    """Newest-first Total Revenue column from a Yahoo quarterly statement."""
+def quarterly_revenue_series_from_frame(
+    frame: object,
+) -> tuple[tuple[date, float], ...]:
+    """Period-end date + Total Revenue, newest first. Empty when the row is missing."""
     if frame is None or not hasattr(frame, "index"):
         return ()
     try:
@@ -141,7 +143,7 @@ def quarterly_revenues_from_frame(frame: object) -> tuple[float, ...]:
     if row_idx is None:
         return ()
     row = frame.iloc[row_idx]
-    pairs: list[tuple[str, float]] = []
+    pairs: list[tuple[date, float]] = []
     columns = list(getattr(frame, "columns", []))
     values = list(row.tolist()) if hasattr(row, "tolist") else list(row)
     for col, raw in zip(columns, values, strict=False):
@@ -151,15 +153,19 @@ def quarterly_revenues_from_frame(frame: object) -> tuple[float, ...]:
             continue
         if number != number:
             continue
-        pairs.append((str(col), number))
+        period_end = _as_date(col)
+        if period_end is None:
+            continue
+        pairs.append((period_end, number))
     if not pairs:
         return ()
+    pairs.sort(key=lambda item: item[0], reverse=True)
+    return tuple(pairs[:8])
 
-    def _col_key(item: tuple[str, float]) -> str:
-        return item[0]
 
-    pairs.sort(key=_col_key, reverse=True)
-    return tuple(value for _col, value in pairs[:8])
+def quarterly_revenues_from_frame(frame: object) -> tuple[float, ...]:
+    """Newest-first Total Revenue column from a Yahoo quarterly statement."""
+    return tuple(value for _period, value in quarterly_revenue_series_from_frame(frame))
 
 
 def _quarterly_revenues(ticker: object) -> tuple[float, ...]:

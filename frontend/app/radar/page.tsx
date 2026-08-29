@@ -460,9 +460,10 @@ function TuneCompare() {
       <h2 className="label-caps">Baseline vs tuned</h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
         Out-of-sample structure-threshold tune versus the structure-only baseline (55). Famous
-        pattern-study names are held out and never pick the threshold. Modifier weights unused
-        until dated fundamentals exist. Live Radar still uses 55 — not applied to live. Research
-        only — not orders.
+        pattern-study names are held out and never pick the threshold. Dated 8-K filing dates and
+        lagged Yahoo quarterlies may fill fund/catalyst. Modifier weights unused until dated
+        discovery/SI exist. Live Radar still uses 55 — not applied to live. Research only — not
+        orders.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -567,9 +568,10 @@ function StudyTrack() {
   return (
     <>
       <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Structure-tape replay on truncated daily bars. Current Yahoo fundamentals are not
-        scored back through history — that would look ahead. Multiples are labeled from the
-        path after the fact. Research only — not orders.
+        Structure-tape replay on truncated daily bars. Dated 8-K filing dates and lagged Yahoo
+        quarterlies may fill fund/catalyst. Live Yahoo info is not scored back through history —
+        that would look ahead. Multiples are labeled from the path after the fact. Research only —
+        not orders.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-4">
