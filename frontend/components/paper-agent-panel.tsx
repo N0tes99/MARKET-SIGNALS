@@ -430,9 +430,20 @@ export function PaperAgentPanel() {
             {data.daily_open_cap ?? 5} daily opens left · ATR TP/SL from RiskEngine · max hold 3d
             · WATCH 55 + grade B + F&G + R:R · no US cash Sat/Sun ET
             {" · last tick "}
-            <span className={lastTickMeta(data.last_tick_at).stale ? "text-muted-foreground/70" : ""}>
+            <span
+              className={
+                data.tick_stale || lastTickMeta(data.last_tick_at).stale
+                  ? "text-muted-foreground/70"
+                  : ""
+              }
+            >
               {lastTickMeta(data.last_tick_at).text}
             </span>
+            {data.tick_stale ? (
+              <>
+                {" · tick stale — leftover opens still manage, no new opens until fresh"}
+              </>
+            ) : null}
             {data.paused_new_opens && data.paused_new_opens.length > 0 ? (
               <>
                 {" · new opens paused "}

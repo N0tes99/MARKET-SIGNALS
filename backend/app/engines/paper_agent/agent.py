@@ -16,6 +16,7 @@ from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent import paper_policy as paper_policy_mod
 from app.engines.paper_agent.broker import (
     DEFAULT_SIZE_USD,
+    MAX_HOLD_HOURS,
     _bps_slip,
     last_price,
     next_bar_open_after,
@@ -28,7 +29,9 @@ from app.engines.paper_agent.crypto_perp_v2 import scan_crypto_perp_v2
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
 from app.engines.paper_agent.paper_policy import (
     attach_close_to_policy,
+    last_tick_age_seconds,
     momentum_fights_crowded_funding,
+    paper_tick_stale,
     snapshot_paper_execution,
     sort_paper_candidates,
 )
@@ -176,7 +179,11 @@ class PaperAgent:
         def _slots_left() -> int:
             return max(0, max_open - len(self._store.open_or_pending()))
 
-        discover = self._should_discover(now)
+        catchup = paper_tick_stale(self._last_tick_at, now)
+        if catchup:
+            notes.append("skip:stale_tick")
+
+        discover = self._should_discover(now) and not catchup
         if discover:
             candidates: list[dict] = []
 
@@ -551,7 +558,7 @@ class PaperAgent:
 
         # --- Manage open / pending / closing ---
         for trade in list(self._store.open_or_pending()):
-            self._advance_trade(trade, now=now, notes=notes)
+            self._advance_trade(trade, now=now, notes=notes, catchup=catchup)
 
         self._last_tick_at = now
         set_meta = getattr(self._store, "set_meta", None)
@@ -818,10 +825,28 @@ class PaperAgent:
         except Exception:
             logger.exception("Paper memory close failed trade=%s", trade.id)
 
-    def _advance_trade(self, trade: PaperTrade, *, now: datetime, notes: list[str]) -> None:
+    def _advance_trade(
+        self,
+        trade: PaperTrade,
+        *,
+        now: datetime,
+        notes: list[str],
+        catchup: bool = False,
+    ) -> None:
         mark = last_price(self._market, trade.symbol) or trade.mark_price
+        used_stale_mark = False
         if mark is None:
-            return
+            opened = trade.optimistic_entry_at
+            if opened.tzinfo is None:
+                opened = opened.replace(tzinfo=UTC)
+            age_h = (now - opened).total_seconds() / 3600.0
+            if age_h >= MAX_HOLD_HOURS and trade.optimistic_entry > 0:
+                mark = trade.optimistic_entry
+                used_stale_mark = True
+                notes.append(f"stale_mark:{trade.symbol}")
+            else:
+                notes.append(f"skip:stale_mark:{trade.symbol}")
+                return
         trade.mark_price = mark
 
         if trade.status == "pending_honest" and trade.honest_entry is None:
@@ -847,6 +872,8 @@ class PaperAgent:
                 stop_loss_pct=trade.stop_loss_pct,
             )
             if reason:
+                if catchup or used_stale_mark:
+                    reason = f"stale:{reason}"
                 exit_px = _bps_slip(mark, trade.direction, entry=False)
                 pnl, ret = unrealized_pnl(
                     direction=trade.direction,
@@ -880,6 +907,8 @@ class PaperAgent:
                 stop_loss_pct=trade.stop_loss_pct,
             )
             if reason:
+                if catchup or used_stale_mark:
+                    reason = f"stale:{reason}"
                 exit_px = _bps_slip(mark, trade.direction, entry=False)
                 pnl, ret = unrealized_pnl(
                     direction=trade.direction,
@@ -1010,6 +1039,8 @@ class PaperAgent:
             opens_today=self._opens_on_utc_day(now),
             daily_open_cap=MAX_NEW_OPENS_PER_DAY,
             paused_new_opens=sorted(paper_policy_mod.PAUSED_NEW_OPEN_SOURCES),
+            tick_stale=paper_tick_stale(self._last_tick_at, now),
+            last_tick_age_seconds=last_tick_age_seconds(self._last_tick_at, now),
         )
 
     def _ledger(self, mode: str, trades: list[PaperTrade]) -> PaperLedgerSnapshot:
