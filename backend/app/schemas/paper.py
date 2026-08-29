@@ -84,3 +84,7 @@ class PaperSummarySchema(BaseModel):
     maturity: PaperMaturitySchema | None = None
     opens_today: int = 0
     daily_open_cap: int = 5
+    paused_new_opens: list[str] = Field(
+        default_factory=list,
+        description="Idea factories not opening new paper trades (existing still manage)",
+    )

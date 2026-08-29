@@ -115,3 +115,4 @@ class PaperAgentSummary:
     maturity: PaperMaturitySnapshot | None = None
     opens_today: int = 0
     daily_open_cap: int = 5
+    paused_new_opens: list[str] = field(default_factory=list)

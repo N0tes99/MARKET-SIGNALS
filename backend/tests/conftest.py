@@ -33,7 +33,16 @@ def _reset_auth_rate_limits() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _silence_cme_paper_scan(monkeypatch) -> None:
+def _unpause_paper_sources_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tick tests open crypto_setup; production pause stays in paper_policy."""
+    monkeypatch.setattr(
+        "app.engines.paper_agent.paper_policy.PAUSED_NEW_OPEN_SOURCES",
+        frozenset(),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _silence_cme_paper_scan(monkeypatch: pytest.MonkeyPatch) -> None:
     """Existing paper ticks must not hit Yahoo CME quotes."""
     monkeypatch.setattr(
         "app.engines.paper_agent.agent.scan_cme_paper_ideas",

@@ -430,6 +430,7 @@ export interface PaperSummary {
   maturity?: PaperMaturity | null;
   opens_today?: number;
   daily_open_cap?: number;
+  paused_new_opens?: string[];
 }
 
 export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {

@@ -112,6 +112,7 @@ def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperS
         maturity=maturity,
         opens_today=s.opens_today,
         daily_open_cap=s.daily_open_cap,
+        paused_new_opens=list(s.paused_new_opens),
     )
 
 
