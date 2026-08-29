@@ -1,8 +1,9 @@
 # Runner case studies (Phase 5–6)
 
 Research notes for the pattern-study set. **Not recommendations.** Live `/radar` Study
-replays truncated daily bars plus **dated 8-K/6-K filing dates** and **lagged Yahoo
-quarterlies** (matching 10-Q/10-K filing date, else period-end + 45 days). Live Yahoo
+replays truncated daily bars plus **dated 8-K/6-K filing dates**, **lagged Yahoo
+quarterlies** (matching 10-Q/10-K filing date, else period-end + 45 days), and
+**13F EDGAR search** by `file_date` (not a complete manager universe). Live Yahoo
 `info` (cap, PE, ownership, SI, next earnings) is not written back through history.
 2×/3×/5×/10× are outcome labels from the path after the fact.
 
@@ -15,8 +16,8 @@ T0 for offset snapshots is the first 2× close after a trough in the first 40% o
 window (or the last bar if 2× never prints). Lead time is calendar days from the first
 EARLY list print to that 2× date. Ignition/running may print once lagged quarterlies
 fill the fundamental dim (structure still has to clear the ignition gate). 8-Ks date
-the catalyst overlay. Live Yahoo `info` still does not apply. Ownership / SI /
-discovery-gap stay empty in replay.
+the catalyst overlay. 13F search may fill institutional (incomplete universe). Live
+Yahoo `info` still does not apply. SI / discovery-gap stay empty in replay.
 
 | Symbol | Why it is on the list |
 |--------|------------------------|

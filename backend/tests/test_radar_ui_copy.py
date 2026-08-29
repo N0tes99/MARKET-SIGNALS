@@ -39,6 +39,8 @@ def test_radar_page_mentions_yahoo_fundamentals() -> None:
     assert "that would look ahead" in text
     assert "Dated 8-K filing dates" in text
     assert "lagged Yahoo quarterlies" in text
+    assert "13F EDGAR search" in text
+    assert "not a complete manager universe" in text
     assert "Live Yahoo info" in text
     assert "Lead 2×" in text
     assert "precision" in text

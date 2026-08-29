@@ -112,7 +112,7 @@ class RunnerConfig:
     structure_only_cap: float = 62.0
 
 
-RUNNER_PHASE = "6_dated"
+RUNNER_PHASE = "6_13f"
 
 
 def default_runner_config() -> RunnerConfig:
