@@ -14,6 +14,9 @@ from app.engines.runner_engine.scoring.thirteen_f import (
     INCOMPLETE_UNIVERSE_FACTOR,
     ThirteenFHit,
     ThirteenFSearchResult,
+    _SEARCH_YEARS,
+    _search_windows,
+    efts_search_params,
     parse_efts_hits,
     score_institutional_13f,
     search_queries,
@@ -244,3 +247,96 @@ async def test_backtest_api_look_ahead_mentions_13f(client: AsyncClient, monkeyp
     assert "filing" in look
     assert body["phase"] == "6_13f"
     assert body["mode"] == "dated_fundamentals"
+
+
+def test_efts_params_use_single_13f_hr_form() -> None:
+    params = efts_search_params('"Celestica Inc."', date(2024, 1, 1), date(2024, 12, 31))
+    forms = [value for key, value in params if key == "forms"]
+    assert forms == ["13F-HR"]
+    assert [key for key, _value in params].count("forms") == 1
+
+
+def test_search_windows_cover_two_year_lookback() -> None:
+    windows = _search_windows(as_of=date(2026, 8, 29))
+    starts = [start for start, _end in windows]
+    assert min(starts) <= date(2019, 1, 1)
+    assert len(windows) == _SEARCH_YEARS
+
+
+def test_prior_outside_coverage_is_not_rising() -> None:
+    hits = (ThirteenFHit("a-2022", date(2022, 2, 14), "0000000001"),)
+    dim = score_institutional_13f(
+        ThirteenFSearchResult(hits=hits, coverage_start=date(2022, 1, 1)),
+        date(2022, 6, 1),
+    )
+    assert dim.data_quality == "missing"
+    assert dim.score == 50.0
+    assert any("not in search coverage" in line for line in dim.factors)
+    assert not any("Rising" in line for line in dim.factors)
+
+
+def test_incomplete_fetch_is_not_scored() -> None:
+    hits = (
+        ThirteenFHit("a-2020", date(2020, 2, 14), "0000000001"),
+        ThirteenFHit("b-2019", date(2019, 2, 14), "0000000002"),
+        ThirteenFHit("c-2019", date(2019, 2, 14), "0000000003"),
+    )
+    dim = score_institutional_13f(
+        ThirteenFSearchResult(hits=hits, incomplete=True),
+        date(2020, 2, 14),
+    )
+    assert dim.data_quality == "missing"
+    assert dim.score == 50.0
+    assert any("partial 13F search" in line for line in dim.factors)
+    assert dim.conflicts == []
+
+
+def test_capped_keeps_incomplete_factor() -> None:
+    hits = (ThirteenFHit("a-2020", date(2020, 11, 16), "0000000001"),)
+    dim = score_institutional_13f(
+        ThirteenFSearchResult(hits=hits, capped=True),
+        date(2020, 11, 16),
+    )
+    assert dim.data_quality == "degraded"
+    assert any("search result cap reached" in line for line in dim.factors)
+
+
+def test_13f_only_event_keeps_earlier_fundamentals() -> None:
+    dated = build_dated_series(
+        "WIN",
+        revenue_series=(
+            (date(2019, 3, 31), 50.0),
+            (date(2019, 6, 30), 60.0),
+            (date(2019, 9, 30), 80.0),
+            (date(2019, 12, 31), 110.0),
+        ),
+        filings=(),
+        thirteen_f=ThirteenFSearchResult(
+            hits=(ThirteenFHit("a-2020", date(2020, 6, 1), "0000000001"),)
+        ),
+    )
+    inst_snap = next(snap for snap in dated if snap.as_of == date(2020, 6, 1))
+    assert inst_snap.dimensions["fundamental"].data_quality != "missing"
+    assert inst_snap.dimensions["institutional_accum"].data_quality == "degraded"
+
+
+def test_live_yahoo_institutional_still_labels_snapshot() -> None:
+    from app.engines.runner_engine.scoring.yahoo_dims import score_institutional
+    from app.engines.runner_engine.scoring.yahoo_snapshot import YahooRunnerSnapshot
+
+    dim = score_institutional(
+        YahooRunnerSnapshot(
+            symbol="WIN",
+            fetched_ok=True,
+            held_percent_institutions=0.72,
+        )
+    )
+    assert any("Ownership snapshot (not 13F change)" in line for line in dim.factors)
+    assert any("Institutions" in line for line in dim.factors)
+
+
+def test_efts_headers_use_sec_user_agent() -> None:
+    from app.config import settings
+    from app.engines.runner_engine.scoring.thirteen_f import _headers
+
+    assert _headers()["User-Agent"] == settings.sec_user_agent

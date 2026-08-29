@@ -97,7 +97,7 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] 2×/3×/5×/10× labels, lead time, max DD, precision/recall/FPR
   - [x] `GET /api/v1/runners/backtest` + Radar Study track
   - [x] Dated 8-K filing dates + lagged Yahoo quarterlies (live Yahoo info unused)
-  - [x] Dated ownership via 13F EDGAR search v0 (incomplete manager universe; not live Yahoo)
+  - [x] Dated 13F filer-count search v0 (incomplete manager universe; not % owned; not live Yahoo)
   - [ ] Dated SI / discovery-gap series (Yahoo live snapshot only; SI is paid/FINRA)
 - [x] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
   - [x] Train/holdout split (famous pattern-study names never pick the threshold)

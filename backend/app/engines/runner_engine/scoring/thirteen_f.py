@@ -27,13 +27,17 @@ _EFTS_URL = "https://efts.sec.gov/LATEST/search-index"
 _CACHE_TTL = 1_800.0
 _PAGE_SIZE = 100
 _HITS_CAP = 250
-_SEARCH_YEARS = 5
+# 5y study bars + 2y YoY lookback, plus the current partial year.
+_SEARCH_YEARS = 8
 _WINDOW_DAYS = 365
 MIN_TICKER_QUERY_LEN = 4
 INCOMPLETE_UNIVERSE_FACTOR = (
     "13F EDGAR search (not a complete manager universe)"
 )
-_FORMS = ("13F-HR", "13F-HR/A")
+# Single value: EFTS keeps the last repeated ``forms`` param, so listing
+# 13F-HR then 13F-HR/A would search amendments only. ``13F-HR`` already
+# matches 13F-HR/A via root_forms.
+_FORM = "13F-HR"
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,8 @@ class ThirteenFSearchResult:
 
     hits: tuple[ThirteenFHit, ...]
     capped: bool = False
+    incomplete: bool = False
+    coverage_start: date | None = None
 
 
 _CACHE: TTLCache[ThirteenFSearchResult] = TTLCache(ttl_seconds=_CACHE_TTL)
@@ -180,6 +186,26 @@ def _search_windows(
     return tuple(windows)
 
 
+def efts_search_params(
+    query: str,
+    start: date,
+    end: date,
+    *,
+    offset: int = 0,
+    size: int = _PAGE_SIZE,
+) -> list[tuple[str, str]]:
+    """EFTS query string. One ``forms`` value — last-wins on duplicates."""
+    return [
+        ("q", query),
+        ("dateRange", "custom"),
+        ("startdt", start.isoformat()),
+        ("enddt", end.isoformat()),
+        ("from", str(offset)),
+        ("size", str(size)),
+        ("forms", _FORM),
+    ]
+
+
 def _efts_page(
     query: str,
     start: date,
@@ -188,23 +214,18 @@ def _efts_page(
     offset: int,
 ) -> object | None:
     client = shared_client(timeout=12.0, name="sec-efts", headers=_headers())
-    params: list[tuple[str, str]] = [
-        ("q", query),
-        ("dateRange", "custom"),
-        ("startdt", start.isoformat()),
-        ("enddt", end.isoformat()),
-        ("from", str(offset)),
-        ("size", str(_PAGE_SIZE)),
-    ]
-    for form in _FORMS:
-        params.append(("forms", form))
-    response = client.get(_EFTS_URL, params=params)
+    response = client.get(
+        _EFTS_URL,
+        params=efts_search_params(query, start, end, offset=offset),
+    )
     if response.status_code != 200:
         return None
     return response.json()
 
 
-def _search_query_window(query: str, start: date, end: date) -> tuple[list[ThirteenFHit], bool]:
+def _search_query_window(
+    query: str, start: date, end: date
+) -> tuple[list[ThirteenFHit], bool, bool]:
     hits: list[ThirteenFHit] = []
     capped = False
     offset = 0
@@ -213,9 +234,9 @@ def _search_query_window(query: str, start: date, end: date) -> tuple[list[Thirt
             payload = _efts_page(query, start, end, offset=offset)
         except Exception:
             logger.debug("EFTS 13F search skipped", exc_info=True)
-            break
+            return hits, capped, True
         if payload is None:
-            break
+            return hits, capped, True
         page = parse_efts_hits(payload)
         hits.extend(page)
         total = _total_hits(payload)
@@ -228,7 +249,7 @@ def _search_query_window(query: str, start: date, end: date) -> tuple[list[Thirt
     if len(hits) >= _HITS_CAP:
         capped = True
         hits = hits[:_HITS_CAP]
-    return hits, capped
+    return hits, capped, False
 
 
 def _dedupe(hits: list[ThirteenFHit]) -> tuple[ThirteenFHit, ...]:
@@ -253,12 +274,24 @@ def fetch_thirteen_f_search(symbol: str) -> ThirteenFSearchResult:
             return ThirteenFSearchResult(hits=())
         collected: list[ThirteenFHit] = []
         capped = False
+        incomplete = False
+        completed_starts: list[date] = []
         for query in queries:
             for start, end in _search_windows():
-                page_hits, page_capped = _search_query_window(query, start, end)
+                page_hits, page_capped, failed = _search_query_window(query, start, end)
                 collected.extend(page_hits)
                 capped = capped or page_capped
-        return ThirteenFSearchResult(hits=_dedupe(collected), capped=capped)
+                if failed:
+                    incomplete = True
+                else:
+                    completed_starts.append(start)
+        coverage_start = min(completed_starts) if completed_starts else None
+        return ThirteenFSearchResult(
+            hits=_dedupe(collected),
+            capped=capped,
+            incomplete=incomplete,
+            coverage_start=coverage_start,
+        )
 
     try:
         return _CACHE.get_or_set(f"13f:{normalized}", _load)
@@ -299,6 +332,26 @@ def score_institutional_13f(
     conflicts: list[str] = []
     if result.capped:
         factors.append("search result cap reached — incomplete")
+    if result.incomplete:
+        factors.append("partial 13F search — trend not scored")
+        return DimensionScore(
+            name="institutional_accum",
+            score=50.0,
+            confidence=0.25,
+            factors=factors,
+            conflicts=conflicts,
+            data_quality="missing",
+        )
+    if result.coverage_start is not None and prior_start < result.coverage_start:
+        factors.append("prior-year 13F window not in search coverage")
+        return DimensionScore(
+            name="institutional_accum",
+            score=50.0,
+            confidence=0.25,
+            factors=factors,
+            conflicts=conflicts,
+            data_quality="missing",
+        )
 
     if not current and not prior:
         factors.append("No 13F search hits knowable by this as-of")
