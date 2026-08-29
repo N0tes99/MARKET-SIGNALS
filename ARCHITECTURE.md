@@ -114,7 +114,7 @@ Its purpose is to help traders make statistically superior decisions through **e
 | Risk Engine | `backend/app/engines/risk_engine/` | **Implemented** |
 | Opportunity Engine | `backend/app/engines/opportunity_engine/` | **Implemented** |
 | Layer 3 Equity Options | `backend/app/engines/opportunity_engine/equity_options/` | **Implemented (MVP)** |
-| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 6 v0 (OOS structure-gate tune)** |
+| Surface 4 Runner Detection | `backend/app/engines/runner_engine/` | **Phase 6 dated (PIT 8-K + lagged quarterlies)** |
 | Surface 5 Expansion Engine | `backend/app/engines/expansion_engine/` | **MVP + scoring composer** |
 | Surface 6 Rail (blind clerk) | `backend/app/engines/rail/` | **Phase B (HL scanners, paper fills)** |
 | Cortex | `backend/app/cortex/` | **Phase B** |
@@ -488,7 +488,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 
 | System | Path | Status |
 |--------|------|--------|
-| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 6 v0** |
+| Runner Detection Engine | `backend/app/engines/runner_engine/` | **Phase 6 dated** |
 | Integration research plan | `docs/research/10x-runner-detection-layer.md` | **Written** |
 
 #### API (planned → Phase 1 live)
@@ -498,7 +498,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 | `/api/v1/runners` | GET | Ranked feed + EARLY/IGNITION/RUNNING filters |
 | `/api/v1/runners/lists` | GET | EARLY / IGNITION / RUNNING buckets |
 | `/api/v1/runners/meta/config` | GET | Public thresholds + seed universe |
-| `/api/v1/runners/backtest` | GET | Structure-tape lead-time study (no live Yahoo look-ahead) |
+| `/api/v1/runners/backtest` | GET | Structure-tape lead-time study + dated 8-K / lagged quarterlies (no live Yahoo `info`) |
 | `/api/v1/runners/tune` | GET | OOS structure-threshold grid vs baseline (not applied to live) |
 | `/api/v1/runners/{symbol}` | GET | Full score breakdown + explainability |
 
@@ -511,7 +511,7 @@ Short interest = **accelerant only**. Popularity ≠ bullish. Always explain fac
 - Seed universe is for testing/benchmarking — not hard-coded recommendations
 - Backtest must measure **lead time** and forbid look-ahead bias
 
-**Status:** `PHASE 6 V0` — Stage 0–7 + EARLY / IGNITION / RUNNING lists emit when Yahoo fundamentals exist (structure-only still capped). Alert gates (`early` / `high`) fire Discord after a silent baseline. `/radar` table shows Opp vs Risk plus a stage rail. Lead-time study (`GET /api/v1/runners/backtest`) replays **truncated daily tape** only. OOS structure-accumulation tune (`GET /api/v1/runners/tune`) holds out famous pattern-study names and does **not** change live Radar (still 55). Modifier-weight search waits on dated fundamentals. Paid SI vendor and 8-K beat/guidance NLP still open. See `docs/research/10x-runner-detection-layer.md`.
+**Status:** `PHASE 6 DATED` — Stage 0–7 + EARLY / IGNITION / RUNNING lists emit when Yahoo fundamentals exist (structure-only still capped). Alert gates (`early` / `high`) fire Discord after a silent baseline. `/radar` table shows Opp vs Risk plus a stage rail. Lead-time study (`GET /api/v1/runners/backtest`) replays truncated daily tape plus **dated 8-K filing dates** and **lagged Yahoo quarterlies**; live Yahoo `info` is not written into the past. OOS structure-accumulation tune (`GET /api/v1/runners/tune`) holds out famous pattern-study names and does **not** change live Radar (still 55). Modifier-weight search waits on dated discovery/SI. Paid SI vendor and 8-K beat/guidance NLP still open. See `docs/research/10x-runner-detection-layer.md`.
 
 ---
 
@@ -1089,7 +1089,7 @@ When adding a new system, follow this checklist:
 | M7 — Market Data | Providers, warm cache, Beat, stale detection | **Partial** (warm + Beat + freshness done; deeper ingestion TBD) |
 | M8 — Broker Adapters | Read-only portfolio, **public paper agent** (dual ledger, **Postgres-durable**) | **Partial** (paper living bot + durable PnL; Alpaca read-only mirror; other live brokers deferred) |
 | M9 — Layer 3 Equity Options | Momentum setups, option selection, staged execution plans | **MVP** (unusual options flow deferred) |
-| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 6 v0** |
+| M10 — Surface 4 Runner Detection | Fundamental inflection radar, discovery gap, stages, 10X Radar UI, lead-time backtests | **Phase 6 dated** |
 | M11 — Surface 6 Rail | HL-native scanners, nested `/rail`, paper dry-run, live venue stubs | **Phase B** |
 
 ---

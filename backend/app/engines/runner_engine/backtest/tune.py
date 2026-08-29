@@ -22,6 +22,7 @@ from app.engines.runner_engine.backtest.dataset import (
     DatedFundamentals,
 )
 from app.engines.runner_engine.backtest.multiples import label_multiples
+from app.engines.runner_engine.backtest.pit import load_dated_fundamentals
 from app.engines.runner_engine.backtest.replay import walk_signals
 from app.engines.runner_engine.backtest.study import (
     CaseResult,
@@ -43,7 +44,8 @@ BASELINE_STRUCTURE_ACCUMULATION = 55.0
 TUNE_NOTE = (
     "Out-of-sample structure-accumulation grid vs structure-only baseline (55). "
     "Famous pattern-study names are holdout and never pick the threshold. "
-    "Modifier weights unused until dated fundamentals exist. "
+    "Dated 8-K filing dates and lagged Yahoo quarterlies may fill fund/catalyst; "
+    "live Yahoo info is unused. Modifier weights unused until dated discovery/SI. "
     "Not applied to live Radar."
 )
 
@@ -310,10 +312,12 @@ def cached_live_tune(
     def _build() -> TuneReport:
         symbols = tuple(dict.fromkeys((*train_symbols, *holdout_symbols)))
         frames = load_study_frames(symbols, fetcher=fetcher)
+        dated = {} if fetcher is not None else load_dated_fundamentals(symbols)
         return run_tune(
             frames,
             train_symbols=train_symbols,
             holdout_symbols=holdout_symbols,
+            dated_fundamentals=dated or None,
         )
 
     if fetcher is not None:

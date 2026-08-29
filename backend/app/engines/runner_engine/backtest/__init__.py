@@ -7,6 +7,10 @@ from app.engines.runner_engine.backtest.dataset import (
     TRAIN_STUDY_SYMBOLS,
     DatedFundamentals,
 )
+from app.engines.runner_engine.backtest.pit import (
+    build_dated_series,
+    load_dated_fundamentals,
+)
 from app.engines.runner_engine.backtest.replay import evaluate_as_of
 from app.engines.runner_engine.backtest.study import (
     LeadTimeStudy,
@@ -27,9 +31,11 @@ __all__ = [
     "STUDY_SYMBOLS",
     "TRAIN_STUDY_SYMBOLS",
     "TuneReport",
+    "build_dated_series",
     "cached_live_study",
     "cached_live_tune",
     "evaluate_as_of",
+    "load_dated_fundamentals",
     "run_study",
     "run_tune",
 ]

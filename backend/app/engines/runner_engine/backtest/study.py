@@ -22,6 +22,7 @@ from app.engines.runner_engine.backtest.multiples import (
     label_multiples,
     max_drawdown_pct,
 )
+from app.engines.runner_engine.backtest.pit import load_dated_fundamentals
 from app.engines.runner_engine.backtest.replay import (
     ReplayPoint,
     first_list_date,
@@ -298,13 +299,19 @@ def run_study(
             logger.exception("runner_backtest failed for %s", key)
             cases.append(CaseResult(symbol=key, bars=len(df), error="replay failed"))
 
+    dated = dated_fundamentals or {}
+    has_dated = any(dated.values())
+    look_ahead = (
+        "structure tape truncated at each as-of; dated 8-K filing dates + lagged "
+        "Yahoo quarterlies; live Yahoo info unused"
+        if has_dated
+        else "structure tape truncated at each as-of; current Yahoo fundamentals unused"
+    )
     return LeadTimeStudy(
         phase=RUNNER_PHASE,
         mode=mode,
         generated_at=datetime.now(UTC),
-        look_ahead=(
-            "structure tape truncated at each as-of; current Yahoo fundamentals unused"
-        ),
+        look_ahead=look_ahead,
         cases=cases,
         metrics=aggregate_metrics(cases),
     )
@@ -373,12 +380,14 @@ def cached_live_study(
     fetcher: FrameFetcher | None = None,
     symbols: tuple[str, ...] = STUDY_SYMBOLS,
 ) -> LeadTimeStudy:
-    """TTL-cached live Yahoo 5y structure-tape study."""
+    """TTL-cached live Yahoo 5y study with dated 8-K + lagged quarterlies."""
 
     def _build() -> LeadTimeStudy:
         frames = load_study_frames(symbols, fetcher=fetcher)
-        return run_study(frames, symbols, mode="structure_tape")
+        dated = {} if fetcher is not None else load_dated_fundamentals(symbols)
+        mode = "dated_fundamentals" if dated else "structure_tape"
+        return run_study(frames, symbols, dated_fundamentals=dated, mode=mode)
 
     if fetcher is not None:
         return _build()
-    return _CACHE.get_or_set("study_v0_with_controls", _build)
+    return _CACHE.get_or_set("study_v1_dated", _build)

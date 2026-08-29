@@ -1,6 +1,6 @@
 # 10X Runner Detection Layer — Integration Plan
 
-> Status: **Phase 6 v0** (OOS structure-accumulation tune vs structure-only baseline; famous pattern-study names held out; live Radar still at 55. Phase 5 truncated-tape study remains. Paid SI and 8-K NLP still open).
+> Status: **Phase 6 dated** (OOS structure-gate tune remains; replay now uses 8-K **filing dates** + lagged Yahoo quarterlies. Live Yahoo `info` unused in history. Ownership/SI/discovery-gap still live-only. Paid SI and 8-K NLP still open).
 > Related: `ARCHITECTURE.md` §5.5 (Surface 4), roadmap M10.
 > Source brief: ChatGPT “10X Runner Detection Layer” spec (pasted 2026-08-12).
 
@@ -214,6 +214,7 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 - Labeled multi-bagger dataset (2×/3×/5×/10×) with point-in-time features at T-180…T0
 - Metrics: precision/recall, false-positive rate, **lead time**, time-to-N×, max DD
 - Strict no look-ahead: replay truncates daily bars at each as-of; live Yahoo snippets are not used as historical fundamentals
+- Dated 8-K/6-K by **filing date**; Yahoo quarterlies knowable on matching 10-Q/10-K or period-end + 45 days
 - Case notes: `docs/research/runner-case-studies/`
 - API: `GET /api/v1/runners/backtest` + Radar Study track
 
@@ -221,7 +222,8 @@ Exact weight table lives in `runner_engine/config.py` and must be tunable for Ph
 
 - Out-of-sample tuning; **do not** overfit famous winners (pattern-study set is holdout)
 - Compare against Structure-only baseline (`structure_accumulation` = 55)
-- Grid is the structure-only EARLY gate — modifier weights unused until dated fundamentals exist
+- Grid is the EARLY structure gate — discovery/theme/inst/squeeze weights unused until those dims have dated series
+- Dated 8-K + lagged quarterlies may fill fund/catalyst in replay (not live Yahoo `info`)
 - Live Radar defaults are **not** auto-applied (`applied_to_live: false`)
 - API: `GET /api/v1/runners/tune` + Radar Study track “baseline vs tuned”
 
@@ -245,7 +247,7 @@ Case notes: `docs/research/runner-case-studies/`.
 | `GET /api/v1/runners` | Ranked feed; filters: `list=early\|ignition\|running`, `min_score`, `stage` |
 | `GET /api/v1/runners/{symbol}` | Full candidate + score breakdown + factors/conflicts/risks |
 | `GET /api/v1/runners/meta/config` | Public thresholds (no secrets) |
-| `GET /api/v1/runners/backtest` | Structure-tape lead-time study (Phase 5 v0) |
+| `GET /api/v1/runners/backtest` | Structure-tape + dated 8-K / lagged quarterlies (live Yahoo `info` unused) |
 | `GET /api/v1/runners/tune` | OOS structure-threshold grid vs baseline (Phase 6 v0; not applied to live) |
 
 Response always includes explainability fields — never bare “BUY / 87”.
