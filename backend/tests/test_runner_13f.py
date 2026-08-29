@@ -11,10 +11,10 @@ from app.engines.runner_engine.backtest.pit import build_dated_series, load_date
 from app.engines.runner_engine.backtest.study import run_study
 from app.engines.runner_engine.scoring.edgar import directory_from_tickers_payload
 from app.engines.runner_engine.scoring.thirteen_f import (
+    _SEARCH_YEARS,
     INCOMPLETE_UNIVERSE_FACTOR,
     ThirteenFHit,
     ThirteenFSearchResult,
-    _SEARCH_YEARS,
     _search_windows,
     efts_search_params,
     parse_efts_hits,
