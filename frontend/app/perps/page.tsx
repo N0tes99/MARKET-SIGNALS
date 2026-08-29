@@ -183,6 +183,9 @@ export default function PerpsPage() {
 
   const openCrypto = (paper.data?.open_trades ?? []).filter(isCryptoPaper);
   const closedCrypto = (paper.data?.recent_closed ?? []).filter(isCryptoPaper);
+  const l2NewOpensPaused = (paper.data?.paused_new_opens ?? []).includes(
+    "crypto_setup",
+  );
   const funding = board.data?.funding ?? [];
   const liquidations = board.data?.liquidations ?? [];
   const ideas = board.data?.ideas ?? [];
@@ -192,10 +195,13 @@ export default function PerpsPage() {
       <SiteHeader compact title="Crypto perps" />
       <div className="container mx-auto px-4 pb-16 pt-8">
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Paper crypto activity only — Layer-2 setups and perp v2 momentum. Funding comes
-          from Bybit when reachable, otherwise OKX (US/Render-safe). Liquidations use recent
-          OKX fills (Bybit fallback); Coinglass stays an optional chart deep-link.
-          Not live exchange orders. Not financial advice.
+          Paper crypto activity only — perp v2 momentum
+          {l2NewOpensPaused
+            ? " (new Layer-2 crypto_setup opens paused)"
+            : " and Layer-2 setups"}
+          . Funding comes from Bybit when reachable, otherwise OKX (US/Render-safe).
+          Liquidations use recent OKX fills (Bybit fallback); Coinglass stays an optional
+          chart deep-link. Not live exchange orders. Not financial advice.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">
@@ -230,9 +236,21 @@ export default function PerpsPage() {
             Paper activity
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground/70">
-            Opens and recent closes from <span className="text-muted-foreground">crypto_perp_v2</span>{" "}
-            and Layer-2 <span className="text-muted-foreground">crypto_setup</span>. Equity and tape
-            stay on the home paper panel.
+            {l2NewOpensPaused ? (
+              <>
+                New opens from{" "}
+                <span className="text-muted-foreground">crypto_perp_v2</span> only.
+                Leftover Layer-2 <span className="text-muted-foreground">crypto_setup</span>{" "}
+                still lists and manages here. Equity and tape stay on the home paper panel.
+              </>
+            ) : (
+              <>
+                Opens and recent closes from{" "}
+                <span className="text-muted-foreground">crypto_perp_v2</span> and Layer-2{" "}
+                <span className="text-muted-foreground">crypto_setup</span>. Equity and tape
+                stay on the home paper panel.
+              </>
+            )}
           </p>
           {paper.isLoading ? (
             <div className="surface mt-4 h-28 animate-pulse" />
@@ -423,8 +441,9 @@ export default function PerpsPage() {
             Perp ideas
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground/70">
-            Live Layer-2 scanners: funding extremes, liquidation flushes, and basis-rich
-            names that can feed the paper agent.
+            {l2NewOpensPaused
+              ? "Live Layer-2 scanners still list funding extremes, liquidation flushes, and basis-rich names. They do not open new paper while crypto_setup is paused."
+              : "Live Layer-2 scanners: funding extremes, liquidation flushes, and basis-rich names that can feed the paper agent."}
           </p>
           {board.isLoading ? (
             <div className="surface mt-4 h-24 animate-pulse" />
