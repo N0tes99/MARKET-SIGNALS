@@ -462,8 +462,8 @@ function TuneCompare() {
         Out-of-sample structure-threshold tune versus the structure-only baseline (55). Famous
         pattern-study names are held out and never pick the threshold. Dated 8-K filing dates,
         lagged Yahoo quarterlies, and 13F EDGAR search (not a complete manager universe) may fill
-        fund/catalyst/institutional. Discovery/SI still missing. Live Radar still uses 55 — not
-        applied to live. Research only — not orders.
+        fund/catalyst/institutional. Discovery/SI still missing. Live Radar still uses 55 — not applied to live.
+        Research only — not orders.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-4">
