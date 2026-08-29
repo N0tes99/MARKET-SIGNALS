@@ -433,6 +433,13 @@ export function PaperAgentPanel() {
             <span className={lastTickMeta(data.last_tick_at).stale ? "text-muted-foreground/70" : ""}>
               {lastTickMeta(data.last_tick_at).text}
             </span>
+            {data.paused_new_opens && data.paused_new_opens.length > 0 ? (
+              <>
+                {" · new opens paused "}
+                {data.paused_new_opens.join(", ")}
+                {" (perp v2 sleeve)"}
+              </>
+            ) : null}
           </p>
           {data.tick_notes?.some(
             (n) => n.startsWith("skip:") || n === "discover:skipped",

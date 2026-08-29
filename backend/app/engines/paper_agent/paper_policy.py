@@ -18,6 +18,9 @@ SKIP_CME_VS_CROWDED_COT = True
 # Honest labels: ±0.05% is noise, not a win.
 MIN_WIN_RETURN_PCT = 0.5
 MIN_LOSS_RETURN_PCT = -0.5
+# 2026-08-29 CSV: equity stock paper 3W/9L; crypto L2 (basis_rich/liq_flush) 0/2.
+# Proof sleeve is crypto_perp_v2. Empty this set to resume those factories.
+PAUSED_NEW_OPEN_SOURCES = frozenset({"equity_setup", "crypto_setup"})
 
 
 def candidate_rank_tier(setup_type: str) -> int:
@@ -136,6 +139,7 @@ def snapshot_live_knobs(
         "preferred_l2_setups": sorted(PREFERRED_L2_SETUPS),
         "skip_momentum_vs_crowded_funding": SKIP_MOMENTUM_VS_CROWDED_FUNDING,
         "skip_cme_vs_crowded_cot": SKIP_CME_VS_CROWDED_COT,
+        "paused_new_open_sources": sorted(PAUSED_NEW_OPEN_SOURCES),
         "min_win_return_pct": MIN_WIN_RETURN_PCT,
         "min_loss_return_pct": MIN_LOSS_RETURN_PCT,
     }

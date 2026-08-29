@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from app.engines.learning_engine.engine import LearningEngine
 from app.engines.opportunity_engine.equity_options.scanner import EquityOptionsScanner
 from app.engines.opportunity_engine.scanner import SetupScanner
+from app.engines.paper_agent import paper_policy as paper_policy_mod
 from app.engines.paper_agent.broker import (
     DEFAULT_SIZE_USD,
     _bps_slip,
@@ -213,37 +214,40 @@ class PaperAgent:
                     )
 
             # --- Crypto Layer 2 ---
-            try:
-                crypto_ideas = self._crypto.scan_feed(
-                    watch_only=False, min_confidence=MIN_CONFIDENCE
-                )
-            except Exception:
-                logger.exception("Paper agent crypto feed failed")
-                crypto_ideas = []
-                notes.append("crypto_feed_error")
+            if "crypto_setup" in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                notes.append("skip:paused:crypto_setup")
+            else:
+                try:
+                    crypto_ideas = self._crypto.scan_feed(
+                        watch_only=False, min_confidence=MIN_CONFIDENCE
+                    )
+                except Exception:
+                    logger.exception("Paper agent crypto feed failed")
+                    crypto_ideas = []
+                    notes.append("crypto_feed_error")
 
-            for idea in crypto_ideas:
-                direction = _dir(idea.direction_bias)
-                if direction is None:
-                    continue
-                if float(idea.confidence) < MIN_CONFIDENCE:
-                    continue
-                fp = _fingerprint("crypto_setup", idea.symbol, idea.setup_type, direction)
-                if fp in active:
-                    continue
-                candidates.append(
-                    {
-                        "source": "crypto_setup",
-                        "symbol": idea.symbol,
-                        "setup_type": idea.setup_type,
-                        "direction": direction,
-                        "fingerprint": fp,
-                        "confidence": float(idea.confidence),
-                        "opportunity_score": float(idea.confidence),
-                        "factors": list(idea.factors[:5]),
-                        "score": float(idea.confidence),
-                    }
-                )
+                for idea in crypto_ideas:
+                    direction = _dir(idea.direction_bias)
+                    if direction is None:
+                        continue
+                    if float(idea.confidence) < MIN_CONFIDENCE:
+                        continue
+                    fp = _fingerprint("crypto_setup", idea.symbol, idea.setup_type, direction)
+                    if fp in active:
+                        continue
+                    candidates.append(
+                        {
+                            "source": "crypto_setup",
+                            "symbol": idea.symbol,
+                            "setup_type": idea.setup_type,
+                            "direction": direction,
+                            "fingerprint": fp,
+                            "confidence": float(idea.confidence),
+                            "opportunity_score": float(idea.confidence),
+                            "factors": list(idea.factors[:5]),
+                            "score": float(idea.confidence),
+                        }
+                    )
 
             # --- Crypto perps v2 (momentum + funding depth + F&G + Reddit cache) ---
             try:
@@ -290,9 +294,10 @@ class PaperAgent:
                 )
 
             # --- Equity Layer 3 ---
-            if not us_cash_session_open(now):
+            if "equity_setup" in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                notes.append("skip:paused:equity_setup")
+            elif not us_cash_session_open(now):
                 notes.append("skip:equity_weekend")
-                equity_ideas = []
             else:
                 try:
                     equity_ideas = self._equity.scan_feed(
@@ -303,30 +308,32 @@ class PaperAgent:
                     logger.exception("Paper agent equity feed failed")
                     equity_ideas = []
                     notes.append("equity_feed_error")
-
-            for idea in equity_ideas:
-                direction = _dir(idea.direction_bias)
-                if direction is None:
-                    continue
-                if float(idea.confidence) < MIN_CONFIDENCE:
-                    continue
-                fp = _fingerprint("equity_setup", idea.symbol, idea.setup_type, direction)
-                if fp in active:
-                    continue
-                score = float(getattr(idea, "opportunity_score", idea.confidence))
-                candidates.append(
-                    {
-                        "source": "equity_setup",
-                        "symbol": idea.symbol,
-                        "setup_type": idea.setup_type,
-                        "direction": direction,
-                        "fingerprint": fp,
-                        "confidence": float(idea.confidence),
-                        "opportunity_score": score,
-                        "factors": list(idea.factors[:5]),
-                        "score": score,
-                    }
-                )
+                else:
+                    for idea in equity_ideas:
+                        direction = _dir(idea.direction_bias)
+                        if direction is None:
+                            continue
+                        if float(idea.confidence) < MIN_CONFIDENCE:
+                            continue
+                        fp = _fingerprint(
+                            "equity_setup", idea.symbol, idea.setup_type, direction
+                        )
+                        if fp in active:
+                            continue
+                        score = float(getattr(idea, "opportunity_score", idea.confidence))
+                        candidates.append(
+                            {
+                                "source": "equity_setup",
+                                "symbol": idea.symbol,
+                                "setup_type": idea.setup_type,
+                                "direction": direction,
+                                "fingerprint": fp,
+                                "confidence": float(idea.confidence),
+                                "opportunity_score": score,
+                                "factors": list(idea.factors[:5]),
+                                "score": score,
+                            }
+                        )
 
             # --- Tape hunts (hot only, same confirm + daily cap) ---
             if self._tape is None or not us_cash_session_open(now):
@@ -433,6 +440,9 @@ class PaperAgent:
                 if _slots_left() <= 0:
                     hit_cap = True
                     break
+                if cand["source"] in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                    notes.append(f"skip:paused:{cand['source']}")
+                    continue
                 if cand["source"] == "crypto_perp_v2":
                     if active_expansion_alert(self._cortex, cand["symbol"]):
                         notes.append(f"skip:expansion_active:{cand['symbol']}")
@@ -999,6 +1009,7 @@ class PaperAgent:
             maturity=self.maturity(),
             opens_today=self._opens_on_utc_day(now),
             daily_open_cap=MAX_NEW_OPENS_PER_DAY,
+            paused_new_opens=sorted(paper_policy_mod.PAUSED_NEW_OPEN_SOURCES),
         )
 
     def _ledger(self, mode: str, trades: list[PaperTrade]) -> PaperLedgerSnapshot:

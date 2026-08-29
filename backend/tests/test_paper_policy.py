@@ -65,6 +65,7 @@ def test_policy_snapshot_roundtrip_in_notes() -> None:
     assert policy["knobs"]["skip_momentum_vs_crowded_funding"] is True
     assert policy["knobs"]["skip_cme_vs_crowded_cot"] is True
     assert policy["knobs"]["max_cme_futures_opens_per_day"] == 3
+    assert isinstance(policy["knobs"]["paused_new_open_sources"], list)
     assert policy["features"]["funding_bps"] == 9.0
     same = snapshot_paper_execution(
         size_usd=2500.0,
