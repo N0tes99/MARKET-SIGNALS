@@ -51,7 +51,7 @@ MULTIPLES: tuple[int, ...] = (2, 3, 5, 10)
 
 @dataclass(frozen=True)
 class DatedFundamentals:
-    """Point-in-time fundamental/catalyst dims. Ignored when as_of is after the bar."""
+    """Point-in-time fund/catalyst/13F dims. Ignored when as_of is after the bar."""
 
     as_of: date
     dimensions: dict[str, DimensionScore] = field(default_factory=dict)

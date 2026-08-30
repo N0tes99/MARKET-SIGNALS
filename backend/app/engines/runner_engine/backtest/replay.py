@@ -110,7 +110,8 @@ def evaluate_as_of(
     """Classify using only bars dated on or before ``as_of``.
 
     Live Yahoo snippets are never fetched here. Fundamentals apply only when a
-    dated snapshot exists with as_of <= the bar.
+    dated snapshot exists with as_of <= the bar. Institutional replay is 13F
+    search (incomplete), never live Yahoo ownership.
     """
     cfg = config or default_runner_config()
     window = truncate_to(ohlcv, as_of)

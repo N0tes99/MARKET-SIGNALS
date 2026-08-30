@@ -156,6 +156,8 @@ async def test_backtest_api_look_ahead_mentions_dated(client: AsyncClient, monke
     look = body["look_ahead"].lower()
     assert "filing" in look
     assert "lagged" in look or "lag" in look
+    assert "13f" in look
+    assert "not a complete manager universe" in look
     assert "unused" in look
     assert body["mode"] == "dated_fundamentals"
     assert body["cases"][0]["hit_2x"] is True

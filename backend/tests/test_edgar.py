@@ -6,6 +6,7 @@ from app.engines.runner_engine.scoring.edgar import (
     _FILING_CACHE,
     EdgarSnapshot,
     _parse_filings,
+    directory_from_tickers_payload,
     fetch_edgar_snapshot,
 )
 from app.engines.runner_engine.scoring.yahoo_dims import score_catalyst
@@ -64,6 +65,14 @@ def test_fetch_empty_when_unknown_ticker(monkeypatch) -> None:
     snap = fetch_edgar_snapshot("ZZZZ", today=date(2026, 8, 27))
     assert snap.cik is None
     assert snap.eight_k_count == 0
+
+
+def test_directory_keeps_issuer_title() -> None:
+    directory = directory_from_tickers_payload(
+        {"0": {"cik_str": 1477430, "ticker": "CLS", "title": "Celestica Inc."}}
+    )
+    assert directory.title_by_symbol["CLS"] == "Celestica Inc."
+    assert directory.cik_by_symbol["CLS"] == "0001477430"
 
 
 def test_catalyst_from_edgar_without_earnings() -> None:

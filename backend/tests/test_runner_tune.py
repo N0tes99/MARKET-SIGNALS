@@ -204,6 +204,8 @@ def test_run_tune_does_not_fit_on_holdout_symbols() -> None:
     }
     assert "not applied to live" in report.note.lower()
     assert "famous" in report.note.lower()
+    assert "13f" in report.note.lower()
+    assert "not a complete manager universe" in report.note.lower()
 
 
 def test_run_tune_rejects_overlap() -> None:
@@ -255,6 +257,7 @@ async def test_tune_api_uses_injected_frames(client: AsyncClient, monkeypatch) -
     assert body["holdout_symbols"] == ["FAMOUS"]
     assert "out-of-sample" in body["note"].lower()
     assert "famous" in body["note"].lower()
+    assert "13f" in body["note"].lower()
     assert any(r["is_baseline"] for r in body["rows"])
     assert "precision_5x" in body["baseline_holdout"]
     assert "precision_5x" in body["recommended_holdout"]

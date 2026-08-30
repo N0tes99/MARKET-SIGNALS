@@ -303,7 +303,8 @@ def run_study(
     has_dated = any(dated.values())
     look_ahead = (
         "structure tape truncated at each as-of; dated 8-K filing dates + lagged "
-        "Yahoo quarterlies; live Yahoo info unused"
+        "Yahoo quarterlies + 13F EDGAR search (not a complete manager universe); "
+        "live Yahoo info unused"
         if has_dated
         else "structure tape truncated at each as-of; current Yahoo fundamentals unused"
     )
@@ -380,7 +381,7 @@ def cached_live_study(
     fetcher: FrameFetcher | None = None,
     symbols: tuple[str, ...] = STUDY_SYMBOLS,
 ) -> LeadTimeStudy:
-    """TTL-cached live Yahoo 5y study with dated 8-K + lagged quarterlies."""
+    """TTL-cached live Yahoo 5y study with dated 8-K, lagged quarterlies, 13F search."""
 
     def _build() -> LeadTimeStudy:
         frames = load_study_frames(symbols, fetcher=fetcher)
@@ -390,4 +391,4 @@ def cached_live_study(
 
     if fetcher is not None:
         return _build()
-    return _CACHE.get_or_set("study_v1_dated", _build)
+    return _CACHE.get_or_set("study_v1_13f", _build)

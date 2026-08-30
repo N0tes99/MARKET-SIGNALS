@@ -1,9 +1,8 @@
 """Phase 6: out-of-sample structure-threshold tune vs structure-only baseline.
 
-Famous pattern-study names are holdout and never pick the threshold. Modifier
-weights (discovery / theme / inst / squeeze) do not apply on structure-only
-replay — those dims are missing until dated fundamentals exist. Live Radar
-defaults are not changed here.
+Famous pattern-study names are holdout and never pick the threshold. 13F EDGAR
+search may fill institutional_accum in replay (incomplete manager universe).
+Discovery-gap and SI still missing. Live Radar defaults are not changed here.
 
 This is not Surface 1 grade-weight tuning (`/api/v1/tuning`).
 """
@@ -44,9 +43,9 @@ BASELINE_STRUCTURE_ACCUMULATION = 55.0
 TUNE_NOTE = (
     "Out-of-sample structure-accumulation grid vs structure-only baseline (55). "
     "Famous pattern-study names are holdout and never pick the threshold. "
-    "Dated 8-K filing dates and lagged Yahoo quarterlies may fill fund/catalyst; "
-    "live Yahoo info is unused. Modifier weights unused until dated discovery/SI. "
-    "Not applied to live Radar."
+    "Dated 8-K filing dates, lagged Yahoo quarterlies, and 13F EDGAR search "
+    "(not a complete manager universe) may fill fund/catalyst/institutional; "
+    "live Yahoo info is unused. Discovery/SI still missing. Not applied to live Radar."
 )
 
 
@@ -322,4 +321,4 @@ def cached_live_tune(
 
     if fetcher is not None:
         return _build()
-    return _CACHE.get_or_set("tune_v0_structure_gate", _build)
+    return _CACHE.get_or_set("tune_v0_13f", _build)

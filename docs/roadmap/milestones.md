@@ -97,13 +97,14 @@ Architecture + integration plan: `ARCHITECTURE.md` §5.5, `docs/research/10x-run
   - [x] 2×/3×/5×/10× labels, lead time, max DD, precision/recall/FPR
   - [x] `GET /api/v1/runners/backtest` + Radar Study track
   - [x] Dated 8-K filing dates + lagged Yahoo quarterlies (live Yahoo info unused)
-  - [ ] Dated ownership / SI / discovery-gap series (Yahoo live snapshot only)
+  - [x] Dated 13F filer-count search v0 (incomplete manager universe; not % owned; not live Yahoo)
+  - [ ] Dated SI / discovery-gap series (Yahoo live snapshot only; SI is paid/FINRA)
 - [x] Phase 6 — Out-of-sample weight tuning (do not overfit famous winners)
   - [x] Train/holdout split (famous pattern-study names never pick the threshold)
   - [x] Structure-accumulation grid vs structure-only baseline (55)
   - [x] Recommend tuned only when holdout does not regress vs baseline
   - [x] `GET /api/v1/runners/tune` + Study track comparison (not applied to live)
-  - [ ] Modifier-weight search (blocked on dated discovery/SI; fund/catalyst PIT is in)
+  - [ ] Modifier-weight search (blocked on dated discovery/SI; fund/catalyst/13F PIT is in)
 
 ## Milestone 11 — Surface 6 Rail Engine
 

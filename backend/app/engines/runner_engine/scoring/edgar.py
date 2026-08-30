@@ -19,7 +19,16 @@ _FILINGS_TTL = 1_800.0
 CATALYST_FORMS = frozenset({"8-K", "8-K/A", "6-K"})
 STATEMENT_FORMS = frozenset({"10-Q", "10-Q/A", "10-K", "10-K/A", "20-F", "20-F/A", "40-F"})
 
-_TICKER_CACHE: TTLCache[dict[str, str]] = TTLCache(ttl_seconds=_TICKERS_TTL)
+
+@dataclass(frozen=True)
+class TickerDirectory:
+    """CIK + issuer title from company_tickers.json (one fetch)."""
+
+    cik_by_symbol: dict[str, str]
+    title_by_symbol: dict[str, str]
+
+
+_TICKER_CACHE: TTLCache[TickerDirectory] = TTLCache(ttl_seconds=_TICKERS_TTL)
 
 
 @dataclass(frozen=True)
@@ -43,33 +52,53 @@ def _headers() -> dict[str, str]:
     }
 
 
-def _ticker_map() -> dict[str, str]:
-    def _load() -> dict[str, str]:
+def directory_from_tickers_payload(payload: object) -> TickerDirectory:
+    """Parse company_tickers.json into CIK and title maps."""
+    cik_by_symbol: dict[str, str] = {}
+    title_by_symbol: dict[str, str] = {}
+    if not isinstance(payload, dict):
+        return TickerDirectory(cik_by_symbol, title_by_symbol)
+    for row in payload.values():
+        if not isinstance(row, dict):
+            continue
+        ticker = str(row.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        cik = row.get("cik_str")
+        if cik is not None:
+            cik_by_symbol[ticker] = str(int(cik)).zfill(10)
+        title = str(row.get("title") or "").strip()
+        if title:
+            title_by_symbol[ticker] = title
+    return TickerDirectory(cik_by_symbol, title_by_symbol)
+
+
+def _ticker_directory() -> TickerDirectory:
+    def _load() -> TickerDirectory:
         client = shared_client(timeout=12.0, name="sec-tickers", headers=_headers())
         response = client.get(_TICKERS_URL)
         response.raise_for_status()
-        payload = response.json()
-        mapping: dict[str, str] = {}
-        if not isinstance(payload, dict):
-            return mapping
-        for row in payload.values():
-            if not isinstance(row, dict):
-                continue
-            ticker = str(row.get("ticker") or "").upper().strip()
-            cik = row.get("cik_str")
-            if ticker and cik is not None:
-                mapping[ticker] = str(int(cik)).zfill(10)
-        return mapping
+        return directory_from_tickers_payload(response.json())
 
     try:
-        return dict(_TICKER_CACHE.get_or_set("tickers", _load))
+        cached = _TICKER_CACHE.get_or_set("tickers", _load)
+        return TickerDirectory(
+            dict(cached.cik_by_symbol),
+            dict(cached.title_by_symbol),
+        )
     except Exception:
         logger.debug("SEC ticker map skipped", exc_info=True)
-        return {}
+        return TickerDirectory({}, {})
 
 
 def lookup_cik(symbol: str) -> str | None:
-    return _ticker_map().get(symbol.upper().strip())
+    return _ticker_directory().cik_by_symbol.get(symbol.upper().strip())
+
+
+def lookup_issuer_title(symbol: str) -> str | None:
+    """Issuer title from company_tickers.json. None when unknown."""
+    title = _ticker_directory().title_by_symbol.get(symbol.upper().strip())
+    return title or None
 
 
 def _parse_filings(
