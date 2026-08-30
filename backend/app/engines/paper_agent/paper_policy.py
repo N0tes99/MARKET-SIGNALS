@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 POLICY_SCHEMA = "paper_policy.v1"
@@ -21,6 +22,34 @@ MIN_LOSS_RETURN_PCT = -0.5
 # 2026-08-29 CSV: equity stock paper 3W/9L; crypto L2 (basis_rich/liq_flush) 0/2.
 # Proof sleeve is crypto_perp_v2. Empty this set to resume those factories.
 PAUSED_NEW_OPEN_SOURCES = frozenset({"equity_setup", "crypto_setup"})
+# Keep-warm cron is */10. Two missed cycles = the bot slept; do not open into a gap.
+STALE_TICK_SECONDS = 20 * 60
+
+
+def last_tick_age_seconds(last_tick_at: datetime | None, now: datetime) -> float | None:
+    """Seconds since the last paper tick, or None if the bot has never ticked."""
+    if last_tick_at is None:
+        return None
+    aware = last_tick_at if last_tick_at.tzinfo else last_tick_at.replace(tzinfo=UTC)
+    as_of = now if now.tzinfo else now.replace(tzinfo=UTC)
+    return max(0.0, (as_of - aware).total_seconds())
+
+
+def paper_tick_stale(
+    last_tick_at: datetime | None,
+    now: datetime,
+    *,
+    stale_after_seconds: float = STALE_TICK_SECONDS,
+) -> bool:
+    """True when the last paper tick is older than two keep-warm cycles.
+
+    Never-ticked (``last_tick_at`` missing) is not stale — first boot and
+    tests that seed opens still discover. A known 6h gap is stale.
+    """
+    age = last_tick_age_seconds(last_tick_at, now)
+    if age is None:
+        return False
+    return age >= stale_after_seconds
 
 
 def candidate_rank_tier(setup_type: str) -> int:
@@ -140,6 +169,7 @@ def snapshot_live_knobs(
         "skip_momentum_vs_crowded_funding": SKIP_MOMENTUM_VS_CROWDED_FUNDING,
         "skip_cme_vs_crowded_cot": SKIP_CME_VS_CROWDED_COT,
         "paused_new_open_sources": sorted(PAUSED_NEW_OPEN_SOURCES),
+        "stale_tick_seconds": STALE_TICK_SECONDS,
         "min_win_return_pct": MIN_WIN_RETURN_PCT,
         "min_loss_return_pct": MIN_LOSS_RETURN_PCT,
     }

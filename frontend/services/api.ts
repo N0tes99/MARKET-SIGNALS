@@ -431,6 +431,8 @@ export interface PaperSummary {
   opens_today?: number;
   daily_open_cap?: number;
   paused_new_opens?: string[];
+  tick_stale?: boolean;
+  last_tick_age_seconds?: number | null;
 }
 
 export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {

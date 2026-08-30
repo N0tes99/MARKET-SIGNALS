@@ -88,3 +88,8 @@ class PaperSummarySchema(BaseModel):
         default_factory=list,
         description="Idea factories not opening new paper trades (existing still manage)",
     )
+    tick_stale: bool = Field(
+        default=False,
+        description="True when last_tick_at is older than two keep-warm cycles",
+    )
+    last_tick_age_seconds: float | None = None
