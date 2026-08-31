@@ -52,7 +52,7 @@ def test_client_ip_prefers_forwarded_for() -> None:
         "server": ("test", 80),
     }
     request = Request(scope)
-    assert client_ip(request) == "203.0.113.9"
+    assert client_ip(request) == "10.0.0.1"
 
 
 def test_limit_login_blocks_same_email_across_ips() -> None:

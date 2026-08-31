@@ -298,7 +298,10 @@ async def _get_or_create_wallet_user(
         return user
 
     try:
-        username = random_wallet_username(address, taken=await _taken_usernames(session))
+        username = random_wallet_username(
+            address,
+            taken=await _taken_usernames(session) | settings.admin_username_set(),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=500, detail="Could not assign username") from exc
     email = synthetic_wallet_email(username)

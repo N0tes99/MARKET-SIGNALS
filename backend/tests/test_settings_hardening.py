@@ -34,11 +34,35 @@ def test_production_rejects_blank_secret_key(isolated_env: None) -> None:
         Settings(_env_file=None, app_env="production", secret_key="   ")
 
 
+def test_production_rejects_blank_auth_password(isolated_env: None) -> None:
+    with pytest.raises(ValidationError, match="AUTH_PASSWORD"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            secret_key="unit-test-secret-key-not-default",
+            auth_password="",
+            site_totp_secret="JBSWY3DPEHPK3PXP",
+        )
+
+
+def test_production_rejects_blank_totp_secret(isolated_env: None) -> None:
+    with pytest.raises(ValidationError, match="SITE_TOTP_SECRET"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            secret_key="unit-test-secret-key-not-default",
+            auth_password="unit-test-auth-password",
+            site_totp_secret="",
+        )
+
+
 def test_production_forces_debug_off(isolated_env: None) -> None:
     loaded = Settings(
         _env_file=None,
         app_env="production",
         secret_key="unit-test-secret-key-not-default",
+        auth_password="unit-test-auth-password",
+        site_totp_secret="JBSWY3DPEHPK3PXP",
         app_debug=True,
     )
     assert loaded.app_debug is False
@@ -65,6 +89,8 @@ def test_production_cors_does_not_inject_local_ports(
         _env_file=None,
         app_env="production",
         secret_key="unit-test-secret-key-not-default",
+        auth_password="unit-test-auth-password",
+        site_totp_secret="JBSWY3DPEHPK3PXP",
         cors_origins="https://example.netlify.app",
     )
     assert loaded.cors_origin_list() == ["https://example.netlify.app"]

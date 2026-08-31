@@ -124,6 +124,11 @@ async def register(
             status_code=409,
             detail="Email or username already registered",
         )
+    if settings.is_admin_username(username):
+        raise HTTPException(
+            status_code=409,
+            detail="Email or username already registered",
+        )
 
     user = User(
         email=email,

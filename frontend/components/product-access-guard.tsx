@@ -15,10 +15,6 @@ const BYPASS = new Set([
   "/reset-password",
   "/unlock",
   "/pending",
-  "/admin/access",
-  "/admin/api-access",
-  "/admin/wallets",
-  "/admin/requests",
 ]);
 
 const REQUIRE_LOGIN = process.env.NEXT_PUBLIC_REQUIRE_LOGIN === "true";
@@ -88,7 +84,11 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
   }
 
   if (gateQuery.isError) {
-    return <>{children}</>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="font-mono text-[11px] text-muted-foreground/50">Access check failed</p>
+      </div>
+    );
   }
 
   return (

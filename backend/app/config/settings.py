@@ -171,6 +171,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SECRET_KEY must be a strong random value when APP_ENV=production"
             )
+        if not self.auth_password.strip():
+            raise ValueError(
+                "AUTH_PASSWORD must be set when APP_ENV=production"
+            )
+        if not self.site_totp_secret.strip():
+            raise ValueError(
+                "SITE_TOTP_SECRET must be set when APP_ENV=production"
+            )
         return self
 
     def cors_origin_list(self) -> list[str]:

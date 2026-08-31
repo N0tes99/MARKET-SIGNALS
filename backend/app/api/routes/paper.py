@@ -8,12 +8,13 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.core.auth_deps import require_admin_user
+from app.core.rate_limit import limit_expensive
 from app.core.service_dependencies import get_paper_agent
 from app.engines.paper_agent.agent import PaperAgent
 from app.engines.paper_agent.tune_csv import paper_trades_to_csv
@@ -168,9 +169,11 @@ async def paper_trades_csv(
 
 @router.post("/tick", response_model=PaperSummarySchema)
 async def paper_tick(
+    request: Request,
     agent: PaperAgent = Depends(get_paper_agent),
 ) -> PaperSummarySchema:
     """Force one paper-agent tick (public; still soft-fails internally)."""
+    limit_expensive(request)
     notes = await asyncio.to_thread(agent.tick)
     return await asyncio.to_thread(_summary_schema, agent, notes)
 
