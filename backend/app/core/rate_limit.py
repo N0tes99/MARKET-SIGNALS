@@ -95,6 +95,14 @@ def limit_forgot_password(request: Request) -> None:
     )
 
 
+def limit_resend_verification(request: Request) -> None:
+    check_rate_limit(
+        f"resend:ip:{client_ip(request)}",
+        limit=settings.auth_forgot_ip_limit,
+        window_seconds=settings.auth_rate_window_seconds,
+    )
+
+
 def limit_wallet(request: Request, action: str) -> None:
     check_rate_limit(
         f"wallet:{action}:ip:{client_ip(request)}",

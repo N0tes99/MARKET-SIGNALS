@@ -14,11 +14,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.auth_deps import get_current_user, get_optional_user
 from app.core.dependencies import get_db
-from app.core.rate_limit import limit_forgot_password, limit_login, limit_register
+from app.core.rate_limit import (
+    limit_forgot_password,
+    limit_login,
+    limit_register,
+    limit_resend_verification,
+)
 from app.core.security import (
     SESSION_COOKIE_NAME,
     cookie_secure,
     create_access_token,
+    dummy_password_hash,
     hash_password,
     verify_password,
 )
@@ -37,6 +43,8 @@ from app.services.mailer import send_mail, smtp_configured
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_TOKEN_TTL_HOURS = 24.0
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -99,6 +107,15 @@ def _verification_required() -> bool:
     if settings.app_env.lower() == "production":
         return True
     return smtp_configured()
+
+
+def _token_sent_at_expired(sent_at: datetime | None) -> bool:
+    """True when a verify/reset token is missing a timestamp or older than 24h."""
+    if sent_at is None:
+        return True
+    aware = sent_at if sent_at.tzinfo else sent_at.replace(tzinfo=UTC)
+    age_h = (datetime.now(UTC) - aware).total_seconds() / 3600.0
+    return age_h > _TOKEN_TTL_HOURS
 
 
 @router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
@@ -171,7 +188,8 @@ async def login(
     limit_login(request, email)
     result = await session.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
-    if user is None or not verify_password(body.password, user.password_hash):
+    password_hash = user.password_hash if user is not None else dummy_password_hash()
+    if user is None or not verify_password(body.password, password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if _verification_required() and not user.email_verified:
@@ -212,7 +230,10 @@ async def verify_email(
         select(User).where(User.email_verify_token_hash == token_hash)
     )
     user = result.scalar_one_or_none()
-    if user is None:
+    if user is None or _token_sent_at_expired(user.email_verify_sent_at):
+        if user is not None:
+            user.email_verify_token_hash = None
+            await session.commit()
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
     user.email_verified_at = datetime.now(UTC)
@@ -227,10 +248,12 @@ async def verify_email(
 @router.post("/resend-verification", status_code=status.HTTP_204_NO_CONTENT)
 async def resend_verification(
     body: ResendVerificationRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
     current: User | None = Depends(get_optional_user),
 ) -> None:
     """Resend verification email (rate-limited). Always 204 to avoid email enumeration."""
+    limit_resend_verification(request)
     user: User | None = current
     if user is None and body.email:
         result = await session.execute(
@@ -245,10 +268,7 @@ async def resend_verification(
     if user.email_verify_sent_at is not None:
         elapsed = (now - user.email_verify_sent_at).total_seconds()
         if elapsed < settings.email_verify_cooldown_seconds:
-            raise HTTPException(
-                status_code=429,
-                detail="Please wait before requesting another verification email",
-            )
+            return
 
     raw = _issue_verify_token(user)
     await session.flush()
@@ -291,10 +311,7 @@ async def forgot_password(
     if user.password_reset_sent_at is not None:
         elapsed = (now - user.password_reset_sent_at).total_seconds()
         if elapsed < settings.email_verify_cooldown_seconds:
-            raise HTTPException(
-                status_code=429,
-                detail="Please wait before requesting another reset email",
-            )
+            return
 
     raw = _issue_reset_token(user)
     await session.flush()
@@ -316,15 +333,11 @@ async def reset_password(
         select(User).where(User.password_reset_token_hash == token_hash)
     )
     user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-
-    if user.password_reset_sent_at is not None:
-        age_h = (datetime.now(UTC) - user.password_reset_sent_at).total_seconds() / 3600.0
-        if age_h > 24:
+    if user is None or _token_sent_at_expired(user.password_reset_sent_at):
+        if user is not None:
             user.password_reset_token_hash = None
-            await session.flush()
-            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+            await session.commit()
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     user.password_hash = hash_password(body.password)
     user.password_reset_token_hash = None

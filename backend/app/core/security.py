@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -9,6 +10,8 @@ import bcrypt
 import jwt
 
 from app.config import settings
+
+_DUMMY_PASSWORD_HASH: str | None = None
 
 SESSION_COOKIE_NAME = "se_session"
 JWT_ALGORITHM = "HS256"
@@ -25,6 +28,14 @@ def verify_password(password: str, password_hash: str) -> bool:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except (ValueError, TypeError):
         return False
+
+
+def dummy_password_hash() -> str:
+    """Valid bcrypt hash so unknown-email logins take the same time as real ones."""
+    global _DUMMY_PASSWORD_HASH
+    if _DUMMY_PASSWORD_HASH is None:
+        _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
+    return _DUMMY_PASSWORD_HASH
 
 
 def create_access_token(user_id: uuid.UUID) -> str:

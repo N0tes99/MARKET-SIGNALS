@@ -6,6 +6,7 @@ confirm with a code, only the rotating 6-digit challenge is required.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -30,6 +31,8 @@ from app.core.security import JWT_ALGORITHM, SESSION_COOKIE_NAME, cookie_secure,
 from app.models.access_grant import AccessGrantModel
 from app.models.user import User
 from app.models.wallet import WalletAccount
+
+logger = logging.getLogger(__name__)
 
 MFA_COOKIE_NAME = "se_mfa"
 router = APIRouter()
@@ -118,7 +121,13 @@ def set_mfa_cookie(response: Response, token: str) -> None:
 
 
 def clear_mfa_cookie(response: Response) -> None:
-    response.delete_cookie(key=MFA_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        key=MFA_COOKIE_NAME,
+        path="/",
+        secure=cookie_secure(),
+        httponly=True,
+        samesite="lax",
+    )
 
 
 def is_access_public_path(path: str) -> bool:
@@ -197,6 +206,22 @@ async def active_grant_for_user(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def cookie_session_has_access(
+    session: AsyncSession,
+    user_id: UUID,
+) -> tuple[int, str] | None:
+    """None if the cookie user may use data APIs; else ``(status, code)``."""
+    user = await session.get(User, user_id)
+    if user is None:
+        return (401, "LOGIN_REQUIRED")
+    if settings.is_admin_username(user.username):
+        return None
+    grant = await active_grant_for_user(session, user.id)
+    if grant is None:
+        return (403, "ACCESS_NOT_GRANTED")
+    return None
+
+
 class AccessGateMiddleware(BaseHTTPMiddleware):
     """When gate is on: data APIs need login + grant + MFA cookie, or a scoped API key."""
 
@@ -247,6 +272,23 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
                     "detail": "Authenticator unlock required",
                     "code": "MFA_REQUIRED",
                 },
+            )
+
+        try:
+            async with async_session_factory() as session:
+                denied = await cookie_session_has_access(session, user_id)
+        except Exception:
+            logger.exception("Access grant lookup failed")
+            denied = (401, "LOGIN_REQUIRED")
+        if denied is not None:
+            status, code = denied
+            detail = {
+                "LOGIN_REQUIRED": "Login required",
+                "ACCESS_NOT_GRANTED": "Access not granted",
+            }.get(code, "Access denied")
+            return JSONResponse(
+                status_code=status,
+                content={"detail": detail, "code": code},
             )
 
         return await call_next(request)

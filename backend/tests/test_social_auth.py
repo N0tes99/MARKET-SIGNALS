@@ -18,6 +18,7 @@ from app.core.security import (
     SESSION_COOKIE_NAME,
     create_access_token,
     decode_access_token,
+    dummy_password_hash,
     hash_password,
     verify_password,
 )
@@ -30,6 +31,13 @@ def test_password_hash_roundtrip() -> None:
     hashed = hash_password("securepass1")
     assert verify_password("securepass1", hashed)
     assert not verify_password("wrong", hashed)
+
+
+def test_dummy_password_hash_is_valid_bcrypt() -> None:
+    dummy = dummy_password_hash()
+    assert dummy.startswith("$2")
+    assert not verify_password("timing-dummy", dummy)
+    assert dummy_password_hash() == dummy
 
 
 def test_jwt_roundtrip() -> None:
@@ -248,6 +256,8 @@ async def test_forgot_and_reset_password(social_client) -> None:
 
     forgot = await client.post("/api/v1/auth/forgot-password", json={"email": email})
     assert forgot.status_code == 204
+    again = await client.post("/api/v1/auth/forgot-password", json={"email": email})
+    assert again.status_code == 204
 
     async with factory() as session:
         result = await session.execute(select(User).where(User.email == email))
@@ -400,3 +410,74 @@ async def test_reset_password_skips_session_when_unverified(
     assert reset.status_code == 200
     assert reset.json()["email_verified"] is False
     assert SESSION_COOKIE_NAME not in reset.cookies
+
+
+@pytest.mark.asyncio
+async def test_login_unknown_email_is_401(social_client) -> None:
+    client, _factory = social_client
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": f"missing_{uuid.uuid4().hex[:8]}@example.com", "password": "password123"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+@pytest.mark.asyncio
+async def test_verify_email_rejects_expired_token(social_client) -> None:
+    client, factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"verify_exp_{suffix}@example.com"
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": f"verify_exp_{suffix}", "password": "password123"},
+    )
+    assert register.status_code == 201
+
+    raw = secrets.token_urlsafe(32)
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.email_verified_at = None
+        user.email_verify_token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        user.email_verify_sent_at = datetime.now(UTC) - timedelta(hours=25)
+        await session.commit()
+
+    expired = await client.post("/api/v1/auth/verify-email", json={"token": raw})
+    assert expired.status_code == 400
+    assert expired.json()["detail"] == "Invalid or expired verification token"
+
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        assert user.email_verify_token_hash is None
+        assert user.email_verified_at is None
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_cooldown_stays_204(social_client) -> None:
+    client, factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    email = f"resend_{suffix}@example.com"
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": f"resend_{suffix}", "password": "password123"},
+    )
+    assert register.status_code == 201
+
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one()
+        user.email_verified_at = None
+        user.email_verify_sent_at = datetime.now(UTC)
+        await session.commit()
+
+    first = await client.post("/api/v1/auth/resend-verification", json={"email": email})
+    second = await client.post("/api/v1/auth/resend-verification", json={"email": email})
+    missing = await client.post(
+        "/api/v1/auth/resend-verification",
+        json={"email": f"nope_{suffix}@example.com"},
+    )
+    assert first.status_code == 204
+    assert second.status_code == 204
+    assert missing.status_code == 204
