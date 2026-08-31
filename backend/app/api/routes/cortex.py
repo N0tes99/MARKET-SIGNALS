@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.core.rate_limit import limit_expensive
 from app.core.service_dependencies import get_cortex_orchestrator
 from app.cortex.orchestrator import CortexOrchestrator
 from app.cortex.types import WorkingMemory
@@ -101,9 +102,11 @@ def get_cortex_state(
 
 @router.post("/tick", response_model=CortexTickResponse)
 def post_cortex_tick(
+    request: Request,
     orchestrator: CortexOrchestrator = Depends(get_cortex_orchestrator),
 ) -> CortexTickResponse:
     """Run one cortex heartbeat now."""
+    limit_expensive(request)
     memory = orchestrator.tick(persist=True)
     return CortexTickResponse(
         memory=_memory_to_schema(memory, digest=orchestrator.digest()),

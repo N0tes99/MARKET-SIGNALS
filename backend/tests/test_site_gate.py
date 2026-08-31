@@ -226,19 +226,23 @@ async def test_mfa_cookie_unlocks_data_path(totp_secret: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_waitlist_skips_mfa_but_still_requires_admin(totp_secret: str) -> None:
+async def test_waitlist_requires_login_when_gate_on(totp_secret: str) -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         res = await client.get("/api/v1/auth/access/waitlist")
     assert res.status_code == 401
-    body = res.json()
-    assert body.get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
+    assert res.json()["code"] == "LOGIN_REQUIRED"
 
 
 @pytest.mark.asyncio
-async def test_wallet_inbox_skips_mfa_but_still_requires_admin(totp_secret: str) -> None:
+async def test_wallet_inbox_requires_mfa_when_logged_in(totp_secret: str) -> None:
+    uid = uuid4()
+    session = create_access_token(uid)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        res = await client.get("/api/v1/auth/access/wallets")
+        res = await client.get(
+            "/api/v1/auth/access/wallets",
+            cookies={"se_session": session},
+        )
     assert res.status_code == 401
-    assert res.json().get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
+    assert res.json()["code"] == "MFA_REQUIRED"

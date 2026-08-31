@@ -54,16 +54,16 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
 | `DATABASE_URL` | from Render Postgres |
 | `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
-| `AUTH_PASSWORD` | strong password (site lockdown Basic Auth; separate from user accounts) |
+| `AUTH_PASSWORD` | **required in production** — app refuses to start without it. Strong password (site lockdown Basic Auth; separate from user accounts) |
 | `CRON_SECRET` | shared secret for `POST /api/v1/paper/cron-tick` (GitHub Actions keep-warm). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight). Set `false` to skip Reddit entirely (Fear & Greed still runs) |
 | `REDDIT_CLIENT_ID` | **required for live Reddit on Render** — from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (script or web app). Public JSON is blocked on datacenter IPs |
 | `REDDIT_CLIENT_SECRET` | pair with `REDDIT_CLIENT_ID` (leave blank only for “installed app” type). Never commit this |
 | `REDDIT_USER_AGENT` | optional; Reddit-preferred format `platform:app:version (contact)`. Default is already set |
-| `SITE_TOTP_SECRET` | base32 gate switch (empty = gate off). Per-user authenticator enrollment after grant. |
+| `SITE_TOTP_SECRET` | **required in production** — app refuses to start empty. Base32 gate switch. Per-user authenticator enrollment after grant. |
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
-| `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access` (default `Admin`) |
+| `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access`. Default `Admin` is reserved — registration of those names is refused. Use a hard-to-guess handle you already own. |
 | `CORS_ORIGINS` | your Netlify URL, e.g. `https://your-site.netlify.app` |
 | `FRED_API_KEY` | optional but recommended |
 | `COINGLASS_API_KEY` | optional paid — leave blank; funding/OI still run via Bybit→OKX without it |

@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.adapters.brokers.alpaca import AlpacaMirrorSnapshot, fetch_alpaca_mirror
 from app.adapters.brokers.alpaca_market_data import (
     AlpacaActivitySnapshot,
     fetch_alpaca_activity,
 )
+from app.core.auth_deps import require_admin_user
+from app.models.user import User
 from app.schemas.alpaca import (
     AlpacaAccountSchema,
     AlpacaActivityRowSchema,
@@ -102,9 +104,12 @@ def _activity_schema(snap: AlpacaActivitySnapshot) -> AlpacaActivitySchema:
 
 
 @router.get("/mirror", response_model=AlpacaMirrorSchema)
-async def alpaca_mirror() -> AlpacaMirrorSchema:
+async def alpaca_mirror(
+    _admin: User = Depends(require_admin_user),
+) -> AlpacaMirrorSchema:
     """Mirror Alpaca positions + recent fills (read-only, short TTL cache).
 
+    Admin-only — this is the operator brokerage book, not a user portfolio.
     Returns ``configured=false`` when API keys are missing — no error.
     Never places or cancels orders.
     """

@@ -25,10 +25,14 @@ def reset_rate_limits() -> None:
 
 
 def client_ip(request: Request) -> str:
-    """Best-effort client IP. Prefers proxy headers from Netlify → Render."""
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-    if forwarded:
-        return forwarded[:64]
+    """Best-effort client IP. Use the last XFF hop (the one the proxy added)."""
+    parts = [
+        hop.strip()
+        for hop in (request.headers.get("x-forwarded-for") or "").split(",")
+        if hop.strip()
+    ]
+    if parts:
+        return parts[-1][:64]
     real = (request.headers.get("x-real-ip") or "").strip()
     if real:
         return real[:64]
@@ -119,4 +123,18 @@ def limit_chart_analysis(request: Request, user_id: str) -> None:
         f"chart:ip:{client_ip(request)}",
         limit=20,
         window_seconds=window,
+    )
+
+
+def limit_expensive(request: Request) -> None:
+    """Cap unauthenticated-looking compute ticks when the site is locked down."""
+    from app.core.basic_auth import auth_enabled
+    from app.core.site_gate import gate_enabled
+
+    if not auth_enabled() and not gate_enabled():
+        return
+    check_rate_limit(
+        f"expensive:ip:{client_ip(request)}",
+        limit=12,
+        window_seconds=60,
     )

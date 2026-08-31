@@ -145,9 +145,6 @@ def is_access_public_path(path: str) -> bool:
     }
     if normalized in public:
         return True
-    # Admin waitlist / grants — require_admin_user so /admin/access works after MFA.
-    if normalized.startswith("/api/v1/auth/access/"):
-        return True
     return settings.app_env == "development" and normalized in {
         "/docs",
         "/redoc",

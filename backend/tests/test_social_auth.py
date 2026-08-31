@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -37,6 +37,17 @@ def test_jwt_roundtrip() -> None:
     token = create_access_token(user_id)
     assert decode_access_token(token) == user_id
     assert decode_access_token("not-a-token") is None
+
+
+def test_mfa_token_is_not_a_session() -> None:
+    from app.core.site_gate import create_mfa_token
+
+    user_id = uuid.uuid4()
+    mfa = create_mfa_token(
+        user_id=user_id,
+        grant_expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    assert decode_access_token(mfa) is None
 
 
 async def _postgres_available() -> bool:
@@ -311,6 +322,22 @@ async def test_register_conflict_does_not_name_field(social_client) -> None:
     for response in (same_email, same_user):
         assert response.status_code == 409
         assert response.json()["detail"] == "Email or username already registered"
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_reserved_admin_username(social_client) -> None:
+    client, _factory = social_client
+    suffix = uuid.uuid4().hex[:8]
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"takeover_{suffix}@example.com",
+            "username": "admin",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email or username already registered"
 
 
 @pytest.mark.asyncio

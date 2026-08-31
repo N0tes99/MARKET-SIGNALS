@@ -31,6 +31,7 @@ def create_access_token(user_id: uuid.UUID) -> str:
     """Issue a signed JWT for the given user id."""
     expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
+        "typ": "session",
         "sub": str(user_id),
         "exp": expire,
         "iat": datetime.now(UTC),
@@ -45,7 +46,7 @@ def decode_access_token(token: str) -> uuid.UUID | None:
     except jwt.PyJWTError:
         return None
     sub = payload.get("sub")
-    if not sub:
+    if not sub or payload.get("typ", "session") != "session":
         return None
     try:
         return uuid.UUID(str(sub))
