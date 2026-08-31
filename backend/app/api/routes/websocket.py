@@ -10,7 +10,12 @@ from app.api.routes.assets import _get_dashboard
 from app.core.basic_auth import auth_enabled
 from app.core.security import SESSION_COOKIE_NAME, decode_access_token
 from app.core.service_dependencies import get_decision_pipeline, get_learning_engine
-from app.core.site_gate import MFA_COOKIE_NAME, decode_mfa_token, gate_enabled
+from app.core.site_gate import (
+    MFA_COOKIE_NAME,
+    cookie_session_has_access,
+    decode_mfa_token,
+    gate_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +26,8 @@ _BROADCAST_INTERVAL_SECONDS = 30
 _WS_UNAUTHORIZED = 4401
 
 
-def _websocket_authorized(websocket: WebSocket) -> bool:
-    """Match HTTP: open when Basic Auth and the TOTP gate are both off."""
+async def _websocket_authorized(websocket: WebSocket) -> bool:
+    """Match HTTP: login + grant + MFA when the site gate is on."""
     if not auth_enabled() and not gate_enabled():
         return True
     session_tok = websocket.cookies.get(SESSION_COOKIE_NAME)
@@ -32,7 +37,17 @@ def _websocket_authorized(websocket: WebSocket) -> bool:
     if not gate_enabled():
         return True
     mfa = websocket.cookies.get(MFA_COOKIE_NAME)
-    return decode_mfa_token(mfa, user_id=user_id)
+    if not decode_mfa_token(mfa, user_id=user_id):
+        return False
+    try:
+        from app.database.session import async_session_factory
+
+        async with async_session_factory() as session:
+            denied = await cookie_session_has_access(session, user_id)
+        return denied is None
+    except Exception:
+        logger.exception("WebSocket grant lookup failed")
+        return False
 
 
 @router.websocket("/dashboard")
@@ -42,7 +57,7 @@ async def dashboard_websocket(websocket: WebSocket) -> None:
     Unauthenticated upgrades are rejected with close code 4401 when login or
     the site gate is required.
     """
-    if not _websocket_authorized(websocket):
+    if not await _websocket_authorized(websocket):
         await websocket.close(code=_WS_UNAUTHORIZED, reason="Login required")
         return
 

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
 import { SignalEngineLogo } from "@/components/signal-engine-logo";
+import { safeNextPath } from "@/lib/safe-next";
 import {
   fetchGateEnroll,
   fetchGateStatus,
@@ -16,7 +17,7 @@ import {
 function UnlockForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams?.get("next") || "/";
+  const nextPath = safeNextPath(searchParams?.get("next"), "/");
   const { user, loading: authLoading, logout } = useAuth();
 
   const [code, setCode] = useState("");
@@ -46,7 +47,7 @@ function UnlockForm() {
           if (status.next_step === "open") {
             await verifySiteGate("");
           }
-          router.replace(nextPath.startsWith("/") ? nextPath : "/");
+          router.replace(nextPath);
           return;
         }
         if (status.next_step === "enroll") {
@@ -78,7 +79,7 @@ function UnlockForm() {
     setSubmitting(true);
     try {
       await verifySiteGate(code.trim());
-      router.replace(nextPath.startsWith("/") ? nextPath : "/");
+      router.replace(nextPath);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid code");

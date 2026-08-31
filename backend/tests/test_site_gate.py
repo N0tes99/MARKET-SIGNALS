@@ -7,10 +7,17 @@ import jwt
 import pyotp
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
-from app.core.security import JWT_ALGORITHM, create_access_token
+from app.config import settings
+from app.core.security import JWT_ALGORITHM, create_access_token, hash_password
 from app.core.site_gate import MFA_COOKIE_NAME, create_mfa_token, decode_mfa_token, verify_totp_code
+from app.database import session as db_session
+from app.database.base import Base
 from app.main import app
+from app.models import AccessGrantModel, User  # noqa: F401
 from app.schemas.cme_futures import CmeFuturesBoardSchema
 
 
@@ -82,7 +89,8 @@ async def test_assets_list_allowed_with_cron_secret_when_gate_on(
 
 
 @pytest.mark.asyncio
-async def test_assets_list_mfa_session_still_works_when_gate_on(totp_secret: str) -> None:
+async def test_forged_mfa_session_is_rejected_when_gate_on(totp_secret: str) -> None:
+    """MFA cookies for a user id that does not exist (or has no grant) are not enough."""
     uid = uuid4()
     session = create_access_token(uid)
     mfa = create_mfa_token(
@@ -95,8 +103,8 @@ async def test_assets_list_mfa_session_still_works_when_gate_on(totp_secret: str
             "/api/v1/assets",
             cookies={"se_session": session, MFA_COOKIE_NAME: mfa},
         )
-    assert res.status_code != 401
-    assert res.json().get("code") not in {"LOGIN_REQUIRED", "MFA_REQUIRED"}
+    assert res.status_code in {401, 403}
+    assert res.json().get("code") in {"LOGIN_REQUIRED", "ACCESS_NOT_GRANTED"}
 
 
 @pytest.mark.asyncio
@@ -246,3 +254,85 @@ async def test_wallet_inbox_requires_mfa_when_logged_in(totp_secret: str) -> Non
         )
     assert res.status_code == 401
     assert res.json()["code"] == "MFA_REQUIRED"
+
+
+async def _postgres_available() -> bool:
+    engine = create_async_engine(
+        settings.database_url, pool_pre_ping=True, poolclass=NullPool
+    )
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_revoked_grant_is_rejected_even_with_mfa_cookie(
+    totp_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not await _postgres_available():
+        pytest.skip("Postgres not available")
+
+    engine = create_async_engine(
+        settings.database_url, pool_pre_ping=True, poolclass=NullPool
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(db_session, "async_session_factory", factory)
+    monkeypatch.setattr(db_session, "engine", engine)
+
+    user_id = uuid4()
+    async with factory() as session:
+        session.add(
+            User(
+                id=user_id,
+                email="granted@test.local",
+                username="granted",
+                password_hash=hash_password("grantedpass1"),
+                email_verified_at=datetime.now(UTC),
+            )
+        )
+        grant = AccessGrantModel(
+            user_id=user_id,
+            expires_at=datetime.now(UTC) + timedelta(days=30),
+            notes="test",
+        )
+        session.add(grant)
+        await session.commit()
+        await session.refresh(grant)
+        grant_id = grant.id
+
+    session_tok = create_access_token(user_id)
+    mfa = create_mfa_token(
+        user_id=user_id,
+        grant_expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    cookies = {"se_session": session_tok, MFA_COOKIE_NAME: mfa}
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            allowed = await client.get("/api/v1/paper/summary?tick=false", cookies=cookies)
+            assert allowed.json().get("code") not in {
+                "LOGIN_REQUIRED",
+                "MFA_REQUIRED",
+                "ACCESS_NOT_GRANTED",
+            }
+
+            async with factory() as session:
+                row = await session.get(AccessGrantModel, grant_id)
+                assert row is not None
+                row.revoked_at = datetime.now(UTC)
+                await session.commit()
+
+            denied = await client.get("/api/v1/paper/summary?tick=false", cookies=cookies)
+            assert denied.status_code == 403
+            assert denied.json()["code"] == "ACCESS_NOT_GRANTED"
+    finally:
+        await engine.dispose()

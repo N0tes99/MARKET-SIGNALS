@@ -10,6 +10,7 @@ from app.core.rate_limit import (
     check_rate_limit,
     client_ip,
     limit_login,
+    limit_resend_verification,
     reset_rate_limits,
 )
 
@@ -78,3 +79,26 @@ def test_limit_login_blocks_same_email_across_ips() -> None:
     with pytest.raises(HTTPException) as exc:
         limit_login(_req("198.51.100.99"), email)
     assert exc.value.status_code == 429
+
+
+def test_limit_resend_verification_is_independent_of_login() -> None:
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/",
+        "raw_path": b"/",
+        "query_string": b"",
+        "headers": [(b"x-forwarded-for", b"203.0.113.50")],
+        "client": ("127.0.0.1", 1234),
+        "server": ("test", 80),
+    }
+    request = Request(scope)
+    for _ in range(5):
+        limit_resend_verification(request)
+    with pytest.raises(HTTPException) as exc:
+        limit_resend_verification(request)
+    assert exc.value.status_code == 429
+    limit_login(request, "other@example.com")
