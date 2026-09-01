@@ -84,7 +84,21 @@ jobs:
           [ -n "${CRON_SECRET:-}" ] && CRON_ARGS=(-H "X-Cron-Secret: ${CRON_SECRET}")
 
           echo "Pinging health"
-          HTTP_CODE=$(curl -sS -o /tmp/keepwarm_body -w "%{http_code}" --max-time 60 "$HEALTH" 2>/dev/null || echo "000")
+          HTTP_CODE="000"
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            HTTP_CODE=$(curl -sS -o /tmp/keepwarm_body -w "%{http_code}" --max-time 60 "$HEALTH" 2>/dev/null) || true
+            [ -n "$HTTP_CODE" ] || HTTP_CODE="000"
+            case "$HTTP_CODE" in
+              200) break ;;
+              401|403) break ;;
+            esac
+            echo "Health HTTP ${HTTP_CODE} (attempt ${attempt}/3)"
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 3 ]; then
+              sleep 15
+            fi
+          done
           if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
             echo "::error::Health returned HTTP ${HTTP_CODE} — /api/v1/health must be public (no auth)"
             exit 1

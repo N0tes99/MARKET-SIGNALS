@@ -1637,7 +1637,7 @@ export interface WalletAccessUser {
 }
 
 export async function fetchGateStatus(): Promise<GateStatus> {
-  return apiFetch<GateStatus>("/api/v1/auth/gate/status", 8_000);
+  return apiFetch<GateStatus>("/api/v1/auth/gate/status");
 }
 
 export async function verifySiteGate(code: string): Promise<{
@@ -1867,32 +1867,47 @@ export async function revokeMyApiKey(keyId: string): Promise<ApiKeyRecord> {
 }
 
 export async function fetchMe(): Promise<AuthUser | null> {
-  const timeoutMs = 8_000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(apiUrl("/api/v1/auth/me"), {
-      credentials: FETCH_CREDENTIALS,
-      signal: controller.signal,
-    });
-    if (response.status === 401) return null;
-    if (!response.ok) {
-      throw new Error(await readErrorDetail(response));
+  const timeoutMs = DEFAULT_FETCH_TIMEOUT_MS;
+  const attempt = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(apiUrl("/api/v1/auth/me"), {
+        credentials: FETCH_CREDENTIALS,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
     }
-    return response.json() as Promise<AuthUser>;
+  };
+
+  let response: Response;
+  try {
+    response = await attempt();
   } catch (error) {
     const aborted =
       (error instanceof DOMException && error.name === "AbortError") ||
       (error instanceof Error && error.name === "AbortError");
-    if (aborted) {
-      throw new Error(
-        "API not reachable at 127.0.0.1:8000. Start uvicorn in backend/, then refresh.",
-      );
+    if (!aborted) throw error;
+    try {
+      response = await attempt();
+    } catch (retryError) {
+      const retryAborted =
+        (retryError instanceof DOMException && retryError.name === "AbortError") ||
+        (retryError instanceof Error && retryError.name === "AbortError");
+      if (retryAborted) {
+        throw new Error(
+          "API is still warming up (Render cold start). Wait a few seconds and refresh.",
+        );
+      }
+      throw retryError;
     }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  if (response.status === 401) return null;
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
 }
 
 export async function registerAccount(

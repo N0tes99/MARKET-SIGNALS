@@ -85,8 +85,17 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
 
   if (gateQuery.isError) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-[11px] text-muted-foreground/50">Access check failed</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-4">
+        <p className="font-mono text-[11px] text-muted-foreground/50">
+          Access check failed — API may still be warming up
+        </p>
+        <button
+          type="button"
+          className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground underline-offset-2 hover:underline"
+          onClick={() => void gateQuery.refetch()}
+        >
+          Retry
+        </button>
       </div>
     );
   }
