@@ -51,3 +51,5 @@ def test_keep_warm_pings_futures_board() -> None:
     assets_at = text.find("Pinging assets")
     assert 0 <= paper_at < assets_at
     assert "3 attempts" in text
+    assert "Health HTTP" in text
+    assert "sleep 15" in text
