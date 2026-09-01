@@ -25,10 +25,12 @@ def test_session_probe_waits_for_render_cold_start() -> None:
     api = (
         Path(__file__).resolve().parents[2] / "frontend" / "services" / "api.ts"
     ).read_text(encoding="utf-8")
-    me = api.split("export async function fetchMe")[1].split("export async function registerAccount")[0]
+    me = api.split("export async function fetchMe")[1]
+    me = me.split("export async function registerAccount")[0]
     assert "DEFAULT_FETCH_TIMEOUT_MS" in me
     assert "8_000" not in me
     assert "127.0.0.1:8000" not in me
     assert "warming up" in me
-    gate = api.split("export async function fetchGateStatus")[1].split("export async function verifySiteGate")[0]
+    gate = api.split("export async function fetchGateStatus")[1]
+    gate = gate.split("export async function verifySiteGate")[0]
     assert "8_000" not in gate
