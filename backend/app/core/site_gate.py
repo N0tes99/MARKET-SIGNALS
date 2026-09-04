@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -28,6 +29,11 @@ from app.core.auth_deps import get_current_user, get_optional_user, require_admi
 from app.core.dependencies import get_db
 from app.core.rate_limit import limit_totp
 from app.core.security import JWT_ALGORITHM, SESSION_COOKIE_NAME, cookie_secure, decode_access_token
+from app.core.totp_crypto import (
+    decrypt_totp_secret,
+    encrypt_totp_secret,
+    is_encrypted_totp_secret,
+)
 from app.models.access_grant import AccessGrantModel
 from app.models.user import User
 from app.models.wallet import WalletAccount
@@ -47,17 +53,61 @@ def _clean_code(code: str) -> str:
     return "".join(ch for ch in code.strip() if ch.isdigit())
 
 
-def verify_user_totp(user: User, code: str) -> bool:
-    secret = (user.totp_secret or "").strip().replace(" ", "")
+def _new_totp_secret() -> str:
+    """Allocate a per-user secret that is not the shared env gate switch."""
+    site = settings.site_totp_secret.strip().replace(" ", "")
+    for _ in range(8):
+        secret = pyotp.random_base32()
+        if secret != site:
+            return secret
+    return pyotp.random_base32()
+
+
+def _seal_user_totp_secret(user: User, plain: str) -> None:
+    user.totp_secret = encrypt_totp_secret(plain)
+
+
+def _upgrade_plaintext_totp_secret(user: User) -> None:
+    """Rewrite legacy plaintext rows after a successful check."""
+    stored = (user.totp_secret or "").strip()
+    if not stored or is_encrypted_totp_secret(stored):
+        return
+    plain = decrypt_totp_secret(stored)
+    if plain:
+        _seal_user_totp_secret(user, plain)
+
+
+def verify_user_totp(user: User, code: str) -> int | None:
+    """Return the matching TOTP timestep, or None if invalid or replayed.
+
+    Codes generated from SITE_TOTP_SECRET (or any other HMAC key) do not
+    unlock a user — only that user's sealed authenticator secret does.
+    """
+    secret = decrypt_totp_secret(user.totp_secret)
     if not secret:
-        return False
+        return None
     cleaned = _clean_code(code)
     if len(cleaned) != 6:
-        return False
+        return None
     try:
-        return bool(pyotp.TOTP(secret).verify(cleaned, valid_window=1))
+        totp = pyotp.TOTP(secret)
     except Exception:
-        return False
+        return None
+    now = int(time.time())
+    interval = int(totp.interval) or 30
+    for offset in (-1, 0, 1):
+        for_time = now + offset * interval
+        try:
+            if not totp.verify(cleaned, for_time=for_time, valid_window=0):
+                continue
+        except Exception:
+            continue
+        step = for_time // interval
+        last = user.totp_last_step
+        if last is not None and step <= int(last):
+            return None
+        return int(step)
+    return None
 
 
 def verify_totp_code(code: str) -> bool:
@@ -89,6 +139,7 @@ def create_mfa_token(*, user_id: UUID, grant_expires_at: datetime | None) -> str
     payload = {
         "typ": "site_mfa",
         "sub": str(user_id),
+        "jti": secrets.token_urlsafe(16),
         "exp": exp,
         "iat": datetime.now(UTC),
     }
@@ -96,15 +147,28 @@ def create_mfa_token(*, user_id: UUID, grant_expires_at: datetime | None) -> str
 
 
 def decode_mfa_token(token: str | None, *, user_id: UUID | None = None) -> bool:
-    if not token:
+    """HMAC-signed MFA cookie. Forged or unsigned JWTs never unlock.
+
+    ``user_id`` is required — a valid MFA JWT for someone else (or with no
+    bound user) is not enough.
+    """
+    if not token or user_id is None:
         return False
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.PyJWTError:
         return False
     if payload.get("typ") != "site_mfa":
         return False
-    return not (user_id is not None and str(payload.get("sub")) != str(user_id))
+    sub = payload.get("sub")
+    if not sub:
+        return False
+    return str(sub) == str(user_id)
 
 
 def set_mfa_cookie(response: Response, token: str) -> None:
@@ -435,14 +499,16 @@ def _next_step(
 
 def _ensure_pending_secret(user: User) -> str:
     """Allocate a secret for first-time setup; keep until confirmed."""
-    existing = (user.totp_secret or "").strip().replace(" ", "")
+    existing = decrypt_totp_secret(user.totp_secret)
     if existing and user.totp_confirmed_at is None:
+        _upgrade_plaintext_totp_secret(user)
         return existing
     if user.totp_enrolled:
         raise RuntimeError("enrolled user has no re-issuable secret")
-    secret = pyotp.random_base32()
-    user.totp_secret = secret
+    secret = _new_totp_secret()
+    _seal_user_totp_secret(user, secret)
     user.totp_confirmed_at = None
+    user.totp_last_step = None
     return secret
 
 
@@ -530,12 +596,13 @@ async def gate_enroll(
 @router.post("/gate/verify", response_model=GateVerifyResponseSchema)
 async def gate_verify(
     body: GateVerifySchema,
+    request: Request,
     response: Response,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> GateVerifyResponseSchema:
     """Confirm first-time enrollment or unlock with the user's authenticator."""
-    limit_totp(str(user.id))
+    limit_totp(request, str(user.id))
     is_admin = settings.is_admin_username(user.username)
     grant = None if is_admin else await active_grant_for_user(session, user.id)
     if not is_admin and grant is None:
@@ -547,13 +614,21 @@ async def gate_verify(
     if gate_enabled():
         if not user.totp_enrolled:
             _ensure_pending_secret(user)
-            if not verify_user_totp(user, body.code):
+            step = verify_user_totp(user, body.code)
+            if step is None:
                 await session.commit()
                 raise HTTPException(status_code=401, detail="Invalid authenticator code")
             user.totp_confirmed_at = datetime.now(UTC)
+            user.totp_last_step = step
+            _upgrade_plaintext_totp_secret(user)
             await session.commit()
-        elif not verify_user_totp(user, body.code):
-            raise HTTPException(status_code=401, detail="Invalid authenticator code")
+        else:
+            step = verify_user_totp(user, body.code)
+            if step is None:
+                raise HTTPException(status_code=401, detail="Invalid authenticator code")
+            user.totp_last_step = step
+            _upgrade_plaintext_totp_secret(user)
+            await session.commit()
 
     grant_exp = grant.expires_at if grant else None
     set_mfa_cookie(response, create_mfa_token(user_id=user.id, grant_expires_at=grant_exp))

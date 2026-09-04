@@ -31,6 +31,8 @@ def test_password_hash_roundtrip() -> None:
     hashed = hash_password("securepass1")
     assert verify_password("securepass1", hashed)
     assert not verify_password("wrong", hashed)
+    # A leaked bcrypt string is not a login password.
+    assert not verify_password(hashed, hashed)
 
 
 def test_dummy_password_hash_is_valid_bcrypt() -> None:
@@ -38,6 +40,7 @@ def test_dummy_password_hash_is_valid_bcrypt() -> None:
     assert dummy.startswith("$2")
     assert not verify_password("timing-dummy", dummy)
     assert dummy_password_hash() == dummy
+    assert not verify_password(dummy, dummy)
 
 
 def test_jwt_roundtrip() -> None:

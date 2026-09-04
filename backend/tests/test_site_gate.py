@@ -1,4 +1,4 @@
-"""Access gate: login → grant → shared TOTP."""
+"""Access gate: login → grant → per-user TOTP."""
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4

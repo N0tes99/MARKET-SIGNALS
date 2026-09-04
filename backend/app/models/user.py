@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import BigInteger, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,12 +39,14 @@ class User(Base):
         DateTime(timezone=True),
         nullable=True,
     )
-    # Per-user authenticator: secret shown once until confirmed
-    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Per-user authenticator: encrypted at rest (enc:v1:…); shown once until confirmed
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     totp_confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
+    # Last accepted TOTP timestep (unix // 30) — blocks replay of the same code
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

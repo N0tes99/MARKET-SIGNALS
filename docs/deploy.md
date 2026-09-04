@@ -68,7 +68,7 @@ scanners on boot.
 | `REDDIT_CLIENT_ID` | **required for live Reddit on Render** — from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (script or web app). Public JSON is blocked on datacenter IPs |
 | `REDDIT_CLIENT_SECRET` | pair with `REDDIT_CLIENT_ID` (leave blank only for “installed app” type). Never commit this |
 | `REDDIT_USER_AGENT` | optional; Reddit-preferred format `platform:app:version (contact)`. Default is already set |
-| `SITE_TOTP_SECRET` | **required in production** — app refuses to start empty. Base32 gate switch. Per-user authenticator enrollment after grant. |
+| `SITE_TOTP_SECRET` | **required in production** — app refuses to start empty. Base32 **gate switch only** (not a login HMAC key). Per-user authenticator secrets are encrypted at rest with `SECRET_KEY`. Rotating `SECRET_KEY` invalidates sessions **and** stored TOTP blobs — users must re-enroll. |
 | `SITE_TOTP_ISSUER` | optional; default `Signal Engine` |
 | `SITE_GATE_EXPIRE_HOURS` | optional; default `12` (MFA cookie lifetime, capped by grant expiry) |
 | `ADMIN_USERNAMES` | comma-separated social usernames for Outcome log + `/admin/access`. Default `Admin` is reserved — registration of those names is refused. Use a hard-to-guess handle you already own. |

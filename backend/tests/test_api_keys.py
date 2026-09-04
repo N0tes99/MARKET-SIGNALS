@@ -62,6 +62,8 @@ def test_generate_api_key_format() -> None:
     assert full.startswith(API_KEY_PREFIX)
     assert prefix == full[:16]
     assert digest == hash_api_key(full)
+    # SHA-256 digest from a DB dump is not a usable key.
+    assert hash_api_key(digest) != digest
 
 
 class _StubExpansionScanner:
