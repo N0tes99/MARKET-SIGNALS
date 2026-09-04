@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
+import pytest
 
 from app.data_lake.ops import alembic_head, lake_ops_snapshot
 from app.data_lake.schemas import OhlcvBar
@@ -127,3 +128,72 @@ def test_warehouse_status_counts_memory_bars() -> None:
     assert snap["warehouse"]["bar_count"] == 2
     assert snap["alembic"]["source"] == "skipped"
     assert alembic_head()
+
+
+def test_persist_frame_keeps_only_the_tail() -> None:
+    base = datetime(2026, 9, 4, 0, 0, tzinfo=UTC)
+    rows = [
+        {
+            "timestamp": base + timedelta(hours=i),
+            "open": float(i),
+            "high": float(i) + 0.1,
+            "low": float(i) - 0.1,
+            "close": float(i) + 0.05,
+            "volume": 1.0,
+        }
+        for i in range(60)
+    ]
+    df = pd.DataFrame(rows, columns=STANDARD_COLUMNS)
+    assert persist_ohlcv_frame(df, symbol="TAIL", timeframe="1h") == 48
+    bars = get_bars("TAIL", "1h", limit=200)
+    assert len(bars) == 48
+    assert bars[0].close == pytest.approx(12.05)
+    assert bars[-1].close == pytest.approx(59.05)
+
+
+def test_memory_ring_evicts_past_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.data_lake.warehouse.ohlcv as ohlcv
+
+    monkeypatch.setattr(ohlcv, "_MEMORY_BAR_CAP", 5)
+    monkeypatch.setattr(ohlcv, "_MEMORY_EVICT_BATCH", 2)
+    base = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
+    for i in range(8):
+        upsert_bars(
+            [
+                OhlcvBar(
+                    "CAP",
+                    "1h",
+                    base + timedelta(hours=i),
+                    float(i),
+                    float(i),
+                    float(i),
+                    float(i),
+                    1,
+                )
+            ]
+        )
+    assert warehouse_status()["bar_count"] <= 5
+
+
+def test_postgres_upsert_skips_process_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Sess:
+        def __enter__(self) -> "_Sess":
+            return self
+
+        def __exit__(self, *_args: object) -> bool:
+            return False
+
+        def execute(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def commit(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "app.data_lake.warehouse.ohlcv._session_factory",
+        lambda: _Sess,
+    )
+    ts = datetime(2026, 9, 4, 15, 0, tzinfo=UTC)
+    upsert_bars([OhlcvBar("PG", "1h", ts, 1, 1, 1, 1, 1)])
+    assert get_bars("PG", "1h") == []
+    assert warehouse_status()["bar_count"] == 0

@@ -55,6 +55,7 @@ export interface HealthResponse {
     symbol_count: number;
     latest_ts: string | null;
   };
+  rss_mb?: number | null;
   alembic?: {
     current: string | null;
     head: string | null;

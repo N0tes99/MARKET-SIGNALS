@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.expansion_engine.compression import analyze_compression
 from app.engines.expansion_engine.config import (
     EXPANSION_UNIVERSE,
@@ -31,7 +32,7 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _SCAN_CACHE: TTLCache[list[ExpansionCandidate]] = TTLCache(ttl_seconds=60.0)
-_SCAN_WORKERS = 6
+_SCAN_WORKERS = SCAN_WORKERS
 _MOM_12H_BARS = 12
 
 

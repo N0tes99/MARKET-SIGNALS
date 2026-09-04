@@ -25,8 +25,9 @@ class TTLCache[T]:
     keys can fetch in parallel (critical for multi-symbol dashboards).
     """
 
-    def __init__(self, ttl_seconds: float) -> None:
+    def __init__(self, ttl_seconds: float, max_entries: int | None = None) -> None:
         self._ttl = ttl_seconds
+        self._max_entries = max_entries
         self._entries: dict[str, _CacheEntry[T]] = {}
         self._lock = Lock()
         self._refreshing: set[str] = set()
@@ -53,6 +54,28 @@ class TTLCache[T]:
                 value=value,
                 expires_at=datetime.now(UTC) + timedelta(seconds=self._ttl),
             )
+            self._evict_unlocked()
+
+    def _evict_unlocked(self) -> None:
+        """Drop expired, then oldest, entries when over max_entries. Caller holds lock."""
+        if self._max_entries is None or len(self._entries) <= self._max_entries:
+            return
+        now = datetime.now(UTC)
+        expired = [key for key, entry in self._entries.items() if now >= entry.expires_at]
+        for key in expired:
+            if key in self._refreshing:
+                continue
+            del self._entries[key]
+            if len(self._entries) <= self._max_entries:
+                return
+        overflow = len(self._entries) - self._max_entries
+        if overflow <= 0:
+            return
+        oldest = sorted(self._entries.items(), key=lambda item: item[1].expires_at)
+        for key, _entry in oldest[:overflow]:
+            if key in self._refreshing:
+                continue
+            del self._entries[key]
 
     def seed_stale(self, key: str, value: T) -> None:
         """Store a value already expired so the next SWR hit refreshes in background."""
@@ -84,6 +107,7 @@ class TTLCache[T]:
                 value=value,
                 expires_at=datetime.now(UTC) + timedelta(seconds=self._ttl),
             )
+            self._evict_unlocked()
             return value
 
     def meta(self, key: str) -> tuple[T | None, bool, bool, float | None]:

@@ -49,3 +49,7 @@ class HealthResponse(BaseModel):
         default=None,
         description="Migration current vs head — 020 creates ohlcv_bars",
     )
+    rss_mb: float | None = Field(
+        default=None,
+        description="Process RSS in MiB (Linux ru_maxrss). Render free is 512.",
+    )

@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.opportunity_engine.equity_options.momentum import compute_momentum
 from app.engines.opportunity_engine.equity_options.option_chain import (
     RawOptionRow,
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 _WATCH_MIN = 55.0
 _SCAN_CACHE: TTLCache[list[EquityOptionsIdea]] = TTLCache(ttl_seconds=120.0)
 _FEED_CACHE: TTLCache[list[EquityOptionsIdea]] = TTLCache(ttl_seconds=120.0)
-_FEED_MAX_WORKERS = 6
+_FEED_MAX_WORKERS = SCAN_WORKERS
 
 OptionChainFetcher = Callable[[str], list[RawOptionRow]]
 

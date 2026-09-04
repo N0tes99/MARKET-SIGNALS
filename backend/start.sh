@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 cd /app
+# Glibc arenas explode with ThreadPoolExecutor; Render free is 512MB.
+export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
 echo "Running database migrations..."
 alembic upgrade head
 PORT="${PORT:-8000}"

@@ -25,6 +25,7 @@ async def test_health_check(client: AsyncClient) -> None:
     assert "bar_count" in data["warehouse"]
     assert data["alembic"]["head"]
     assert data["alembic"]["source"] in {"skipped", "postgres", "missing", "error"}
+    assert data["rss_mb"] is None or data["rss_mb"] >= 0
 
 
 @pytest.mark.asyncio
