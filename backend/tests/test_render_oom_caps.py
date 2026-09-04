@@ -34,3 +34,4 @@ def test_home_defers_heavy_feeds_after_rank_all() -> None:
     )
     assert "timeout: 8_000" in panel
     assert "8_000" in panel.split("setTimeout")[1]
+    assert "180_000" in panel

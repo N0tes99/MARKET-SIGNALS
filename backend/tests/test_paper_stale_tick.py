@@ -150,6 +150,69 @@ def test_stale_mark_flattens_past_max_hold() -> None:
     assert trade.optimistic_pnl_usd is not None
 
 
+def test_second_tick_after_stale_discovers(monkeypatch) -> None:
+    """Keep-warm after a sleep: first tick catchup-only, second tick may open."""
+    now = datetime.now(UTC)
+    store = PaperTradeStore()
+    store.set_meta("last_tick_at", (now - timedelta(hours=3)).isoformat())
+
+    idea = SimpleNamespace(
+        symbol="BTC",
+        setup_type="perp_momentum",
+        direction="long",
+        confidence=72.0,
+        factors=["12h momentum"],
+        extras={"funding_bps": 1.0},
+    )
+
+    class _Silent:
+        def scan_feed(self, *args, **kwargs):
+            return []
+
+    class _Market:
+        def get_ticker(self, symbol):
+            return SimpleNamespace(price=65000.0)
+
+        def safe_get_ohlcv(self, symbol, timeframe, limit=96):
+            return pd.DataFrame(
+                [
+                    {
+                        "timestamp": now + timedelta(minutes=15),
+                        "open": 64900.0,
+                        "high": 65000.0,
+                        "low": 64800.0,
+                        "close": 64950.0,
+                        "volume": 10.0,
+                    }
+                ]
+            )
+
+    monkeypatch.setattr(
+        "app.engines.paper_agent.agent.scan_crypto_perp_v2",
+        lambda *a, **k: [idea],
+    )
+
+    agent = PaperAgent(
+        market_data=_Market(),  # type: ignore[arg-type]
+        crypto_scanner=_Silent(),  # type: ignore[arg-type]
+        equity_scanner=_Silent(),  # type: ignore[arg-type]
+        store=store,
+        size_usd=2500.0,
+    )
+    first = agent.tick()
+    assert "skip:stale_tick" in first
+    assert not any(n.startswith("open:") for n in first)
+
+    from app.api.routes.paper import _tick_agent
+
+    store.set_meta("last_tick_at", (now - timedelta(hours=3)).isoformat())
+    agent._last_tick_at = now - timedelta(hours=3)
+    notes = _tick_agent(agent)
+    assert "skip:stale_tick" in notes
+    assert "discover_after_catchup" in notes
+    assert any(n.startswith("open:BTC") for n in notes)
+
+
 def test_fresh_tick_still_discovers(monkeypatch) -> None:
     now = datetime.now(UTC)
     store = PaperTradeStore()

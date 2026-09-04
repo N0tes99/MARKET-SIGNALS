@@ -22,7 +22,9 @@ MIN_LOSS_RETURN_PCT = -0.5
 # 2026-08-29 CSV: equity stock paper 3W/9L; crypto L2 (basis_rich/liq_flush) 0/2.
 # Proof sleeve is crypto_perp_v2. Empty this set to resume those factories.
 PAUSED_NEW_OPEN_SOURCES = frozenset({"equity_setup", "crypto_setup"})
-# Keep-warm cron is */10. Two missed cycles = the bot slept; do not open into a gap.
+# Keep-warm cron is scheduled */10 but GitHub often fires every few hours.
+# Two missed *real* keep-warm cycles (~6h) = the bot slept; do not open into a gap
+# on that first catchup pass. Cron then ticks again immediately so discover can run.
 STALE_TICK_SECONDS = 20 * 60
 
 

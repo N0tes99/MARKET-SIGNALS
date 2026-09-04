@@ -122,6 +122,20 @@ def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperS
     return _schema_from_summary(agent.summary(tick_notes=notes))
 
 
+def _tick_agent(agent: PaperAgent) -> list[str]:
+    """Advance the book. After a sleep-gap catchup, tick again so discover runs.
+
+    GitHub keep-warm is scheduled ``*/10`` but often fires every few hours.
+    ``STALE_TICK_SECONDS`` is 20 minutes, so a lone cron tick always looks
+    stale and would never open. First pass still flattens leftover positions.
+    """
+    notes = agent.tick()
+    if "skip:stale_tick" in notes:
+        notes.append("discover_after_catchup")
+        notes.extend(agent.tick())
+    return notes
+
+
 def _maybe_auto_tick(agent: PaperAgent) -> list[str]:
     """Throttle living ticks so dashboard visits advance the agent without spam."""
     global _LAST_AUTO_TICK
@@ -133,7 +147,7 @@ def _maybe_auto_tick(agent: PaperAgent) -> list[str]:
             return []
         _LAST_AUTO_TICK = now
     try:
-        return agent.tick()
+        return _tick_agent(agent)
     except Exception:
         logger.exception("Paper agent auto-tick failed")
         return ["tick_error"]
@@ -181,7 +195,7 @@ async def paper_tick(
 ) -> PaperSummarySchema:
     """Force one paper-agent tick (public; still soft-fails internally)."""
     limit_expensive(request)
-    notes = await asyncio.to_thread(agent.tick)
+    notes = await asyncio.to_thread(_tick_agent, agent)
     return await asyncio.to_thread(_summary_schema, agent, notes)
 
 
@@ -209,7 +223,7 @@ async def paper_cron_tick(
         _LAST_CRON_TICK = now
         _LAST_AUTO_TICK = now
 
-    notes = await asyncio.to_thread(agent.tick)
+    notes = await asyncio.to_thread(_tick_agent, agent)
     summary = await asyncio.to_thread(_summary_schema, agent, notes)
     opens = sum(1 for n in notes if n.startswith("open:"))
     logger.info(

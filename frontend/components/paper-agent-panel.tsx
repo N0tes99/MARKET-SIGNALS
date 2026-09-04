@@ -317,6 +317,20 @@ export function PaperAgentPanel() {
     };
   }, [queryClient]);
 
+  // Keep the book living while this tab is open. Agent throttles to 90s;
+  // keep-warm is hours apart and used to skip every new open as stale.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void queryClient
+        .fetchQuery({
+          queryKey: ["paper-summary"],
+          queryFn: () => fetchPaperSummary(true),
+        })
+        .catch(() => undefined);
+    }, 180_000);
+    return () => window.clearInterval(id);
+  }, [queryClient]);
+
   const resetMutation = useMutation({
     mutationFn: resetPaperAgent,
     onSuccess: (summary) => {
