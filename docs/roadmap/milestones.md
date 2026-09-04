@@ -124,3 +124,12 @@ Not a milestone and not a Rail. Open idea only: `docs/research/robinhood-agentic
 - [ ] Read-only Signal Engine MCP (hot picks / decision / paper) for a user-owned client
 - [ ] Optional Robinhood **read** mirror (Alpaca-style); no `place_*` on Render
 - Do not start until the research note status changes.
+
+## Paper execution / first live test
+
+Diagnosis: `docs/research/paper-execution-and-live-test.md`. Paper book has density, not a live edge.
+
+- [ ] Richer paper CSV (`source`, `close_reason`) + production slice
+- [ ] One-source paper A/B (exits / drop worst factory) before any venue
+- [ ] Hyperliquid Phase C — blocked until Rail has its own PnL paper book
+- [ ] Listed-options live — blocked until paper fills the **contract**, not the stock
