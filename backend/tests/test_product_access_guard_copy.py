@@ -19,6 +19,10 @@ def test_admin_pages_are_not_client_gate_bypass() -> None:
     assert "warming up" in text
     assert "gateQuery.refetch()" in text
     assert "return <>{children}</>" not in text.split("gateQuery.isError")[1]
+    assert "gateQuery.isFetching" not in text
+    assert "Connecting" in text
+    assert "enabled: REQUIRE_LOGIN && !pathBypass" in text
+    assert "Boolean(user)" not in text.split("useQuery")[1].split("staleTime")[0]
 
 
 def test_session_probe_waits_for_render_cold_start() -> None:

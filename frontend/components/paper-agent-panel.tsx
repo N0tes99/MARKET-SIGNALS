@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
+import {
+  PAPER_SNAPSHOT_KEY,
+  readSessionSnapshot,
+  writeSessionSnapshot,
+} from "@/lib/session-snapshot";
 import { cn } from "@/lib/utils";
 import {
   downloadPaperTradesCsv,
@@ -12,6 +17,7 @@ import {
   resetPaperAgent,
   type PaperLedger,
   type PaperMaturity,
+  type PaperSummary,
   type PaperTrade,
 } from "@/services/api";
 
@@ -266,7 +272,13 @@ export function PaperAgentPanel() {
     refetchInterval: 120_000,
     refetchOnWindowFocus: false,
     retry: 1,
+    placeholderData: (previous) =>
+      previous ?? readSessionSnapshot<PaperSummary>(PAPER_SNAPSHOT_KEY),
   });
+
+  useEffect(() => {
+    if (data) writeSessionSnapshot(PAPER_SNAPSHOT_KEY, data);
+  }, [data]);
 
   // One opportunistic tick after rankings start — keep-warm also ticks.
   // 8s so /assets rank_all does not share the 512MB dyno with paper discover.

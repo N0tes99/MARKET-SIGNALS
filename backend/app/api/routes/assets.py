@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock, Thread
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import TypeAdapter
 
 from app.api.tracked import TRACKED_SYMBOLS, is_tracked
@@ -146,6 +146,15 @@ def _persist_summaries(assets: list[AssetSummary]) -> None:
         logger.debug("Durable dashboard seed write skipped", exc_info=True)
 
 
+def _resolve_dep(request: Request | None, dependency, fallback):
+    """Honor FastAPI test overrides when the route no longer Depends() the service."""
+    if request is not None:
+        override = request.app.dependency_overrides.get(dependency)
+        if override is not None:
+            return override()
+    return fallback()
+
+
 def _load_asset_summaries(
     pipeline: DecisionPipelineService,
     learning: LearningEngine,
@@ -191,14 +200,19 @@ def _ranking_status(*, fresh: bool, refreshing: bool, assets: list[AssetSummary]
 
 
 def _get_dashboard(
-    pipeline: DecisionPipelineService,
-    learning: LearningEngine,
     *,
     sync: bool = False,
+    request: Request | None = None,
 ) -> AssetsDashboard:
-    """Memory SWR + disk seed; cold miss never blocks unless ``sync=True``."""
+    """Memory SWR + disk seed; cold miss never blocks unless ``sync=True``.
+
+    Pipeline construction is deferred until a rank is actually needed so a
+    Postgres-seeded dashboard can return before scanners boot.
+    """
 
     def factory() -> list[AssetSummary]:
+        pipeline = _resolve_dep(request, get_decision_pipeline, get_decision_pipeline)
+        learning = _resolve_dep(request, get_learning_engine, get_learning_engine)
         return _load_asset_summaries(pipeline, learning)
 
     if sync:
@@ -231,9 +245,8 @@ def _get_dashboard(
 
 @router.get("", response_model=AssetsDashboard)
 async def list_assets(
+    request: Request,
     sync: bool = False,
-    pipeline: DecisionPipelineService = Depends(get_decision_pipeline),
-    learning: LearningEngine = Depends(get_learning_engine),
     alerts: AlertService = Depends(get_alert_service),
 ) -> AssetsDashboard:
     """Return tracked asset summaries with progressive ranking metadata.
@@ -243,8 +256,8 @@ async def list_assets(
 
     ``sync=true``: block until a full rank completes (keep-warm / tests).
     """
+    dashboard = await asyncio.to_thread(_get_dashboard, sync=sync, request=request)
     _kick_reddit_warm()
-    dashboard = await asyncio.to_thread(_get_dashboard, pipeline, learning, sync=sync)
 
     # Don't block the response on Discord/email dispatch
     async def _dispatch() -> None:

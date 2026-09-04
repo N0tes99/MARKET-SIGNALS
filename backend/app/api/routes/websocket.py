@@ -9,7 +9,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.api.routes.assets import _get_dashboard
 from app.core.basic_auth import auth_enabled
 from app.core.security import SESSION_COOKIE_NAME, decode_access_token
-from app.core.service_dependencies import get_decision_pipeline, get_learning_engine
 from app.core.site_gate import (
     MFA_COOKIE_NAME,
     cookie_session_has_access,
@@ -62,12 +61,10 @@ async def dashboard_websocket(websocket: WebSocket) -> None:
         return
 
     await websocket.accept()
-    pipeline = get_decision_pipeline()
-    learning = get_learning_engine()
 
     try:
         while True:
-            dashboard = _get_dashboard(pipeline, learning, sync=False)
+            dashboard = _get_dashboard(sync=False)
             await websocket.send_text(
                 json.dumps(dashboard.model_dump(mode="json"))
             )

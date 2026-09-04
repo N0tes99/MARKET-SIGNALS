@@ -164,16 +164,23 @@ def get_options_tape_scanner():
 
 
 @lru_cache
+def get_paper_store():
+    """Singleton paper book (Postgres when available). Shared with PaperAgent."""
+    from app.engines.paper_agent.factory import build_paper_store
+
+    return build_paper_store()
+
+
+@lru_cache
 def get_paper_agent():
     """Singleton public paper-trading agent (Postgres-backed when available)."""
     from app.engines.paper_agent import PaperAgent
-    from app.engines.paper_agent.factory import build_paper_store
 
     return PaperAgent(
         market_data=get_market_data_service(),
         crypto_scanner=get_setup_scanner(),
         equity_scanner=get_equity_options_scanner(),
-        store=build_paper_store(),
+        store=get_paper_store(),
         learning=get_learning_engine(),
         pipeline=get_decision_pipeline(),
         alerts=get_alert_service(),
