@@ -42,6 +42,14 @@ Browser → Netlify (Next.js) → /api/backend/* proxy (+ Basic Auth)
    (match the Dockerfile `CMD` / entrypoint).
 5. Attach the Postgres instance / copy `DATABASE_URL` into the API service env.
 
+Render **free** web services are **512MB**. Dashboard load used to OOM-restart
+the dyno (paper tick + `rank_all` + Radar/Expansion/tape all at once, plus a
+50k-bar in-RAM warehouse copy of Postgres). The API now caps thread pools,
+does not duplicate warehouse bars in process memory when Postgres is up, and
+sets `MALLOC_ARENA_MAX=2`. `/api/v1/health` includes `rss_mb` so you can see
+the spike. If it still hits 512MB, the next step is a paid instance, not more
+scanners on boot.
+
 ### Required API env vars
 
 | Variable | Example / notes |

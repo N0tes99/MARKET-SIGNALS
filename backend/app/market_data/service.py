@@ -7,6 +7,11 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
+from app.core.process_limits import (
+    CHART_OHLCV_CACHE_MAX_ENTRIES,
+    OHLCV_CACHE_MAX_ENTRIES,
+    OHLCV_WARM_WORKERS,
+)
 from app.market_data.freshness import freshness_tracker
 from app.market_data.normalizer import validate_ohlcv
 from app.market_data.providers.base import MarketDataProvider
@@ -19,12 +24,18 @@ from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
-_OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(ttl_seconds=180.0)
-_CHART_OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(ttl_seconds=30.0)
-_TICKER_CACHE: TTLCache[TickerSnapshot] = TTLCache(ttl_seconds=60.0)
+_OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(
+    ttl_seconds=180.0, max_entries=OHLCV_CACHE_MAX_ENTRIES
+)
+_CHART_OHLCV_CACHE: TTLCache[pd.DataFrame] = TTLCache(
+    ttl_seconds=30.0, max_entries=CHART_OHLCV_CACHE_MAX_ENTRIES
+)
+_TICKER_CACHE: TTLCache[TickerSnapshot] = TTLCache(ttl_seconds=60.0, max_entries=80)
 _CHART_TIMEFRAMES = frozenset({"1m", "5m", "15m"})
-_DERIVATIVES_CACHE: TTLCache[DerivativesSnapshot] = TTLCache(ttl_seconds=120.0)
-_WARM_WORKERS = 16
+_DERIVATIVES_CACHE: TTLCache[DerivativesSnapshot] = TTLCache(
+    ttl_seconds=120.0, max_entries=80
+)
+_WARM_WORKERS = OHLCV_WARM_WORKERS
 
 
 def build_default_provider() -> MarketDataProvider:
@@ -117,7 +128,8 @@ class MarketDataService:
 
         cache = _CHART_OHLCV_CACHE if timeframe in _CHART_TIMEFRAMES else _OHLCV_CACHE
         df = cache.get_or_set(cache_key, fetch)
-        return validate_ohlcv(df.copy(), min_rows=min_rows)
+        # validate_ohlcv copies so callers cannot mutate the cached frame.
+        return validate_ohlcv(df, min_rows=min_rows)
 
     def get_ticker(self, symbol: str) -> TickerSnapshot:
         """Fetch latest ticker snapshot."""

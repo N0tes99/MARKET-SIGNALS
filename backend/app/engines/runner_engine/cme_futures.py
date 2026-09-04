@@ -12,6 +12,7 @@ from typing import Literal
 
 from pydantic import TypeAdapter
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.runner_engine.scoring.yahoo_futures_quote import (
     YahooFuturesQuote,
     fetch_yahoo_futures_quote,
@@ -37,7 +38,7 @@ CME_FUTURES_UNIVERSE: tuple[FuturesSpec, ...] = FUTURES_CONTRACTS
 _MOM_12H_BARS = 12
 _OHLCV_1H_LIMIT = max(20, _MOM_12H_BARS + 8)
 _OHLCV_1D_LIMIT = 28
-_SCAN_WORKERS = 6
+_SCAN_WORKERS = SCAN_WORKERS
 _STRONG_MOM_12H = 1.5
 _STRONG_MOM_20D = 6.0
 _SOFT_MOM_12H = 0.6

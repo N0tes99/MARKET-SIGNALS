@@ -5,6 +5,7 @@ from contextlib import suppress
 from dataclasses import dataclass, replace
 from typing import Protocol
 
+from app.core.process_limits import EVAL_CACHE_MAX_ENTRIES, RANK_EVAL_WORKERS
 from app.engines.evidence_engine import EvidenceEngine
 from app.engines.evidence_engine.types import EvidenceBundle
 from app.engines.execution_engine import ExecutionEngine, ExecutionResult, ExecutionSignal
@@ -44,7 +45,9 @@ class LearningSupport(Protocol):
 
 
 # Collapse duplicate asset-page / concurrent evaluate hits
-_EVAL_CACHE: TTLCache[DecisionResult] = TTLCache(ttl_seconds=90.0)
+_EVAL_CACHE: TTLCache[DecisionResult] = TTLCache(
+    ttl_seconds=90.0, max_entries=EVAL_CACHE_MAX_ENTRIES
+)
 
 
 class DecisionPipelineService:
@@ -130,8 +133,8 @@ class DecisionPipelineService:
         except Exception:
             pass
 
-        # Free-tier Render OOMs / 502s with 18 concurrent evaluates; 8 stays stable.
-        workers = min(len(symbols), 8)
+        # Free-tier Render OOMs with wide evaluate pools; 4 stays under 512MB.
+        workers = min(len(symbols), RANK_EVAL_WORKERS)
         if len(symbols) <= 1:
             results = [self.evaluate(symbol, timeframe) for symbol in symbols]
         else:

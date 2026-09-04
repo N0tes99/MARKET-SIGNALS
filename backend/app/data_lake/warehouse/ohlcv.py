@@ -20,6 +20,11 @@ from app.models.ohlcv_bar import OhlcvBarModel
 logger = logging.getLogger(__name__)
 
 _PERSIST_TIMEFRAMES = frozenset({"5m", "15m", "1h", "4h", "1d"})
+# Keep-warm writes ~48 newest bars per fetch; full 200-row frames used to
+# balloon the in-process ring (50k) and OOM Render's 512MB dyno.
+_PERSIST_TAIL = 48
+_MEMORY_BAR_CAP = 8_000
+_MEMORY_EVICT_BATCH = 2_000
 _lock = Lock()
 _engine = None
 _Session = None
@@ -49,6 +54,8 @@ def _session_factory():
         _engine = create_engine(
             url,
             pool_pre_ping=True,
+            pool_size=2,
+            max_overflow=1,
             pool_timeout=3,
             connect_args={"connect_timeout": 2},
         )
@@ -102,23 +109,27 @@ def _remember(bars: list[OhlcvBar]) -> None:
     with _lock:
         for bar in bars:
             _memory[(bar.symbol, bar.timeframe, bar.ts)] = bar
-        if len(_memory) > 50_000:
-            oldest = sorted(_memory, key=lambda k: k[2])[:10_000]
+        if len(_memory) > _MEMORY_BAR_CAP:
+            oldest = sorted(_memory, key=lambda k: k[2])[:_MEMORY_EVICT_BATCH]
             for key in oldest:
                 _memory.pop(key, None)
 
 
 def upsert_bars(bars: list[OhlcvBar], *, source: str = "live") -> int:
-    """Persist bars; always keep an in-memory copy. Returns rows attempted."""
+    """Persist bars to Postgres when available; otherwise keep an in-memory ring.
+
+    Production uses Postgres. Duplicating every bar in-process used to hold
+    50k dataclasses on the Render web dyno and OOM on dashboard load.
+    """
     if not bars:
         return 0
-    _remember(bars)
     Session = None
     try:
         Session = _session_factory()
     except Exception:
         logger.debug("ohlcv warehouse session skipped", exc_info=True)
     if Session is None:
+        _remember(bars)
         return len(bars)
     now_source = source
     try:
@@ -148,9 +159,11 @@ def upsert_bars(bars: list[OhlcvBar], *, source: str = "live") -> int:
                 )
                 session.execute(stmt)
             session.commit()
+        return len(bars)
     except Exception:
         logger.debug("ohlcv warehouse upsert failed", exc_info=True)
-    return len(bars)
+        _remember(bars)
+        return len(bars)
 
 
 def persist_ohlcv_frame(
@@ -164,6 +177,8 @@ def persist_ohlcv_frame(
     if timeframe not in _PERSIST_TIMEFRAMES:
         return 0
     bars = bars_from_frame(df, symbol=symbol, timeframe=timeframe, source=source)
+    if len(bars) > _PERSIST_TAIL:
+        bars = bars[-_PERSIST_TAIL:]
     return upsert_bars(bars, source=source)
 
 

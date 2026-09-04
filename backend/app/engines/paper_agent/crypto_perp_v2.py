@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.paper_agent.types import PaperDirection
 from app.engines.runner_engine.crypto_learn import get_crypto_learn_coefficients
 from app.engines.sentiment_engine.engine import fetch_fear_greed
@@ -31,7 +32,7 @@ V2_UNIVERSE: tuple[str, ...] = PERP_V2_UNIVERSE
 _MOMENTUM_BARS = 12  # ~12h on 1h candles
 # safe_get_ohlcv always validates min_rows=20 — never request fewer.
 _OHLCV_LIMIT = max(20, _MOMENTUM_BARS + 8)
-_SCAN_WORKERS = 6
+_SCAN_WORKERS = SCAN_WORKERS
 
 
 @dataclass(frozen=True)

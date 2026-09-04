@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.paper_agent.crypto_perp_v2 import V2_UNIVERSE
 from app.engines.runner_engine.crypto_learn import get_crypto_learn_coefficients
 from app.engines.sentiment_engine.engine import fetch_fear_greed
@@ -29,7 +30,7 @@ CRYPTO_RADAR_UNIVERSE: tuple[str, ...] = V2_UNIVERSE
 _MOM_12H_BARS = 12
 _OHLCV_1H_LIMIT = max(20, _MOM_12H_BARS + 8)
 _OHLCV_1D_LIMIT = 28
-_SCAN_WORKERS = 6
+_SCAN_WORKERS = SCAN_WORKERS
 _CACHE: TTLCache[list[CryptoRadarCandidate]] = TTLCache(ttl_seconds=90.0)
 
 

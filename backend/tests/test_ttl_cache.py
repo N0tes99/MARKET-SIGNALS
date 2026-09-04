@@ -69,3 +69,13 @@ def test_cache_meta_reports_freshness_and_age() -> None:
     assert miss_fresh is False
     assert miss_refreshing is False
     assert miss_age is None
+
+
+def test_max_entries_evicts_oldest() -> None:
+    cache: TTLCache[int] = TTLCache(ttl_seconds=60.0, max_entries=2)
+    cache.set("a", 1)
+    cache.set("b", 2)
+    cache.set("c", 3)
+    assert cache.get("a") is None
+    assert cache.get("b") == 2
+    assert cache.get("c") == 3

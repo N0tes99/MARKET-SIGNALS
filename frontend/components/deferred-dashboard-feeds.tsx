@@ -47,7 +47,7 @@ const AlpacaActivityPanel = dynamic(
  */
 export function DeferredDashboardFeeds() {
   return (
-    <DeferredMount delayMs={150}>
+    <DeferredMount delayMs={8_000}>
       <OptionsTapeStrip />
       <div className="desk-pair lg:grid lg:grid-cols-2 lg:gap-10">
         <EquityOpportunitiesFeed />

@@ -14,6 +14,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def _rss_mb() -> float | None:
+    """Current process RSS. Linux reports KB; macOS reports bytes."""
+    try:
+        import resource
+
+        raw = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        if raw <= 0:
+            return None
+        # macOS ru_maxrss is bytes (typically millions); Linux is kilobytes.
+        mb = raw / (1024 * 1024) if raw > 10_000_000 else raw / 1024
+        return round(mb, 1)
+    except Exception:
+        return None
+
 # Keep-warm and the Chart page poll /health with a ~3s client timeout.
 # Constructing PaperAgent (scanners + pipeline + cortex) on this path made
 # production health take ~5s after a Render sleep and starved cron-tick.
@@ -99,4 +114,5 @@ async def health_check() -> HealthResponse:
         stores=_probe_store_backends(),
         warehouse=warehouse,
         alembic=alembic,
+        rss_mb=_rss_mb(),
     )

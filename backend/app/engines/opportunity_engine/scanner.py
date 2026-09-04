@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.opportunity_engine.types import (
     DataQuality,
     DirectionBias,
@@ -53,7 +54,7 @@ _BASIS_SOFT_PCT = 0.08
 
 _SCAN_CACHE: TTLCache[list[OpportunityIdea]] = TTLCache(ttl_seconds=90.0)
 _FEED_CACHE: TTLCache[list[OpportunityIdea]] = TTLCache(ttl_seconds=90.0)
-_FEED_MAX_WORKERS = 6
+_FEED_MAX_WORKERS = SCAN_WORKERS
 
 
 def _hint(confidence: float) -> TradeStateHint:

@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 from app.config import settings
+from app.core.process_limits import SCAN_WORKERS
 from app.engines.opportunity_engine.scanner import SetupScanner
 from app.engines.paper_agent.crypto_perp_v2 import V2_UNIVERSE
 from app.market_data.providers.bybit_derivatives import (
@@ -29,7 +30,7 @@ from app.utils.ttl_cache import TTLCache
 logger = logging.getLogger(__name__)
 
 _BOARD_CACHE: TTLCache[PerpsBoardSchema] = TTLCache(ttl_seconds=90.0)
-_BOARD_WORKERS = 6
+_BOARD_WORKERS = SCAN_WORKERS
 _COINGLASS_WEB = "https://www.coinglass.com/liquidations"
 
 

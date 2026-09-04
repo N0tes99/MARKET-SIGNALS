@@ -268,8 +268,8 @@ export function PaperAgentPanel() {
     retry: 1,
   });
 
-  // One opportunistic tick after first paint so the ledger advances without
-  // blocking every poll / competing with rankings on dashboard mount.
+  // One opportunistic tick after rankings start — keep-warm also ticks.
+  // 8s so /assets rank_all does not share the 512MB dyno with paper discover.
   useEffect(() => {
     let cancelled = false;
     const run = () => {
@@ -289,12 +289,12 @@ export function PaperAgentPanel() {
         () => {
           if (!cancelled) run();
         },
-        { timeout: 2500 },
+        { timeout: 8_000 },
       );
     } else {
       timeoutId = setTimeout(() => {
         if (!cancelled) run();
-      }, 800);
+      }, 8_000);
     }
     return () => {
       cancelled = true;
