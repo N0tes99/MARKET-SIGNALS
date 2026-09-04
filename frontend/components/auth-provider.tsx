@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import {
+  fetchHealth,
   fetchMe,
   loginAccount,
   logoutAccount,
@@ -61,7 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Public /health wakes a sleeping Render dyno while /auth/me is in flight.
+    void fetchHealth(12_000).catch(() => undefined);
     void refresh();
+    const id = window.setInterval(() => {
+      void fetchHealth(8_000).catch(() => undefined);
+    }, 4 * 60_000);
+    return () => window.clearInterval(id);
   }, [refresh]);
 
   const login = useCallback(async (email: string, password: string) => {

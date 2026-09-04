@@ -980,6 +980,33 @@ class PaperAgent:
 
         self._store.upsert(trade)
 
+    @classmethod
+    def snapshot_from_store(
+        cls,
+        store: PaperTradeStore,
+        *,
+        tick_notes: list[str] | None = None,
+        starting_cash: float = STARTING_CASH,
+        size_usd: float = DEFAULT_SIZE_USD,
+    ) -> PaperAgentSummary:
+        """Ledger snapshot without constructing scanners (dashboard first paint)."""
+        agent = cls.__new__(cls)
+        agent._store = store
+        agent._starting_cash = starting_cash
+        agent._size_usd = size_usd
+        agent._learning = None
+        agent._last_tick_at = None
+        agent._last_discover_at = None
+        get_meta = getattr(store, "get_meta", None)
+        if callable(get_meta):
+            raw = get_meta("last_tick_at")
+            if raw:
+                try:
+                    agent._last_tick_at = datetime.fromisoformat(raw)
+                except ValueError:
+                    agent._last_tick_at = None
+        return agent.summary(tick_notes=tick_notes)
+
     def maturity(self) -> PaperMaturitySnapshot:
         """Training readiness from honest closes + paper learning memory."""
         memory: list = []

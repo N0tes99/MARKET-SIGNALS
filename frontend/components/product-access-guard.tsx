@@ -37,9 +37,10 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
   const bypass = !REQUIRE_LOGIN || pathBypass;
 
   const gateQuery = useQuery({
-    queryKey: ["gate-status", user?.id ?? "anon"],
+    queryKey: ["gate-status"],
     queryFn: fetchGateStatus,
-    enabled: REQUIRE_LOGIN && !pathBypass && !loading && Boolean(user),
+    // Cookie session — do not wait for fetchMe (that doubled cold-start time).
+    enabled: REQUIRE_LOGIN && !pathBypass,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
@@ -47,13 +48,15 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!REQUIRE_LOGIN || pathBypass || loading) return;
-    if (!user) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (!REQUIRE_LOGIN || pathBypass) return;
+    const status = gateQuery.data;
+    if (isGranted(status)) return;
+    if (!status) {
+      if (!loading && !gateQuery.isLoading && !user) {
+        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      }
       return;
     }
-    const status = gateQuery.data;
-    if (!status) return;
     if (status.next_step === "login") {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
@@ -65,7 +68,7 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     if (status.next_step === "mfa" || status.next_step === "enroll") {
       router.replace(`/unlock?next=${encodeURIComponent(pathname)}`);
     }
-  }, [pathBypass, loading, user, gateQuery.data, pathname, router]);
+  }, [pathBypass, loading, user, gateQuery.data, gateQuery.isLoading, pathname, router]);
 
   if (bypass) {
     return <>{children}</>;
@@ -75,10 +78,13 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  if (loading || !user || gateQuery.isLoading || gateQuery.isFetching) {
+  if ((loading && !gateQuery.data) || (gateQuery.isLoading && !gateQuery.data)) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2">
+        <p className="font-mono text-[11px] text-muted-foreground/50">Connecting…</p>
+        <p className="font-mono text-[10px] text-muted-foreground/40">
+          API may still be waking up
+        </p>
       </div>
     );
   }
@@ -102,7 +108,7 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <p className="font-mono text-[11px] text-muted-foreground/50">Loading…</p>
+      <p className="font-mono text-[11px] text-muted-foreground/50">Connecting…</p>
     </div>
   );
 }

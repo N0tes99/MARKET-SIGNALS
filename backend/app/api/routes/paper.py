@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.core.auth_deps import require_admin_user
 from app.core.rate_limit import limit_expensive
-from app.core.service_dependencies import get_paper_agent
+from app.core.service_dependencies import get_paper_agent, get_paper_store
 from app.engines.paper_agent.agent import PaperAgent
 from app.engines.paper_agent.tune_csv import paper_trades_to_csv
-from app.engines.paper_agent.types import PaperTrade
+from app.engines.paper_agent.types import PaperAgentSummary, PaperTrade
 from app.models.user import User
 from app.schemas.paper import (
     PaperLedgerSchema,
@@ -95,8 +95,7 @@ def _trade_schema(t: PaperTrade) -> PaperTradeSchema:
     )
 
 
-def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperSummarySchema:
-    s = agent.summary(tick_notes=notes)
+def _schema_from_summary(s: PaperAgentSummary) -> PaperSummarySchema:
     maturity = None
     if s.maturity is not None:
         maturity = PaperMaturitySchema(**s.maturity.__dict__)
@@ -119,6 +118,10 @@ def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperS
     )
 
 
+def _summary_schema(agent: PaperAgent, notes: list[str] | None = None) -> PaperSummarySchema:
+    return _schema_from_summary(agent.summary(tick_notes=notes))
+
+
 def _maybe_auto_tick(agent: PaperAgent) -> list[str]:
     """Throttle living ticks so dashboard visits advance the agent without spam."""
     global _LAST_AUTO_TICK
@@ -138,17 +141,21 @@ def _maybe_auto_tick(agent: PaperAgent) -> list[str]:
 
 @router.get("/summary", response_model=PaperSummarySchema)
 async def paper_summary(
-    agent: PaperAgent = Depends(get_paper_agent),
     tick: bool = True,
 ) -> PaperSummarySchema:
     """Public paper agent snapshot (optimistic + honest ledgers).
 
-    Optionally advances the agent (throttled) so the bot stays \"living\".
+    ``tick=false`` (dashboard first paint) reads the store only — it does not
+    construct scanners / cortex. ``tick=true`` advances the agent (throttled).
     """
-    notes: list[str] = []
     if tick:
+        agent = get_paper_agent()
         notes = await asyncio.to_thread(_maybe_auto_tick, agent)
-    return await asyncio.to_thread(_summary_schema, agent, notes)
+        return await asyncio.to_thread(_summary_schema, agent, notes)
+
+    store = get_paper_store()
+    snapshot = await asyncio.to_thread(PaperAgent.snapshot_from_store, store)
+    return _schema_from_summary(snapshot)
 
 
 @router.get("/trades.csv")
