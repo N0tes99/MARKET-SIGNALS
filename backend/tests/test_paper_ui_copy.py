@@ -13,3 +13,4 @@ def test_paper_panel_shows_paused_new_opens() -> None:
     assert "new opens paused" in text
     assert "tick_stale" in text
     assert "tick stale — leftover opens still manage" in text
+    assert "180_000" in text
