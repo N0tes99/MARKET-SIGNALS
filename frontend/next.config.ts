@@ -7,12 +7,16 @@ import type { NextConfig } from "next";
  */
 function contentSecurityPolicy(): string {
   const connect = ["'self'"];
+  const script = ["'self'", "'unsafe-inline'"];
   if (process.env.NODE_ENV !== "production") {
     connect.push("http://localhost:8000", "http://127.0.0.1:8000");
+    // Next.js dev (React Refresh / webpack HMR) evaluates code via eval().
+    // Scoped to dev only — the production CSP stays strict (no unsafe-eval).
+    script.push("'unsafe-eval'");
   }
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    `script-src ${script.join(" ")}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",

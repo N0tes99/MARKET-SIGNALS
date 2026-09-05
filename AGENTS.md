@@ -32,20 +32,21 @@ gotchas.
 - Auth/site gate are OFF locally (`AUTH_PASSWORD` and `SITE_TOTP_SECRET` empty), so the
   dashboard is reachable without logging in.
 
-### Frontend CSP caveat (important — `npm run dev` looks broken)
-`frontend/next.config.ts` sets a production CSP with `script-src 'self' 'unsafe-inline'`
-(no `'unsafe-eval'`). In dev mode Next.js React Refresh evaluates code via `eval`, which
-the CSP blocks, so `npm run dev` renders a page permanently stuck on "Loading…" (the
-client JS never executes). To view/develop the UI in this environment, run a production
-build with proxy mode instead:
-- Build once: `NEXT_PUBLIC_USE_API_PROXY=true npm run build` (the `.env.production.local`
-  in `frontend/` already sets this flag).
-- Serve: `npx next start -p 3000`.
-The browser then calls the same‑origin proxy `/api/backend/*`, which forwards to
-`API_BACKEND_URL` (defaults to `http://localhost:8000`). Direct mode
-(`NEXT_PUBLIC_USE_API_PROXY=false`) also fails in a production build because the CSP
-`connect-src` is `'self'` only. Note: `next dev` shares the `.next/` directory, so if the
-dev server ran, delete `.next/` and rebuild before `next start`.
+### Frontend run modes & CSP
+- Dev (recommended locally): `npm run dev` on `:3000`. `frontend/next.config.ts` adds
+  `'unsafe-eval'` to `script-src` only when `NODE_ENV !== 'production'` (Next.js React
+  Refresh/HMR needs `eval`); the production CSP stays strict. In dev the browser calls the
+  API directly at `http://localhost:8000` (allowed by the dev `connect-src`).
+  Historical note: before that dev‑only CSP branch existed, `npm run dev` rendered a page
+  permanently stuck on "Loading…" because the strict CSP blocked React Refresh's `eval`.
+- Production build locally: build with `NEXT_PUBLIC_USE_API_PROXY=true npm run build`
+  (the `.env.production.local` in `frontend/` sets this flag), then `npx next start -p 3000`.
+  The browser then calls the same‑origin proxy `/api/backend/*`, which forwards to
+  `API_BACKEND_URL` (defaults to `http://localhost:8000`). Direct mode
+  (`NEXT_PUBLIC_USE_API_PROXY=false`) fails in a production build because the production CSP
+  `connect-src` is `'self'` only.
+- `next dev` and `next build` share the `.next/` directory, so after running the dev server,
+  delete `.next/` and rebuild before `next start` (and vice versa).
 
 ### Lint / test / build
 - Backend lint: `.venv/bin/ruff check .` (from `backend/`).
