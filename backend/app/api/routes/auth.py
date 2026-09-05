@@ -27,10 +27,12 @@ from app.core.security import (
     dummy_password_hash,
     hash_password,
     issue_session_token,
+    session_expire_minutes_for,
     verify_password,
 )
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -48,7 +50,17 @@ router = APIRouter()
 _TOKEN_TTL_HOURS = 24.0
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _set_session_cookie(
+    response: Response,
+    token: str,
+    *,
+    max_age_minutes: int | None = None,
+) -> None:
+    minutes = (
+        max_age_minutes
+        if max_age_minutes is not None
+        else settings.access_token_expire_minutes
+    )
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
@@ -56,7 +68,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         secure=cookie_secure(),
         samesite="lax",
         path="/",
-        max_age=settings.access_token_expire_minutes * 60,
+        max_age=max(15, int(minutes)) * 60,
     )
 
 
@@ -169,7 +181,7 @@ async def register(
     session.add(user)
     await session.flush()
     token = issue_session_token(user)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, max_age_minutes=session_expire_minutes_for(user))
     return _user_schema(user)
 
 
@@ -199,8 +211,12 @@ async def login(
             detail="Email verification required",
         )
 
+    # One live admin session: a new sign-in kills stolen cookies immediately.
+    if settings.is_admin_username(user.username):
+        bump_session_version(user)
+
     token = issue_session_token(user)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, max_age_minutes=session_expire_minutes_for(user))
     return _user_schema(user)
 
 
@@ -249,7 +265,7 @@ async def verify_email(
     await session.flush()
 
     token = issue_session_token(user)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, max_age_minutes=session_expire_minutes_for(user))
     return _user_schema(user)
 
 
@@ -312,7 +328,7 @@ async def forgot_password(
     email = body.email.lower().strip()
     result = await session.execute(select(User).where(func.lower(User.email) == email))
     user = result.scalar_one_or_none()
-    if user is None:
+    if user is None or settings.is_admin_username(user.username):
         return
 
     now = datetime.now(UTC)
@@ -347,6 +363,12 @@ async def reset_password(
             await session.commit()
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
+    if settings.is_admin_username(user.username):
+        user.password_reset_token_hash = None
+        user.password_reset_sent_at = None
+        await session.commit()
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
     user.password_hash = hash_password(body.password)
     user.password_reset_token_hash = None
     user.password_reset_sent_at = None
@@ -355,5 +377,28 @@ async def reset_password(
 
     if not (_verification_required() and not user.email_verified):
         token = issue_session_token(user)
-        _set_session_cookie(response, token)
+        _set_session_cookie(
+            response, token, max_age_minutes=session_expire_minutes_for(user)
+        )
+    return _user_schema(user)
+
+
+@router.post("/change-password", response_model=UserSchema)
+async def change_password(
+    body: ChangePasswordRequest,
+    response: Response,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> UserSchema:
+    """Change password while logged in. Admin cannot use email reset."""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    user.password_hash = hash_password(body.new_password)
+    bump_session_version(user)
+    await session.flush()
+    token = issue_session_token(user)
+    _set_session_cookie(response, token, max_age_minutes=session_expire_minutes_for(user))
+    from app.core.site_gate import clear_mfa_cookie
+
+    clear_mfa_cookie(response)
     return _user_schema(user)

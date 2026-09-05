@@ -199,6 +199,8 @@ async def authenticate_api_key(
     api_key, user = row
     if not secrets.compare_digest(api_key.key_hash, key_hash):
         return None, "INVALID_API_KEY"
+    if settings.is_admin_username(user.username):
+        return None, "INVALID_API_KEY"
     if api_key.expires_at is not None:
         exp = (
             api_key.expires_at

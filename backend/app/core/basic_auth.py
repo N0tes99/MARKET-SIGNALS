@@ -25,7 +25,6 @@ def is_public_path(path: str) -> bool:
     if normalized in {
         "/api/v1/health",
         "/api/v1/auth/gate/status",
-        "/api/v1/auth/gate/verify",
         "/api/v1/auth/gate/logout",
     }:
         return True

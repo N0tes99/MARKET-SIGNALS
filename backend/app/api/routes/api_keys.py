@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.api_keys import (
     AVAILABLE_SCOPES,
     generate_api_key,
@@ -114,6 +115,11 @@ async def admin_create_api_key(
     target = result.scalar_one_or_none()
     if target is None:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    if settings.is_admin_username(target.username):
+        raise HTTPException(
+            status_code=400,
+            detail="API keys cannot be issued for admin accounts",
+        )
 
     if body.expires_at is not None:
         try:

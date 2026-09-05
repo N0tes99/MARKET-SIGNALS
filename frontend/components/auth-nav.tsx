@@ -52,6 +52,12 @@ export function AuthNav() {
       >
         {user.username}
       </Link>
+      <Link
+        href="/settings/password"
+        className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+      >
+        Password
+      </Link>
       <button
         type="button"
         onClick={() => void logout()}

@@ -82,12 +82,30 @@ async def require_verified_user(
 
 
 async def require_admin_user(
+    request: Request,
     user: User = Depends(get_current_user),
 ) -> User:
-    """Require login as an ADMIN_USERNAMES account (Outcome log, etc.)."""
+    """Require login as an ADMIN_USERNAMES account (Outcome log, etc.).
+
+    When the site gate is on, also require a valid MFA cookie. Do not rely
+    only on AccessGateMiddleware — a public-path mistake must not drop 2FA.
+    """
     if not settings.is_admin_username(user.username):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
+    from app.core.site_gate import MFA_COOKIE_NAME, decode_mfa_token, gate_enabled
+
+    if gate_enabled():
+        mfa = request.cookies.get(MFA_COOKIE_NAME)
+        if not decode_mfa_token(
+            mfa,
+            user_id=user.id,
+            session_version=int(user.session_version or 0),
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticator unlock required",
+            )
     return user

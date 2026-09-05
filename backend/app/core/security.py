@@ -55,9 +55,26 @@ def bump_session_version(user: User) -> int:
     return next_v
 
 
-def create_access_token(user_id: uuid.UUID, session_version: int = 0) -> str:
+def session_expire_minutes_for(user: User) -> int:
+    """Admin sessions die in hours, not two weeks."""
+    if settings.is_admin_username(user.username):
+        return max(15, int(settings.admin_session_expire_minutes))
+    return max(15, int(settings.access_token_expire_minutes))
+
+
+def create_access_token(
+    user_id: uuid.UUID,
+    session_version: int = 0,
+    *,
+    expire_minutes: int | None = None,
+) -> str:
     """Issue a signed JWT for the given user id."""
-    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+    minutes = (
+        expire_minutes
+        if expire_minutes is not None
+        else settings.access_token_expire_minutes
+    )
+    expire = datetime.now(UTC) + timedelta(minutes=max(15, int(minutes)))
     payload = {
         "typ": "session",
         "sub": str(user_id),
@@ -70,7 +87,11 @@ def create_access_token(user_id: uuid.UUID, session_version: int = 0) -> str:
 
 def issue_session_token(user: User) -> str:
     """Mint a session JWT bound to the user's current session_version."""
-    return create_access_token(user.id, int(user.session_version or 0))
+    return create_access_token(
+        user.id,
+        int(user.session_version or 0),
+        expire_minutes=session_expire_minutes_for(user),
+    )
 
 
 def decode_session_claims(token: str) -> SessionClaims | None:
