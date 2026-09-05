@@ -145,6 +145,15 @@ def limit_chart_analysis(request: Request, user_id: str) -> None:
     )
 
 
+def limit_api_key(request: Request) -> None:
+    """Cap API-key presentations per IP (leaked-key spray / brute force)."""
+    check_rate_limit(
+        f"apikey:ip:{client_ip(request)}",
+        limit=60,
+        window_seconds=60,
+    )
+
+
 def limit_expensive(request: Request) -> None:
     """Cap unauthenticated-looking compute ticks when the site is locked down."""
     from app.core.basic_auth import auth_enabled

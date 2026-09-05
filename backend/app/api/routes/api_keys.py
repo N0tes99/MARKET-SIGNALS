@@ -10,7 +10,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.api_keys import AVAILABLE_SCOPES, generate_api_key, normalize_scopes
+from app.core.api_keys import (
+    AVAILABLE_SCOPES,
+    generate_api_key,
+    normalize_scopes,
+    resolve_api_key_expiry,
+)
 from app.core.auth_deps import get_current_user, require_admin_user
 from app.core.dependencies import get_db
 from app.models.api_key import ApiKeyModel
@@ -111,9 +116,12 @@ async def admin_create_api_key(
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
 
     if body.expires_at is not None:
-        exp = body.expires_at if body.expires_at.tzinfo else body.expires_at.replace(tzinfo=UTC)
-        if exp <= datetime.now(UTC):
-            raise HTTPException(status_code=400, detail="expires_at must be in the future")
+        try:
+            expires_at = resolve_api_key_expiry(body.expires_at)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        expires_at = resolve_api_key_expiry(None)
 
     try:
         scopes = normalize_scopes(body.scopes)
@@ -128,7 +136,7 @@ async def admin_create_api_key(
         key_prefix=key_prefix,
         key_hash=key_hash,
         scopes=scopes,
-        expires_at=body.expires_at,
+        expires_at=expires_at,
     )
     session.add(record)
     await session.commit()

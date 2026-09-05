@@ -94,7 +94,9 @@ export default function AdminApiAccessPage() {
           <Link href="/admin/access" className="underline-offset-2 hover:underline">
             dashboard grant
           </Link>
-          . Keys bypass TOTP for programmatic access.
+          . Treat a leaked <span className="font-mono">se_live_…</span> key as a password:
+          keys skip TOTP, expire in 90 days by default (max 365), and cannot run Radar
+          backtest/tune or Expansion replay.
         </p>
 
         <AdminNav />
@@ -126,7 +128,9 @@ export default function AdminApiAccessPage() {
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="label-caps text-muted-foreground/55">Expires (optional)</span>
+              <span className="label-caps text-muted-foreground/55">
+                Expires (blank = 90 days, max 365)
+              </span>
               <input
                 type="datetime-local"
                 value={keyExpiresAt}
@@ -186,6 +190,9 @@ export default function AdminApiAccessPage() {
                     <p className="mt-1 font-mono text-[10px] text-muted-foreground/50">
                       {k.key_prefix}… · {k.scopes.join(", ")} ·{" "}
                       {k.active ? "active" : "revoked/expired"}
+                      {k.expires_at
+                        ? ` · expires ${new Date(k.expires_at).toLocaleDateString()}`
+                        : ""}
                       {k.last_used_at
                         ? ` · used ${new Date(k.last_used_at).toLocaleString()}`
                         : ""}

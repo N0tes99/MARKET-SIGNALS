@@ -50,9 +50,11 @@ export default function MyApiKeysPage() {
         <p className="label-caps">Settings</p>
         <h1 className="mt-2 text-2xl font-light tracking-tight">Your API keys</h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
-          Keys are issued by an admin. Use them with{" "}
-          <span className="font-mono text-foreground/85">Authorization: Bearer se_live_…</span> — no
-          TOTP required for programmatic access.
+          Keys are issued by an admin. Treat a leaked{" "}
+          <span className="font-mono text-foreground/85">se_live_…</span> key as a password —
+          they skip TOTP, expire automatically, and cannot hit Radar backtest or Expansion
+          replay. Use{" "}
+          <span className="font-mono text-foreground/85">Authorization: Bearer se_live_…</span>.
         </p>
 
         {error ? (
@@ -75,9 +77,12 @@ export default function MyApiKeysPage() {
                   <p className="font-mono text-sm text-foreground/90">
                     {k.name || "API key"} · {k.key_prefix}…
                   </p>
-                  <p className="mt-1 font-mono text-[10px] text-muted-foreground/50">
-                    {k.scopes.join(", ")} · {k.active ? "active" : "revoked/expired"}
-                  </p>
+                    <p className="mt-1 font-mono text-[10px] text-muted-foreground/50">
+                      {k.scopes.join(", ")} · {k.active ? "active" : "revoked/expired"}
+                      {k.expires_at
+                        ? ` · expires ${new Date(k.expires_at).toLocaleDateString()}`
+                        : ""}
+                    </p>
                 </div>
                 {k.active ? (
                   <button

@@ -329,6 +329,16 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
         from app.database.session import async_session_factory
 
         if extract_api_key_from_request(request) is not None:
+            from app.core.rate_limit import limit_api_key
+
+            try:
+                limit_api_key(request)
+            except HTTPException as exc:
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"detail": exc.detail, "code": "RATE_LIMITED"},
+                    headers=dict(exc.headers or {}),
+                )
             async with async_session_factory() as session:
                 api_auth, api_error = await authenticate_api_key(request, session)
             if api_auth is not None:

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { DM_Sans, IBM_Plex_Mono, Space_Grotesk, Syne } from "next/font/google";
 
 import { Providers } from "@/components/providers";
@@ -67,11 +68,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the middleware nonce so Next.js can tag hydration scripts.
+  await headers();
   return (
     <html lang="en" className="dark">
       <body
