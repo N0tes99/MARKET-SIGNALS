@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     app_name: str = "Signal Engine"
     app_env: str = "development"
     app_debug: bool = True
+    # SQL echo logs every statement AND its bound parameters (password hashes,
+    # reset/verify token hashes, TOTP ciphertext). Keep it decoupled from debug
+    # and off by default so those values never land in stdout unless opted in.
+    db_echo: bool = False
     api_v1_prefix: str = "/api/v1"
 
     backend_host: str = "0.0.0.0"
@@ -170,6 +174,12 @@ class Settings(BaseSettings):
         if self.secret_key.strip() in {"", "change-me-in-production"}:
             raise ValueError(
                 "SECRET_KEY must be a strong random value when APP_ENV=production"
+            )
+        # A short/low-entropy key defeats JWT signing, the MFA cookie, TOTP-at-rest
+        # encryption, and the API-key pepper (all keyed from SECRET_KEY).
+        if len(self.secret_key.strip()) < 32:
+            raise ValueError(
+                "SECRET_KEY must be at least 32 characters when APP_ENV=production"
             )
         if not self.auth_password.strip():
             raise ValueError(
