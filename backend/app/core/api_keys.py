@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -22,6 +22,17 @@ API_KEY_PREFIX = "se_live_"
 REQUEST_STATE_ATTR = "api_key_auth"
 
 ALL_READ_SCOPE = "*:read"
+DEFAULT_API_KEY_TTL_DAYS = 90
+MAX_API_KEY_TTL_DAYS = 365
+# Yahoo-heavy routes stay cookie+MFA only. A leaked se_live_ key must not
+# stampede the 512MB dyno or skip TOTP into those jobs.
+_HEAVY_API_KEY_PATHS = frozenset(
+    {
+        "/api/v1/runners/backtest",
+        "/api/v1/runners/tune",
+        "/api/v1/expansion/replay",
+    }
+)
 
 AVAILABLE_SCOPES: tuple[str, ...] = (
     ALL_READ_SCOPE,
@@ -99,6 +110,20 @@ def generate_api_key() -> tuple[str, str, str]:
     return full_key, key_prefix, hash_api_key(full_key)
 
 
+def resolve_api_key_expiry(expires_at: datetime | None) -> datetime:
+    """New keys always expire. Default 90 days, hard cap 365."""
+    now = datetime.now(UTC)
+    max_exp = now + timedelta(days=MAX_API_KEY_TTL_DAYS)
+    if expires_at is None:
+        return now + timedelta(days=DEFAULT_API_KEY_TTL_DAYS)
+    exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=UTC)
+    if exp <= now:
+        raise ValueError("expires_at must be in the future")
+    if exp > max_exp:
+        raise ValueError("expires_at cannot be more than 365 days from now")
+    return exp
+
+
 def extract_api_key_from_request(request: Request) -> str | None:
     header = (request.headers.get(API_KEY_HEADER) or "").strip()
     if header.startswith(API_KEY_PREFIX):
@@ -111,11 +136,20 @@ def extract_api_key_from_request(request: Request) -> str | None:
     return None
 
 
-def required_scope_for_path(path: str, method: str) -> str | None:
-    """Map a request path to the scope an API key must hold (read-only Phase 1)."""
+def required_scope_for_path(path: str, method: str, *, query: str = "") -> str | None:
+    """Map a request path to the scope an API key must hold (read-only Phase 1).
+
+    Returns None (denied) for POST/write and for Yahoo-heavy study routes.
+    """
     if method.upper() not in {"GET", "HEAD"}:
         return None
     normalized = path.rstrip("/") or "/"
+    if normalized in _HEAVY_API_KEY_PATHS:
+        return None
+    if normalized == "/api/v1/assets":
+        params = (query or "").replace(" ", "").lower()
+        if "sync=true" in params.split("&"):
+            return None
     for prefix, scope in SCOPE_PREFIXES:
         if normalized == prefix or normalized.startswith(f"{prefix}/"):
             return scope
@@ -190,7 +224,9 @@ async def authenticate_api_key(
             return None, "ACCESS_NOT_GRANTED"
 
     scopes = tuple(str(s) for s in (api_key.scopes or []))
-    required = required_scope_for_path(request.url.path, request.method)
+    required = required_scope_for_path(
+        request.url.path, request.method, query=str(request.url.query or "")
+    )
     if not scope_allows(required, scopes):
         return None, "INSUFFICIENT_SCOPE"
 

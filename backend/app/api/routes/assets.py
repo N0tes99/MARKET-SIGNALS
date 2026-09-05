@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import TypeAdapter
 
 from app.api.tracked import TRACKED_SYMBOLS, is_tracked
+from app.core.rate_limit import limit_heavy_compute
 from app.core.service_dependencies import (
     get_alert_service,
     get_decision_pipeline,
@@ -256,6 +257,8 @@ async def list_assets(
 
     ``sync=true``: block until a full rank completes (keep-warm / tests).
     """
+    if sync:
+        limit_heavy_compute(request)
     dashboard = await asyncio.to_thread(_get_dashboard, sync=sync, request=request)
     _kick_reddit_warm()
 

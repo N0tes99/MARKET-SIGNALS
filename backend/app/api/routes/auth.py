@@ -22,10 +22,11 @@ from app.core.rate_limit import (
 )
 from app.core.security import (
     SESSION_COOKIE_NAME,
+    bump_session_version,
     cookie_secure,
-    create_access_token,
     dummy_password_hash,
     hash_password,
+    issue_session_token,
     verify_password,
 )
 from app.models.user import User
@@ -167,7 +168,7 @@ async def register(
     user.email_verified_at = datetime.now(UTC)
     session.add(user)
     await session.flush()
-    token = create_access_token(user.id)
+    token = issue_session_token(user)
     _set_session_cookie(response, token)
     return _user_schema(user)
 
@@ -198,16 +199,23 @@ async def login(
             detail="Email verification required",
         )
 
-    token = create_access_token(user.id)
+    token = issue_session_token(user)
     _set_session_cookie(response, token)
     return _user_schema(user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> None:
-    """Clear the session cookie and authenticator unlock cookie."""
+async def logout(
+    response: Response,
+    user: User | None = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Clear cookies and invalidate stolen copies of this account's JWTs."""
     from app.core.site_gate import clear_mfa_cookie
 
+    if user is not None:
+        bump_session_version(user)
+        await session.commit()
     _clear_session_cookie(response)
     clear_mfa_cookie(response)
 
@@ -240,7 +248,7 @@ async def verify_email(
     user.email_verify_token_hash = None
     await session.flush()
 
-    token = create_access_token(user.id)
+    token = issue_session_token(user)
     _set_session_cookie(response, token)
     return _user_schema(user)
 
@@ -342,9 +350,10 @@ async def reset_password(
     user.password_hash = hash_password(body.password)
     user.password_reset_token_hash = None
     user.password_reset_sent_at = None
+    bump_session_version(user)
     await session.flush()
 
     if not (_verification_required() and not user.email_verified):
-        token = create_access_token(user.id)
+        token = issue_session_token(user)
         _set_session_cookie(response, token)
     return _user_schema(user)

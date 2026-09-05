@@ -31,6 +31,8 @@ def test_password_hash_roundtrip() -> None:
     hashed = hash_password("securepass1")
     assert verify_password("securepass1", hashed)
     assert not verify_password("wrong", hashed)
+    # A leaked bcrypt string is not a login password.
+    assert not verify_password(hashed, hashed)
 
 
 def test_dummy_password_hash_is_valid_bcrypt() -> None:
@@ -38,6 +40,7 @@ def test_dummy_password_hash_is_valid_bcrypt() -> None:
     assert dummy.startswith("$2")
     assert not verify_password("timing-dummy", dummy)
     assert dummy_password_hash() == dummy
+    assert not verify_password(dummy, dummy)
 
 
 def test_jwt_roundtrip() -> None:
@@ -303,6 +306,24 @@ async def test_forgot_and_reset_password(social_client) -> None:
         result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one()
         assert user.password_reset_token_hash is None
+
+
+@pytest.mark.asyncio
+async def test_logout_invalidates_stolen_session_cookie(social_client) -> None:
+    """A copied se_session cookie must die after the owner logs out."""
+    client, factory = social_client
+    await _register_verified(client, factory, prefix="stolen")
+    me = await client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    stolen = client.cookies.get(SESSION_COOKIE_NAME)
+    assert stolen
+
+    await client.post("/api/v1/auth/logout")
+    replay = await client.get(
+        "/api/v1/auth/me",
+        cookies={SESSION_COOKIE_NAME: stolen},
+    )
+    assert replay.status_code == 401
 
 
 @pytest.mark.asyncio

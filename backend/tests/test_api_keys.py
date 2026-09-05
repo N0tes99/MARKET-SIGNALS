@@ -18,6 +18,7 @@ from app.core.api_keys import (
     hash_api_key,
     normalize_scopes,
     required_scope_for_path,
+    resolve_api_key_expiry,
     scope_allows,
 )
 from app.core.dependencies import get_db
@@ -53,6 +54,15 @@ def test_required_scope_for_path_rail() -> None:
     assert required_scope_for_path("/api/v1/rail/clerk/simulate", "POST") is None
 
 
+def test_required_scope_denies_heavy_compute_paths() -> None:
+    assert required_scope_for_path("/api/v1/runners/backtest", "GET") is None
+    assert required_scope_for_path("/api/v1/runners/tune", "GET") is None
+    assert required_scope_for_path("/api/v1/expansion/replay", "GET") is None
+    assert required_scope_for_path("/api/v1/assets", "GET", query="sync=true") is None
+    assert required_scope_for_path("/api/v1/assets", "GET") == "assets:read"
+    assert required_scope_for_path("/api/v1/runners", "GET") == "runners:read"
+
+
 def test_scope_allows_wildcard() -> None:
     assert scope_allows("cortex:read", ("*:read",))
 
@@ -62,6 +72,19 @@ def test_generate_api_key_format() -> None:
     assert full.startswith(API_KEY_PREFIX)
     assert prefix == full[:16]
     assert digest == hash_api_key(full)
+    # SHA-256 digest from a DB dump is not a usable key.
+    assert hash_api_key(digest) != digest
+
+
+def test_new_api_keys_expire_by_default() -> None:
+    exp = resolve_api_key_expiry(None)
+    delta = exp - datetime.now(UTC)
+    assert timedelta(days=89) < delta < timedelta(days=91)
+    too_far = datetime.now(UTC) + timedelta(days=400)
+    with pytest.raises(ValueError, match="365"):
+        resolve_api_key_expiry(too_far)
+    with pytest.raises(ValueError, match="future"):
+        resolve_api_key_expiry(datetime.now(UTC) - timedelta(days=1))
 
 
 class _StubExpansionScanner:
@@ -227,6 +250,45 @@ async def test_api_key_bypasses_mfa_with_scope(api_key_client) -> None:
     )
     assert cortex.status_code == 200
     assert "tick_id" in cortex.json()
+
+
+@pytest.mark.asyncio
+async def test_api_key_denied_on_heavy_compute_paths(api_key_client) -> None:
+    client, factory, user_id = api_key_client
+    full_key, prefix, digest = generate_api_key()
+
+    async with factory() as session:
+        session.add(
+            AccessGrantModel(
+                user_id=user_id,
+                expires_at=datetime.now(UTC) + timedelta(days=30),
+                notes="test",
+            )
+        )
+        session.add(
+            ApiKeyModel(
+                user_id=user_id,
+                name="wildcard",
+                key_prefix=prefix,
+                key_hash=digest,
+                scopes=["*:read"],
+            )
+        )
+        await session.commit()
+
+    backtest = await client.get(
+        "/api/v1/runners/backtest",
+        headers={"X-API-Key": full_key},
+    )
+    assert backtest.status_code == 403
+    assert backtest.json()["code"] == "INSUFFICIENT_SCOPE"
+
+    sync = await client.get(
+        "/api/v1/assets?sync=true",
+        headers={"X-API-Key": full_key},
+    )
+    assert sync.status_code == 403
+    assert sync.json()["code"] == "INSUFFICIENT_SCOPE"
 
 
 @pytest.mark.asyncio

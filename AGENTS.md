@@ -40,23 +40,18 @@ gotchas.
 - Chart screenshot analysis needs `GROQ_API_KEY` on the **API** host (Render in
   production). Do not point public Render at a home LM Studio URL.
 
-### Frontend CSP caveat (important — `npm run dev` looks broken)
+### Frontend CSP caveat (production vs `next start`)
 
-`frontend/next.config.ts` sets a production CSP with `script-src 'self' 'unsafe-inline'`
-(no `'unsafe-eval'`). In dev mode Next.js React Refresh evaluates code via `eval`, which
-the CSP blocks, so `npm run dev` renders a page permanently stuck on "Loading…" (the
-client JS never executes). To view/develop the UI in this environment, run a production
-build with proxy mode instead:
+`frontend/middleware.ts` sets a **production** CSP with a per-request script nonce and
+`'strict-dynamic'` (CSP3 then ignores `'unsafe-inline'` on `script-src`). Styles still
+allow `'unsafe-inline'` because Tailwind/Next inject inline CSS. The policy is **not**
+applied during `next dev`, so React Refresh/`eval` works.
 
-- Build once: `NEXT_PUBLIC_USE_API_PROXY=true npm run build` (or set that flag in
-  `frontend/.env.production.local`).
-- Serve: `npx next start -p 3000`.
-
-The browser then calls the same-origin proxy `/api/backend/*`, which forwards to
-`API_BACKEND_URL` (defaults to `http://localhost:8000`). Direct mode
-(`NEXT_PUBLIC_USE_API_PROXY=false`) also fails in a production build because the CSP
-`connect-src` is `'self'` only. Note: `next dev` shares the `.next/` directory, so if the
-dev server ran, delete `.next/` and rebuild before `next start`.
+A production build (`next start` / Netlify) uses `connect-src 'self'` only. Use
+`NEXT_PUBLIC_USE_API_PROXY=true` so the browser hits `/api/backend`. Direct mode
+(`NEXT_PUBLIC_USE_API_PROXY=false`) cannot call `localhost:8000` under that CSP.
+Note: `next dev` shares the `.next/` directory, so if the dev server ran, delete `.next/`
+and rebuild before `next start`.
 
 ### Lint / test / build
 

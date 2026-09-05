@@ -35,3 +35,22 @@ def test_home_defers_heavy_feeds_after_rank_all() -> None:
     assert "timeout: 8_000" in panel
     assert "8_000" in panel.split("setTimeout")[1]
     assert "180_000" in panel
+
+
+def test_heavy_radar_routes_are_rate_limited() -> None:
+    """Granted users cannot stampede backtest / tune / replay / sync rank."""
+    runners = (_ROOT / "backend" / "app" / "api" / "routes" / "runners.py").read_text(
+        encoding="utf-8"
+    )
+    expansion = (
+        _ROOT / "backend" / "app" / "api" / "routes" / "expansion.py"
+    ).read_text(encoding="utf-8")
+    assets = (_ROOT / "backend" / "app" / "api" / "routes" / "assets.py").read_text(
+        encoding="utf-8"
+    )
+    assert "limit_heavy_compute(request)" in runners
+    assert "run_serialized_heavy, cached_live_study" in runners
+    assert "run_serialized_heavy, cached_live_tune" in runners
+    assert "limit_heavy_compute(request)" in expansion
+    assert "run_serialized_heavy, replay_universe" in expansion
+    assert "limit_heavy_compute(request)" in assets

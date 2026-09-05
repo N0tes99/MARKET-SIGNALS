@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.core.rate_limit import limit_heavy_compute, run_serialized_heavy
 from app.core.service_dependencies import get_expansion_scanner, get_market_data_service
 from app.engines.expansion_engine.config import EXPANSION_PHASE, EXPANSION_UNIVERSE
 from app.engines.expansion_engine.replay import replay_universe
@@ -124,11 +126,15 @@ def get_expansion_feed(
 
 
 @router.get("/replay", response_model=ExpansionReplayResponse)
-def get_expansion_replay(
+async def get_expansion_replay(
+    request: Request,
     market=Depends(get_market_data_service),
 ) -> ExpansionReplayResponse:
     """Lead-time replay vs paper v2 momentum gate on benchmark symbols."""
-    events = replay_universe(market, BENCHMARK_UNIVERSE)
+    limit_heavy_compute(request)
+    events = await asyncio.to_thread(
+        run_serialized_heavy, replay_universe, market, BENCHMARK_UNIVERSE
+    )
     return ExpansionReplayResponse(
         events=[
             ReplayEventSchema(

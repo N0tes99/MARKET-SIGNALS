@@ -8,13 +8,15 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.api.routes.assets import _get_dashboard
 from app.core.basic_auth import auth_enabled
-from app.core.security import SESSION_COOKIE_NAME, decode_access_token
+from app.core.security import SESSION_COOKIE_NAME, decode_session_claims
 from app.core.site_gate import (
     MFA_COOKIE_NAME,
     cookie_session_has_access,
     decode_mfa_token,
     gate_enabled,
 )
+from app.database.session import async_session_factory
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -30,19 +32,31 @@ async def _websocket_authorized(websocket: WebSocket) -> bool:
     if not auth_enabled() and not gate_enabled():
         return True
     session_tok = websocket.cookies.get(SESSION_COOKIE_NAME)
-    user_id = decode_access_token(session_tok) if session_tok else None
-    if user_id is None:
+    claims = decode_session_claims(session_tok) if session_tok else None
+    if claims is None:
         return False
     if not gate_enabled():
-        return True
+        try:
+            async with async_session_factory() as session:
+                user = await session.get(User, claims.user_id)
+            if user is None:
+                return False
+            return int(user.session_version or 0) == claims.session_version
+        except Exception:
+            logger.exception("WebSocket session lookup failed")
+            return False
     mfa = websocket.cookies.get(MFA_COOKIE_NAME)
-    if not decode_mfa_token(mfa, user_id=user_id):
+    if not decode_mfa_token(
+        mfa, user_id=claims.user_id, session_version=claims.session_version
+    ):
         return False
     try:
-        from app.database.session import async_session_factory
-
         async with async_session_factory() as session:
-            denied = await cookie_session_has_access(session, user_id)
+            denied = await cookie_session_has_access(
+                session,
+                claims.user_id,
+                session_version=claims.session_version,
+            )
         return denied is None
     except Exception:
         logger.exception("WebSocket grant lookup failed")
