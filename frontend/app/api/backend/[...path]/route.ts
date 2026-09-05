@@ -82,10 +82,8 @@ async function proxyRequest(
     headers.set("x-forwarded-for", clientIp);
     headers.set("x-real-ip", clientIp);
   }
-  const cronSecret = request.headers.get("x-cron-secret");
-  if (cronSecret) {
-    headers.set("x-cron-secret", cronSecret);
-  }
+  // Do not forward X-Cron-Secret from the browser. Keep-warm hits Render
+  // directly; a leaked cron secret must not work through the public site.
   const auth = authHeader();
   if (auth) {
     headers.set("authorization", auth);

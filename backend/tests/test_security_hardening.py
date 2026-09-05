@@ -56,3 +56,4 @@ def test_proxy_forwards_only_netlify_client_ip() -> None:
     assert 'headers.set("x-forwarded-for", clientIp)' in text
     assert 'request.headers.get("x-real-ip")' not in text
     assert 'request.headers.get("x-forwarded-for")' not in text
+    assert 'request.headers.get("x-cron-secret")' not in text

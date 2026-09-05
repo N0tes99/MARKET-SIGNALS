@@ -1,7 +1,8 @@
-"""021 — encrypt TOTP secrets at rest; replay counter.
+"""021 — encrypt TOTP secrets at rest; replay counter; session version.
 
-Widens users.totp_secret for sealed blobs and records the last accepted
-timestep so a captured 6-digit code cannot be replayed in the same window.
+Widens users.totp_secret for sealed blobs, records the last accepted
+timestep so a captured 6-digit code cannot be replayed, and adds
+session_version so logout / password reset invalidate stolen JWTs.
 
 Revision ID: 021
 Revises: 020
@@ -29,9 +30,14 @@ def upgrade() -> None:
         existing_nullable=True,
     )
     op.add_column("users", sa.Column("totp_last_step", sa.BigInteger(), nullable=True))
+    op.add_column(
+        "users",
+        sa.Column("session_version", sa.Integer(), nullable=False, server_default="0"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("users", "session_version")
     op.drop_column("users", "totp_last_step")
     op.alter_column(
         "users",

@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.dependencies import get_db
 from app.core.rate_limit import limit_wallet
-from app.core.security import SESSION_COOKIE_NAME, cookie_secure, create_access_token, hash_password
+from app.core.security import SESSION_COOKIE_NAME, cookie_secure, hash_password, issue_session_token
 from app.core.wallet_identity import random_wallet_username, synthetic_wallet_email
 from app.models.user import User
 from app.models.wallet import WalletAccount, WalletAuthChallenge
@@ -415,6 +415,6 @@ async def wallet_verify(
     user = await _get_or_create_wallet_user(session, chain=chain, address=address)
     await session.flush()
 
-    token = create_access_token(user.id)
+    token = issue_session_token(user)
     _set_session_cookie(response, token)
     return _user_schema(user)

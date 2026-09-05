@@ -56,7 +56,7 @@ scanners on boot.
 |----------|-----------------|
 | `APP_ENV` | `production` |
 | `APP_DEBUG` | `false` (forced off when `APP_ENV=production`, even if unset or `true`) |
-| `SECRET_KEY` | long random string (**required** — app refuses to start in production with the default `change-me-in-production`; signs social JWT cookies) |
+| `SECRET_KEY` | long random string (**required** — app refuses to start in production with the default `change-me-in-production`). Signs session + MFA JWTs, peppers API-key hashes, and seals TOTP secrets. **Rotate once when deploying this hardening** (kills any stolen cookies). After users unlock 2FA, rotating again requires TOTP re-enrollment **and** reissuing API keys. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
 | `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://your-site.netlify.app` (falls back to first `CORS_ORIGINS`) |
 | `DATABASE_URL` | from Render Postgres |

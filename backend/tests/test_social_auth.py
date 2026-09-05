@@ -309,6 +309,24 @@ async def test_forgot_and_reset_password(social_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_logout_invalidates_stolen_session_cookie(social_client) -> None:
+    """A copied se_session cookie must die after the owner logs out."""
+    client, factory = social_client
+    await _register_verified(client, factory, prefix="stolen")
+    me = await client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    stolen = client.cookies.get(SESSION_COOKIE_NAME)
+    assert stolen
+
+    await client.post("/api/v1/auth/logout")
+    replay = await client.get(
+        "/api/v1/auth/me",
+        cookies={SESSION_COOKIE_NAME: stolen},
+    )
+    assert replay.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_register_conflict_does_not_name_field(social_client) -> None:
     client, _factory = social_client
     suffix = uuid.uuid4().hex[:8]

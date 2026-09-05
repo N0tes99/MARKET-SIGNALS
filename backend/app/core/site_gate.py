@@ -28,7 +28,12 @@ from app.config import settings
 from app.core.auth_deps import get_current_user, get_optional_user, require_admin_user
 from app.core.dependencies import get_db
 from app.core.rate_limit import limit_totp
-from app.core.security import JWT_ALGORITHM, SESSION_COOKIE_NAME, cookie_secure, decode_access_token
+from app.core.security import (
+    JWT_ALGORITHM,
+    SESSION_COOKIE_NAME,
+    cookie_secure,
+    decode_session_claims,
+)
 from app.core.totp_crypto import (
     decrypt_totp_secret,
     encrypt_totp_secret,
@@ -124,7 +129,12 @@ def verify_totp_code(code: str) -> bool:
         return False
 
 
-def create_mfa_token(*, user_id: UUID, grant_expires_at: datetime | None) -> str:
+def create_mfa_token(
+    *,
+    user_id: UUID,
+    grant_expires_at: datetime | None,
+    session_version: int = 0,
+) -> str:
     hours = max(1, int(settings.site_gate_expire_hours))
     hard = datetime.now(UTC) + timedelta(hours=hours)
     if grant_expires_at is not None:
@@ -139,6 +149,7 @@ def create_mfa_token(*, user_id: UUID, grant_expires_at: datetime | None) -> str
     payload = {
         "typ": "site_mfa",
         "sub": str(user_id),
+        "sv": int(session_version),
         "jti": secrets.token_urlsafe(16),
         "exp": exp,
         "iat": datetime.now(UTC),
@@ -146,11 +157,17 @@ def create_mfa_token(*, user_id: UUID, grant_expires_at: datetime | None) -> str
     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
-def decode_mfa_token(token: str | None, *, user_id: UUID | None = None) -> bool:
+def decode_mfa_token(
+    token: str | None,
+    *,
+    user_id: UUID | None = None,
+    session_version: int | None = None,
+) -> bool:
     """HMAC-signed MFA cookie. Forged or unsigned JWTs never unlock.
 
     ``user_id`` is required — a valid MFA JWT for someone else (or with no
-    bound user) is not enough.
+    bound user) is not enough. ``session_version`` must match when provided
+    so a stolen MFA cookie dies with logout / password reset.
     """
     if not token or user_id is None:
         return False
@@ -168,7 +185,16 @@ def decode_mfa_token(token: str | None, *, user_id: UUID | None = None) -> bool:
     sub = payload.get("sub")
     if not sub:
         return False
-    return str(sub) == str(user_id)
+    if str(sub) != str(user_id):
+        return False
+    if session_version is not None:
+        try:
+            token_sv = int(payload.get("sv", 0) or 0)
+        except (ValueError, TypeError):
+            return False
+        if token_sv != int(session_version):
+            return False
+    return True
 
 
 def set_mfa_cookie(response: Response, token: str) -> None:
@@ -273,10 +299,14 @@ async def active_grant_for_user(
 async def cookie_session_has_access(
     session: AsyncSession,
     user_id: UUID,
+    *,
+    session_version: int | None = None,
 ) -> tuple[int, str] | None:
     """None if the cookie user may use data APIs; else ``(status, code)``."""
     user = await session.get(User, user_id)
     if user is None:
+        return (401, "LOGIN_REQUIRED")
+    if session_version is not None and int(user.session_version or 0) != int(session_version):
         return (401, "LOGIN_REQUIRED")
     if settings.is_admin_username(user.username):
         return None
@@ -321,15 +351,17 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         session_tok = request.cookies.get(SESSION_COOKIE_NAME)
-        user_id = decode_access_token(session_tok) if session_tok else None
-        if user_id is None:
+        claims = decode_session_claims(session_tok) if session_tok else None
+        if claims is None:
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Login required", "code": "LOGIN_REQUIRED"},
             )
 
         mfa = request.cookies.get(MFA_COOKIE_NAME)
-        if not decode_mfa_token(mfa, user_id=user_id):
+        if not decode_mfa_token(
+            mfa, user_id=claims.user_id, session_version=claims.session_version
+        ):
             return JSONResponse(
                 status_code=401,
                 content={
@@ -340,7 +372,11 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
 
         try:
             async with async_session_factory() as session:
-                denied = await cookie_session_has_access(session, user_id)
+                denied = await cookie_session_has_access(
+                    session,
+                    claims.user_id,
+                    session_version=claims.session_version,
+                )
         except Exception:
             logger.exception("Access grant lookup failed")
             denied = (401, "LOGIN_REQUIRED")
@@ -631,7 +667,14 @@ async def gate_verify(
             await session.commit()
 
     grant_exp = grant.expires_at if grant else None
-    set_mfa_cookie(response, create_mfa_token(user_id=user.id, grant_expires_at=grant_exp))
+    set_mfa_cookie(
+        response,
+        create_mfa_token(
+            user_id=user.id,
+            grant_expires_at=grant_exp,
+            session_version=int(user.session_version or 0),
+        ),
+    )
     return GateVerifyResponseSchema(
         ok=True,
         next_step="dashboard",

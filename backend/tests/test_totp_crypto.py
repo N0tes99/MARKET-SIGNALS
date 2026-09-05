@@ -9,7 +9,8 @@ import jwt
 import pyotp
 import pytest
 
-from app.core.security import JWT_ALGORITHM, create_access_token
+from app.config import settings
+from app.core.security import JWT_ALGORITHM, create_access_token, decode_session_claims
 from app.core.site_gate import (
     _ensure_pending_secret,
     _upgrade_plaintext_totp_secret,
@@ -177,3 +178,38 @@ def test_tampered_mfa_signature_is_rejected() -> None:
     flipped = "A" if not sig.startswith("A") else "B"
     tampered = f"{header}.{payload}.{flipped}{sig[1:]}"
     assert not decode_mfa_token(tampered, user_id=uid)
+
+
+def test_stale_session_version_rejects_mfa_and_session() -> None:
+    uid = uuid4()
+    session = create_access_token(uid, session_version=0)
+    mfa = create_mfa_token(
+        user_id=uid,
+        grant_expires_at=datetime.now(UTC) + timedelta(hours=1),
+        session_version=0,
+    )
+    claims = decode_session_claims(session)
+    assert claims is not None
+    assert claims.session_version == 0
+    assert decode_mfa_token(mfa, user_id=uid, session_version=0)
+    assert decode_session_claims(session).session_version != 1
+    assert not decode_mfa_token(mfa, user_id=uid, session_version=1)
+
+
+def test_legacy_session_jwt_without_sv_is_version_zero() -> None:
+    uid = uuid4()
+    token = jwt.encode(
+        {
+            "typ": "session",
+            "sub": str(uid),
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+            "iat": datetime.now(UTC),
+        },
+        settings.secret_key,
+        algorithm=JWT_ALGORITHM,
+    )
+    claims = decode_session_claims(token)
+    assert claims is not None
+    assert claims.user_id == uid
+    assert claims.session_version == 0
+
