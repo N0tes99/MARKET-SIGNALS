@@ -1,0 +1,25 @@
+{
+  "name": "Signal Engine",
+  "user": "ubuntu",
+  "install": ".cursor/install.sh",
+  "start": ".cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend-api",
+      "command": "cd backend && . .venv/bin/activate && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    },
+    {
+      "name": "celery-worker",
+      "command": "cd backend && . .venv/bin/activate && celery -A app.core.celery_app worker --loglevel=info"
+    },
+    {
+      "name": "celery-beat",
+      "command": "cd backend && . .venv/bin/activate && celery -A app.core.celery_app beat --loglevel=info"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && API_BACKEND_URL=http://localhost:8000 npx next start -p 3000"
+    }
+  ],
+  "ports": [3000, 8000]
+}
