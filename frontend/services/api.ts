@@ -1597,6 +1597,7 @@ export interface FavoriteSymbol {
 export interface GateStatus {
   enabled: boolean;
   expire_hours: number;
+  mfa_expire_minutes?: number;
   authenticated: boolean;
   is_admin: boolean;
   granted: boolean;
@@ -2024,6 +2025,25 @@ export async function resendVerification(email?: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await readErrorDetail(response));
   }
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<AuthUser> {
+  const response = await fetch(apiUrl("/api/v1/auth/change-password"), {
+    method: "POST",
+    credentials: FETCH_CREDENTIALS,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response));
+  }
+  return response.json() as Promise<AuthUser>;
 }
 
 export async function forgotPassword(email: string): Promise<void> {

@@ -115,12 +115,15 @@ def limit_wallet(request: Request, action: str) -> None:
     )
 
 
-def limit_totp(request: Request, user_id: str) -> None:
+def limit_totp(request: Request, user_id: str, *, admin: bool = False) -> None:
     """Cap authenticator guesses per user and per IP."""
     window = settings.auth_rate_window_seconds
+    per_user = (
+        settings.admin_totp_limit if admin else settings.auth_totp_limit
+    )
     check_rate_limit(
         f"totp:user:{user_id}",
-        limit=settings.auth_totp_limit,
+        limit=per_user,
         window_seconds=window,
     )
     check_rate_limit(

@@ -129,14 +129,26 @@ def verify_totp_code(code: str) -> bool:
         return False
 
 
+def mfa_expire_minutes_for(*, is_admin: bool) -> int:
+    """Admin MFA cookies last about an hour; granted users keep the 12h desk TTL."""
+    if is_admin:
+        return max(5, int(settings.admin_mfa_expire_minutes))
+    return max(1, int(settings.site_gate_expire_hours)) * 60
+
+
 def create_mfa_token(
     *,
     user_id: UUID,
     grant_expires_at: datetime | None,
     session_version: int = 0,
+    expire_minutes: int | None = None,
 ) -> str:
-    hours = max(1, int(settings.site_gate_expire_hours))
-    hard = datetime.now(UTC) + timedelta(hours=hours)
+    minutes = (
+        expire_minutes
+        if expire_minutes is not None
+        else mfa_expire_minutes_for(is_admin=False)
+    )
+    hard = datetime.now(UTC) + timedelta(minutes=max(5, int(minutes)))
     if grant_expires_at is not None:
         grant_exp = (
             grant_expires_at
@@ -197,15 +209,24 @@ def decode_mfa_token(
     return True
 
 
-def set_mfa_cookie(response: Response, token: str) -> None:
-    hours = max(1, int(settings.site_gate_expire_hours))
+def set_mfa_cookie(
+    response: Response,
+    token: str,
+    *,
+    max_age_seconds: int | None = None,
+) -> None:
+    age = (
+        max_age_seconds
+        if max_age_seconds is not None
+        else mfa_expire_minutes_for(is_admin=False) * 60
+    )
     response.set_cookie(
         key=MFA_COOKIE_NAME,
         value=token,
         httponly=True,
         secure=cookie_secure(),
         samesite="lax",
-        max_age=hours * 3600,
+        max_age=max(300, int(age)),
         path="/",
     )
 
@@ -407,6 +428,7 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
 class GateStatusSchema(BaseModel):
     enabled: bool
     expire_hours: int
+    mfa_expire_minutes: int = 12 * 60
     authenticated: bool = False
     is_admin: bool = False
     granted: bool = False
@@ -581,11 +603,14 @@ async def gate_status(
     )
     if not enabled:
         mfa_ok = True
+    is_admin = bool(user and settings.is_admin_username(user.username))
+    mfa_minutes = mfa_expire_minutes_for(is_admin=is_admin)
     return GateStatusSchema(
         enabled=enabled,
-        expire_hours=max(1, int(settings.site_gate_expire_hours)),
+        expire_hours=max(1, (mfa_minutes + 59) // 60),
+        mfa_expire_minutes=mfa_minutes,
         authenticated=user is not None,
-        is_admin=bool(user and settings.is_admin_username(user.username)),
+        is_admin=is_admin,
         granted=granted,
         grant_expires_at=grant_exp,
         mfa_ok=mfa_ok,
@@ -648,8 +673,8 @@ async def gate_verify(
     session: AsyncSession = Depends(get_db),
 ) -> GateVerifyResponseSchema:
     """Confirm first-time enrollment or unlock with the user's authenticator."""
-    limit_totp(request, str(user.id))
     is_admin = settings.is_admin_username(user.username)
+    limit_totp(request, str(user.id), admin=is_admin)
     grant = None if is_admin else await active_grant_for_user(session, user.id)
     if not is_admin and grant is None:
         raise HTTPException(
@@ -677,13 +702,16 @@ async def gate_verify(
             await session.commit()
 
     grant_exp = grant.expires_at if grant else None
+    mfa_minutes = mfa_expire_minutes_for(is_admin=is_admin)
     set_mfa_cookie(
         response,
         create_mfa_token(
             user_id=user.id,
             grant_expires_at=grant_exp,
             session_version=int(user.session_version or 0),
+            expire_minutes=mfa_minutes,
         ),
+        max_age_seconds=mfa_minutes * 60,
     )
     return GateVerifyResponseSchema(
         ok=True,

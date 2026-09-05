@@ -27,6 +27,7 @@ function UnlockForm() {
   const [mode, setMode] = useState<"enroll" | "mfa">("mfa");
   const [enroll, setEnroll] = useState<GateEnroll | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mfaMinutes, setMfaMinutes] = useState(12 * 60);
 
   useEffect(() => {
     if (authLoading) return;
@@ -35,6 +36,7 @@ function UnlockForm() {
       try {
         const status = await fetchGateStatus();
         if (cancelled) return;
+        setMfaMinutes(status.mfa_expire_minutes ?? status.expire_hours * 60);
         if (status.next_step === "login") {
           router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
           return;
@@ -113,8 +115,12 @@ function UnlockForm() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground/75">
           {isEnroll
-            ? "Add this setup key to Google Authenticator, Authy, or similar and keep it. Your session resets about every 12 hours — you will need the app’s 6-digit code each time."
-            : "Enter the current 6-digit code from your authenticator app to open the dashboard."}
+            ? user?.is_admin
+              ? "Add this setup key to Google Authenticator, Authy, or similar and keep it. Admin unlock lasts about an hour, and a new sign-in on another device signs this one out."
+              : "Add this setup key to Google Authenticator, Authy, or similar and keep it. Your session resets about every 12 hours — you will need the app’s 6-digit code each time."
+            : user?.is_admin
+              ? `Enter the current 6-digit code. Admin unlock lasts about ${mfaMinutes} minutes.`
+              : "Enter the current 6-digit code from your authenticator app to open the dashboard."}
         </p>
 
         {checking || authLoading ? (

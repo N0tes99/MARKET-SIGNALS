@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     site_totp_secret: str = ""
     site_totp_issuer: str = "Signal Engine"
     site_gate_expire_hours: int = 12
+    # Admin is a harder principal than granted users: shorter cookies, tighter TOTP.
+    admin_session_expire_minutes: int = 8 * 60
+    admin_mfa_expire_minutes: int = 60
+    admin_totp_limit: int = 5
 
     # Comma-separated social usernames that may see Outcome log (TP / Hit / Miss)
     admin_usernames: str = "Admin"

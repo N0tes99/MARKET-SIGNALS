@@ -11,6 +11,7 @@ from app.main import app
 
 def test_health_is_public_path() -> None:
     assert is_public_path("/api/v1/health")
+    assert is_public_path("/api/v1/auth/gate/verify") is False
 
 
 def test_parse_basic_auth() -> None:
