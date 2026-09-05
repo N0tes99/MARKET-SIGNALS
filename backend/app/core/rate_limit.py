@@ -7,6 +7,7 @@ spraying and TOTP guessing without Redis. Keys are IP and/or email.
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from collections.abc import Callable
 from threading import Lock
 from time import monotonic
 
@@ -16,6 +17,9 @@ from app.config import settings
 
 _LOCK = Lock()
 _HITS: dict[str, deque[float]] = defaultdict(deque)
+# Serialize Radar study / tune / expansion replay so two granted users
+# cannot overlap Yahoo thread pools on the 512MB dyno.
+_HEAVY_COMPUTE_LOCK = Lock()
 
 
 def reset_rate_limits() -> None:
@@ -153,3 +157,29 @@ def limit_expensive(request: Request) -> None:
         limit=12,
         window_seconds=60,
     )
+
+
+def limit_heavy_compute(request: Request) -> None:
+    """Cap Radar backtest / tune / replay (and browser ``?sync=true``).
+
+    Keep-warm with a valid cron secret is exempt. Local gate-off is exempt
+    so unit tests and ``uvicorn`` without auth still work.
+    """
+    from app.core.basic_auth import auth_enabled
+    from app.core.site_gate import gate_enabled, request_has_valid_cron_secret
+
+    if request_has_valid_cron_secret(request):
+        return
+    if not auth_enabled() and not gate_enabled():
+        return
+    check_rate_limit(
+        f"heavy:ip:{client_ip(request)}",
+        limit=6,
+        window_seconds=300,
+    )
+
+
+def run_serialized_heavy[T](fn: Callable[..., T], *args: object, **kwargs: object) -> T:
+    """Run Yahoo-heavy study work one-at-a-time on this process."""
+    with _HEAVY_COMPUTE_LOCK:
+        return fn(*args, **kwargs)

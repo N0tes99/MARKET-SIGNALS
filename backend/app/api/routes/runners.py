@@ -7,8 +7,9 @@ import logging
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.core.rate_limit import limit_heavy_compute, run_serialized_heavy
 from app.core.service_dependencies import get_learning_engine, get_runner_scanner
 from app.engines.runner_engine.backtest.dataset import STUDY_SYMBOLS
 from app.engines.runner_engine.backtest.study import cached_live_study
@@ -270,15 +271,16 @@ def _case_schema(case) -> RunnerBacktestCaseSchema:
 
 
 @router.get("/backtest", response_model=RunnerBacktestResponse)
-async def get_runner_backtest() -> RunnerBacktestResponse:
+async def get_runner_backtest(request: Request) -> RunnerBacktestResponse:
     """Lead-time study on pattern names.
 
     Truncates daily bars at each as-of. Dated 8-K filing dates and lagged
     Yahoo quarterlies may fill fund/catalyst. Live Yahoo info is not scored
     back through history (that would look ahead).
     """
+    limit_heavy_compute(request)
     try:
-        study = await asyncio.to_thread(cached_live_study)
+        study = await asyncio.to_thread(run_serialized_heavy, cached_live_study)
     except Exception:
         logger.exception("Runner lead-time study failed")
         raise HTTPException(
@@ -313,14 +315,15 @@ def _tune_row_schema(row) -> RunnerTuneGridRowSchema:
 
 
 @router.get("/tune", response_model=RunnerTuneResponse)
-async def get_runner_tune() -> RunnerTuneResponse:
+async def get_runner_tune(request: Request) -> RunnerTuneResponse:
     """Phase 6 v0: OOS structure-accumulation grid vs structure-only baseline.
 
     Famous pattern-study names are holdout and never pick the threshold.
     Does not change live Radar defaults.
     """
+    limit_heavy_compute(request)
     try:
-        report = await asyncio.to_thread(cached_live_tune)
+        report = await asyncio.to_thread(run_serialized_heavy, cached_live_tune)
     except Exception:
         logger.exception("Runner structure-threshold tune failed")
         raise HTTPException(
