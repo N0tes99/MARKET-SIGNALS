@@ -18,8 +18,8 @@ Hyperliquid before any signing wallet exists.
 |--------|--------|
 | Venue | Hyperliquid perps only |
 | Edge | L2 book imbalance / micro-scalp |
-| Mode v0 | Paper sim + read-only `/info` (+ WS later) |
-| Live orders | Disabled. Stub refuses always. |
+| Mode v0 | Paper sim + WS books + HTTP fallback |
+| Live orders | Dual-control gated; `/exchange` signer not wired yet |
 
 ## Layout
 
@@ -47,9 +47,14 @@ Copy ideas; keep this package importable on its own (`cd trader_bot && pip insta
 cd trader_bot
 python3 -m pip install -e ".[dev]"
 pytest
-python3 -m hl_scalper.loop --mode paper --once
-python3 -m hl_scalper.loop --mode paper --data-dir data
+python3 -m hl_scalper.loop --mode paper --once --coins BTC
+python3 -m hl_scalper.loop --mode paper --data-dir data          # WS on by default
+python3 -m hl_scalper.loop --mode paper --data-dir data --no-ws  # HTTP only
+python3 -m hl_scalper.report --journal data/journal.jsonl
 ```
+
+Live mode stays gated (`LIVE_ENABLED`, `ALLOW_LIVE_ORDERS`, `data/ARMED`, agent key,
+master **address** only). `/exchange` signer is not wired yet.
 
 See [`docs/runbook.md`](docs/runbook.md) for systemd and journal layout.
 

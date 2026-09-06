@@ -1,6 +1,6 @@
 # Automation rails — executable HL scalper
 
-Status: **design / Phase 0 complete**  
+Status: **Phase 2–3 scaffolding toward live**  
 Audience: make `trader_bot` a supervised process that can paper-run unattended, then
 (later) micro-live with dual-control arming.
 

@@ -15,9 +15,35 @@ Useful flags:
 |------|---------|
 | `--coins BTC,ETH` | Universe subset |
 | `--interval 1` | Poll seconds |
-| `--hold-seconds 5` | Paper hold before mid exit |
+| `--hold-seconds 5` | Max paper hold before time exit |
 | `--record-books` | Also append L2 snapshots to `data/books.jsonl` |
-| `--data-dir PATH` | Journal + heartbeat directory |
+| `--data-dir PATH` | Journal + heartbeat + arm file directory |
+| `--no-ws` | Disable websocket books (HTTP poll only) |
+
+## Report
+
+```bash
+python3 -m hl_scalper.report --journal data/journal.jsonl
+```
+
+## Live arming (not trading yet)
+
+Live **refuses** unless all of these pass — and even then the `/exchange` signer
+is not wired (`allow_live_orders` still blocks real orders):
+
+1. `LIVE_ENABLED=true`
+2. `ALLOW_LIVE_ORDERS=true` (explicit product gate)
+3. `data/ARMED` file exists (touch by hand)
+4. `HL_AGENT_PRIVATE_KEY` set (agent only)
+5. `HL_MASTER_ADDRESS` set (address only — **never** `HL_MASTER_PRIVATE_KEY`)
+6. Kill switch clear; reconcile flat before entries
+
+```bash
+# Will still refuse until Phase 4 signer exists:
+LIVE_ENABLED=true ALLOW_LIVE_ORDERS=true \
+  HL_AGENT_PRIVATE_KEY=0x... HL_MASTER_ADDRESS=0x... \
+  touch data/ARMED && python3 -m hl_scalper.loop --mode live --once
+```
 
 ## Artifacts
 
