@@ -1,13 +1,14 @@
 :root {
-  --ink: #12180f;
-  --panel: #1c2618;
-  --panel-2: #243018;
-  --lime: #b6f24a;
-  --amber: #ffc14a;
-  --mint: #5dffb1;
-  --coral: #ff6b4a;
-  --fog: #d7e0c8;
-  --muted: #8a9a78;
+  /* Hue nudge: cooler moss base, spring-lime brand, honey amber, soft coral */
+  --ink: #10161a;
+  --panel: #17241f;
+  --panel-2: #1e3028;
+  --lime: #9ef25e;
+  --amber: #ffb35c;
+  --mint: #4dffc4;
+  --coral: #ff6a5c;
+  --fog: #d2e4d8;
+  --muted: #7f9a8c;
   --pixel: 4px;
 }
 
@@ -20,9 +21,9 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at 20% 0%, #2a3a20 0%, transparent 45%),
-    radial-gradient(circle at 90% 10%, #3a2a12 0%, transparent 40%),
-    linear-gradient(180deg, #0e140c 0%, var(--ink) 40%, #0a1008 100%);
+    radial-gradient(circle at 20% 0%, #1e3a32 0%, transparent 45%),
+    radial-gradient(circle at 90% 10%, #3a2818 0%, transparent 40%),
+    linear-gradient(180deg, #0c1412 0%, var(--ink) 40%, #08110e 100%);
   color: var(--fog);
   font-family: "VT323", monospace;
   font-size: 22px;
@@ -111,7 +112,7 @@ body {
 
 .pix-pill.off {
   color: var(--fog);
-  background: #3a2018;
+  background: #3a221c;
 }
 
 .agents {
@@ -278,7 +279,7 @@ body {
   font-size: 20px;
   line-height: 1.25;
   border: var(--pixel) solid #000;
-  background: #0c120a;
+  background: #0a1210;
   padding: 10px;
 }
 
@@ -287,7 +288,7 @@ body {
   grid-template-columns: 70px 1fr;
   gap: 10px;
   padding: 4px 0;
-  border-bottom: 2px solid #1a2416;
+  border-bottom: 2px solid #16241e;
   animation: tap 0.2s steps(2, end);
 }
 
@@ -327,7 +328,7 @@ body {
 
 @keyframes tap {
   from {
-    background: #243018;
+    background: #1e3028;
   }
   to {
     background: transparent;
