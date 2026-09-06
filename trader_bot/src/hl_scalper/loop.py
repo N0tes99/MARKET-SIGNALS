@@ -8,6 +8,7 @@ import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 
+from hl_scalper.agents import AgentDesk
 from hl_scalper.arming import check_arming
 from hl_scalper.config import Settings
 from hl_scalper.execution import LiveTradingDisabled, build_executor
@@ -31,21 +32,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hold-seconds", type=float, default=None)
     parser.add_argument("--record-books", action="store_true")
     parser.add_argument("--no-ws", action="store_true", help="Disable websocket books")
+    parser.add_argument(
+        "--ensemble",
+        action="store_true",
+        help="Multi-agent desk (imbalance+funding+liquidity+spread); disagreement sits out",
+    )
     args = parser.parse_args(argv)
 
     data_dir = Path(args.data_dir)
-    settings = Settings.from_env(
-        coins=tuple(c.strip().upper() for c in args.coins.split(",") if c.strip()),
-        poll_interval_s=args.interval if args.interval is not None else Settings.poll_interval_s,
-        hold_seconds=args.hold_seconds if args.hold_seconds is not None else Settings.hold_seconds,
-        data_dir=str(data_dir),
-        journal_path=str(data_dir / "journal.jsonl"),
-        heartbeat_path=str(data_dir / "heartbeat.json"),
-        books_path=str(data_dir / "books.jsonl"),
-        arm_file=str(data_dir / "ARMED"),
-        record_books=bool(args.record_books),
-        use_ws=False if args.no_ws else Settings.use_ws,
-    )
+    overrides: dict[str, object] = {
+        "coins": tuple(c.strip().upper() for c in args.coins.split(",") if c.strip()),
+        "poll_interval_s": args.interval if args.interval is not None else Settings.poll_interval_s,
+        "hold_seconds": args.hold_seconds if args.hold_seconds is not None else Settings.hold_seconds,
+        "data_dir": str(data_dir),
+        "journal_path": str(data_dir / "journal.jsonl"),
+        "heartbeat_path": str(data_dir / "heartbeat.json"),
+        "books_path": str(data_dir / "books.jsonl"),
+        "arm_file": str(data_dir / "ARMED"),
+        "record_books": bool(args.record_books),
+        "use_ws": False if args.no_ws else Settings.use_ws,
+    }
+    if args.ensemble:
+        overrides["ensemble"] = True
+    settings = Settings.from_env(**overrides)
     if args.mode == "live":
         status = check_arming(
             live_enabled=settings.live_enabled,
@@ -76,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         min_notional=settings.min_notional,
         book_levels=settings.book_levels,
     )
+    desk = AgentDesk(settings, risk) if settings.ensemble else None
     reconciler = ClearinghouseClient(info_url=settings.info_url)
     master = os.environ.get("HL_MASTER_ADDRESS", "").strip()
     open_pos: PaperPosition | None = None
@@ -92,6 +102,8 @@ def main(argv: list[str] | None = None) -> int:
         adverse_exit_bps=settings.adverse_exit_bps,
         dry_run_live=settings.dry_run_live,
         allow_live_orders=settings.allow_live_orders,
+        ensemble=settings.ensemble,
+        ensemble_min_agree=settings.ensemble_min_agree,
     )
 
     def manage_exit(books: dict[str, L2Book]) -> None:
@@ -227,10 +239,30 @@ def main(argv: list[str] | None = None) -> int:
         for coin, book in books.items():
             if args.mode == "live" and coin not in settings.live_coins:
                 continue
-            signal = evaluate(book, params)
-            if signal is None:
-                journal.write("sit_out", coin=coin, reason="no_signal")
-                continue
+
+            if desk is not None:
+                desk_decision = desk.evaluate_coin(book, now=time.monotonic())
+                journal.write("ensemble", coin=coin, **desk.journal_payload(desk_decision))
+                if desk_decision.action != "enter" or desk_decision.signal is None:
+                    journal.write("sit_out", coin=coin, reason=desk_decision.reason)
+                    continue
+                signal = desk_decision.signal
+            else:
+                signal = evaluate(book, params)
+                if signal is None:
+                    journal.write("sit_out", coin=coin, reason="no_signal")
+                    continue
+                gate = risk.check(signal, book_age_s=book.age_s)
+                if not gate.allowed:
+                    journal.write(
+                        "blocked",
+                        coin=coin,
+                        reason=gate.reason,
+                        side=signal.side,
+                        imbalance=signal.imbalance,
+                    )
+                    continue
+
             journal.write(
                 "signal",
                 coin=signal.coin,
@@ -239,17 +271,8 @@ def main(argv: list[str] | None = None) -> int:
                 spread_bps=signal.spread_bps,
                 mid=signal.mid,
                 edge_score=signal.edge_score,
+                reason=signal.reason,
             )
-            decision = risk.check(signal, book_age_s=book.age_s)
-            if not decision.allowed:
-                journal.write(
-                    "blocked",
-                    coin=coin,
-                    reason=decision.reason,
-                    side=signal.side,
-                    imbalance=signal.imbalance,
-                )
-                continue
             sized = size_notional(settings, signal, risk.state.equity_usd)
             if sized.notional_usd <= 0:
                 journal.write("blocked", coin=coin, reason=sized.reason)
@@ -280,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
                 edge_score=signal.edge_score,
                 imbalance=signal.imbalance,
                 spread_bps=signal.spread_bps,
+                ensemble=bool(desk),
             )
             break
 
@@ -315,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         print(
-            f"hl_scalper mode={args.mode} ws={settings.use_ws} "
+            f"hl_scalper mode={args.mode} ws={settings.use_ws} ensemble={settings.ensemble} "
             f"coins={','.join(settings.coins)} data={settings.data_dir}"
         )
         while True:

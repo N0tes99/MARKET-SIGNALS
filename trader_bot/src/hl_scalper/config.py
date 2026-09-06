@@ -51,6 +51,11 @@ class Settings:
     arm_file: str = "data/ARMED"
     record_books: bool = False
     reconcile_each_entry: bool = True
+    # Multi-agent desk
+    ensemble: bool = False
+    ensemble_min_agree: int = 2
+    funding_extreme: float = 0.0001
+    spread_micro_tight_bps: float = 4.0
 
     @classmethod
     def from_env(cls, **overrides: object) -> Settings:
@@ -59,6 +64,7 @@ class Settings:
             allow_live_orders=_env_bool("ALLOW_LIVE_ORDERS", False),
             dry_run_live=_env_bool("DRY_RUN_LIVE", True),
             use_ws=_env_bool("HL_USE_WS", True),
+            ensemble=_env_bool("HL_ENSEMBLE", False),
         )
         if not overrides:
             return base
