@@ -161,8 +161,14 @@ async function proxyRequest(
         { status: 504 },
       );
     }
-    const message = error instanceof Error ? error.message : "Upstream error";
-    return NextResponse.json({ detail: message }, { status: 502 });
+    // Log the real cause server-side only; the raw message can leak internal
+    // connection details about API_BACKEND_URL to the client.
+    const detail = error instanceof Error ? error.message : "Upstream error";
+    console.error(`[api-proxy] upstream request failed: ${detail}`);
+    return NextResponse.json(
+      { detail: "Upstream API request failed. Please retry shortly." },
+      { status: 502 },
+    );
   } finally {
     if (timer) clearTimeout(timer);
   }

@@ -34,6 +34,22 @@ def test_production_rejects_blank_secret_key(isolated_env: None) -> None:
         Settings(_env_file=None, app_env="production", secret_key="   ")
 
 
+def test_production_rejects_short_secret_key(isolated_env: None) -> None:
+    with pytest.raises(ValidationError, match="at least 32 characters"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            secret_key="short-secret-key",  # 16 chars, < 32
+            auth_password="unit-test-auth-password",
+            site_totp_secret="JBSWY3DPEHPK3PXP",
+        )
+
+
+def test_db_echo_defaults_off(isolated_env: None) -> None:
+    loaded = Settings(_env_file=None, app_env="development")
+    assert loaded.db_echo is False
+
+
 def test_production_rejects_blank_auth_password(isolated_env: None) -> None:
     with pytest.raises(ValidationError, match="AUTH_PASSWORD"):
         Settings(
