@@ -22,6 +22,7 @@ dev = ["pytest>=8.0"]
 hl-scalper = "hl_scalper.loop:main"
 hl-scalper-report = "hl_scalper.report:main"
 hl-scalper-replay = "hl_scalper.replay:main"
+hl-scalper-ui = "hl_scalper.webapp:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

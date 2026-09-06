@@ -54,9 +54,11 @@ python3 -m hl_scalper.report --journal data/journal.jsonl
 python3 -m hl_scalper.loop --mode paper --data-dir data --record-books
 python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
 python3 -m hl_scalper.loop --mode paper --ensemble --coins BTC,ETH --data-dir data
+python3 -m hl_scalper.webapp --data-dir data --port 8787
 ```
 
-Multi-agent desk (disagreement → sit out): see [`docs/multi-agent.md`](docs/multi-agent.md).
+Open `http://127.0.0.1:8787` for the pixel agent desk (live votes + tape).
+Point the UI at the same `--data-dir` as the loop.
 
 Live path is wired but **dry-run by default**:
 

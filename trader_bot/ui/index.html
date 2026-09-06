@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HL AGENT DESK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="stage">
+    <header class="hero">
+      <p class="brand">HL AGENT DESK</p>
+      <h1 class="tag">LIVE ENSEMBLE</h1>
+      <p class="sub">Specialists vote. Disagreement sits out.</p>
+      <div class="cta-row" id="status-pills">
+        <span class="pix-pill" id="pill-alive">LINK --</span>
+        <span class="pix-pill" id="pill-mode">MODE --</span>
+        <span class="pix-pill" id="pill-tick">TICK --</span>
+      </div>
+    </header>
+
+    <section class="agents" id="agent-grid" aria-label="Agent votes">
+      <!-- tiles injected -->
+    </section>
+
+    <section class="board" aria-label="Decision board">
+      <div class="panel">
+        <h2 class="panel-title">DECISION</h2>
+        <p class="decision" id="decision-text">WAITING...</p>
+        <p class="meta" id="decision-meta"></p>
+      </div>
+      <div class="panel stats">
+        <h2 class="panel-title">TALLY</h2>
+        <div class="stat-grid">
+          <div><span class="k">FILLS</span><span class="v" id="stat-fills">0</span></div>
+          <div><span class="k">EXITS</span><span class="v" id="stat-exits">0</span></div>
+          <div><span class="k">SIT</span><span class="v" id="stat-sit">0</span></div>
+          <div><span class="k">PNL</span><span class="v" id="stat-pnl">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feed-wrap">
+      <h2 class="panel-title">TAPE</h2>
+      <div class="feed" id="event-feed" role="log" aria-live="polite"></div>
+    </section>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -45,6 +45,18 @@ LIVE_ENABLED=true ALLOW_LIVE_ORDERS=true DRY_RUN_LIVE=true \
 python3 -m hl_scalper.loop --mode live --once --coins BTC
 ```
 
+## Pixel agent desk UI
+
+```bash
+# terminal A — bot
+python3 -m hl_scalper.loop --mode paper --ensemble --data-dir data --coins BTC,ETH
+
+# terminal B — UI
+python3 -m hl_scalper.webapp --data-dir data --port 8787
+```
+
+Open http://127.0.0.1:8787 — live agent votes, decision board, and event tape.
+
 ## Replay
 
 ```bash
