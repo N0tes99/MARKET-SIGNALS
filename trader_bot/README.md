@@ -41,14 +41,17 @@ trader_bot/
 
 Copy ideas; keep this package importable on its own (`cd trader_bot && pip install -e .`).
 
-## Quick start (when implemented)
+## Quick start (paper)
 
 ```bash
 cd trader_bot
-python -m pip install -e ".[dev]"
+python3 -m pip install -e ".[dev]"
 pytest
-python -m hl_scalper.loop --mode paper --coins BTC,ETH
+python3 -m hl_scalper.loop --mode paper --once
+python3 -m hl_scalper.loop --mode paper --data-dir data
 ```
+
+See [`docs/runbook.md`](docs/runbook.md) for systemd and journal layout.
 
 ## Safety
 

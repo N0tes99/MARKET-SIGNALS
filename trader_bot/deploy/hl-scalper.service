@@ -1,0 +1,21 @@
+[Unit]
+Description=HL book-imbalance scalper (paper daemon)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hl-scalper
+# Install: cd trader_bot && python3 -m pip install -e .
+ExecStart=/usr/bin/python3 -m hl_scalper.loop --mode paper --data-dir /opt/hl-scalper/data --interval 1
+Restart=always
+RestartSec=3
+# No secrets required for paper mode.
+Environment=PYTHONUNBUFFERED=1
+
+# Hardening (paper still benefits)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

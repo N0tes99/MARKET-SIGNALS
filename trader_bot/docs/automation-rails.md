@@ -99,10 +99,11 @@ Default forever: paper. Live is opt-in and loud.
 ## Phased build order (automation-first)
 
 ### Phase 1 — Unattended paper daemon
-- Robust poll loop + JSONL journal + crash-safe append
-- `Sizer` + simple mark-to-mid exit (flat after N seconds for scaffolding)
-- `systemd` unit example + `Dockerfile` optional (no SE compose coupling)
-- Health file: `data/heartbeat` updated each tick
+- [x] Robust poll loop + JSONL journal + crash-safe append
+- [x] `Sizer` + timed mark-to-mid exit (`hold_seconds`)
+- [x] `systemd` unit example (`deploy/hl-scalper.service`)
+- [x] Health file: `data/heartbeat.json` updated each tick
+- [ ] Overnight paper run validation (operator)
 
 ### Phase 2 — Scalp automation (still paper)
 - WS book stream

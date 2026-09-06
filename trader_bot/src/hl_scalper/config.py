@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -20,8 +21,19 @@ class Settings:
     daily_loss_kill_pct: float = 0.02
     paper_equity_usd: float = 10_000.0
     taker_fee_bps: float = 3.5
+    hold_seconds: float = 5.0
+    max_feed_failures: int = 10
     live_enabled: bool = False
+    data_dir: str = "data"
     journal_path: str = "data/journal.jsonl"
+    heartbeat_path: str = "data/heartbeat.json"
+    books_path: str = "data/books.jsonl"
+    record_books: bool = False
+
+    def ensure_data_dirs(self) -> None:
+        Path(self.data_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.journal_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.heartbeat_path).parent.mkdir(parents=True, exist_ok=True)
 
 
 DEFAULTS = Settings()

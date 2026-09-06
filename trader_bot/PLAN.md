@@ -1,6 +1,6 @@
 # Plan — Hyperliquid book-imbalance scalper
 
-Status: **scaffolding / Phase 0**  
+Status: **Phase 1 code complete** (overnight paper validation still operator-side)  
 Venue: Hyperliquid perps  
 Edge: L2 book imbalance scalping  
 Last updated: 2026-09-06
@@ -15,7 +15,7 @@ Signal Engine stays the desk. This folder is the **execution lab**.
 
 ---
 
-## Phase 0 — Scaffold (this PR)
+## Phase 0 — Scaffold (done)
 
 - [x] Top-level `trader_bot/` only (no `backend/` / `frontend/` edits)
 - [x] Architecture doc + module stubs
@@ -25,11 +25,15 @@ Signal Engine stays the desk. This folder is the **execution lab**.
 
 ## Phase 1 — Read loop (paper marks)
 
-- Poll HL public `/info` `l2Book` for BTC/ETH/SOL/HYPE (same universe as Rail)
-- Emit `Signal` when imbalance ≥ threshold and spread ≤ cap
-- Paper simulator: marketable limit at mid ± half-spread, fee model, latency fill delay
-- Local JSONL journal: signal → fill → exit → PnL
-- CLI: `python -m hl_scalper.loop --mode paper`
+- [x] Poll HL public `/info` `l2Book` for BTC/ETH/SOL/HYPE
+- [x] Emit `Signal` when imbalance ≥ threshold and spread ≤ cap
+- [x] Paper simulator + timed mid exit (`hold_seconds`)
+- [x] Crash-safe JSONL journal + heartbeat
+- [x] Sizer (equity fraction + max notional)
+- [x] Feed error budget → kill switch
+- [x] Optional `--record-books` for later replay
+- [x] systemd unit + runbook
+- [ ] Overnight paper run validation (operator)
 
 Success: overnight paper run with stable journal and no crashes on empty books.
 

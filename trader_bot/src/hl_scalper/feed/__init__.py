@@ -51,8 +51,9 @@ class HttpInfoFeed:
         return parse_l2_book(coin.strip(), payload)
 
     def _post(self, body: dict[str, object]) -> Any:
+        # base_url is the full /info endpoint (e.g. https://api.hyperliquid.xyz/info)
         with httpx.Client(timeout=self._timeout) as client:
-            response = client.post(f"{self._base}/info", json=body)
+            response = client.post(self._base, json=body)
             response.raise_for_status()
             return response.json()
 
