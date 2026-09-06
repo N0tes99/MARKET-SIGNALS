@@ -18,7 +18,7 @@ Useful flags:
 | `--hold-seconds 5` | Max paper hold before time exit |
 | `--record-books` | Also append L2 snapshots to `data/books.jsonl` |
 | `--data-dir PATH` | Journal + heartbeat + arm file directory |
-| `--no-ws` | Disable websocket books (HTTP poll only) |
+| `--ensemble` | Multi-agent desk (min 2 agree; disagreement sits out) |
 
 ## Report
 

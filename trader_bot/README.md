@@ -53,7 +53,10 @@ python3 -m hl_scalper.loop --mode paper --data-dir data --no-ws  # HTTP only
 python3 -m hl_scalper.report --journal data/journal.jsonl
 python3 -m hl_scalper.loop --mode paper --data-dir data --record-books
 python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
+python3 -m hl_scalper.loop --mode paper --ensemble --coins BTC,ETH --data-dir data
 ```
+
+Multi-agent desk (disagreement → sit out): see [`docs/multi-agent.md`](docs/multi-agent.md).
 
 Live path is wired but **dry-run by default**:
 

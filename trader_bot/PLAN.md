@@ -93,6 +93,12 @@ retarget (queue fade / funding only) — do not “force” live.
 Rail’s `scanners/book.py` is the starting threshold set; this lab may tune freely
 without changing Rail production scanners.
 
+## Multi-agent desk
+
+See [`docs/multi-agent.md`](docs/multi-agent.md). Specialists (imbalance, funding,
+liquidity, spread_micro) vote; coordinator requires agreement; risk can veto.
+Solo imbalance mode remains the default without `--ensemble`.
+
 ## Wallet research → strategy choices
 
 See [`docs/research/profitable-wallets.md`](docs/research/profitable-wallets.md) and
