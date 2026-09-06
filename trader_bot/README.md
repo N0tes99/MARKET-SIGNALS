@@ -55,3 +55,5 @@ python -m hl_scalper.loop --mode paper --coins BTC,ETH
 - No private keys in this repo.
 - `LIVE_ENABLED` defaults false; live adapter raises.
 - Kill switch trips on drawdown, error rate, or stale book.
+- Live uses HL **agent wallet** (signs) vs **master wallet** (holds / withdraws) —
+  see [`docs/automation-rails.md`](docs/automation-rails.md).

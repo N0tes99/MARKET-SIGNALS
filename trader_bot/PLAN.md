@@ -53,9 +53,15 @@ Success: kill switch unit + integration tests; replay matches journal within tol
 
 ## Phase 4 — Tiny live (separate process only)
 
-- Agent wallet signing **outside** Signal Engine deploy
-- Same strategy code path as paper (`--mode live` behind `LIVE_ENABLED` + arm file)
-- Start at dust size; promote size only after paper expectancy stays positive
+Hyperliquid wallet model (the important non-CEX detail):
+
+- **Master wallet** — holds funds; **only** withdraw key; never on a bot host
+- **Agent (API) wallet** — authorized by master to sign `/exchange` orders only
+- **Dual-control arming** — `LIVE_ENABLED` + manual arm file + kill clear + approved agent
+
+Also required for live: reconcile vs HL user state, idempotent client order ids,
+supervisor on a private box (not Render). Full rail map:
+[`docs/automation-rails.md`](docs/automation-rails.md).
 
 Success: live fills reconcile to HL user state; SE/Rail production untouched.
 

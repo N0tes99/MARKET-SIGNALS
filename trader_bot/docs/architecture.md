@@ -46,3 +46,14 @@ Hyperliquid /info (+ WS later)
 2. No writes to SE Postgres. Journal is local files under `trader_bot/data/` (gitignored).
 3. Live adapter must raise `LiveTradingDisabled` even if env is mis-set, until Phase 4
    explicitly flips a code-level allowlist **and** an arm file is present.
+
+## Wallets (Hyperliquid)
+
+Do not model this like a Binance API key.
+
+- **Master** — custody + withdraw only; offline / hardware; never automated.
+- **Agent** — order-signing only after master approval; lives only on the private
+  bot host, never on Signal Engine deploy.
+
+Full executable rail checklist (feed → supervisor → reconcile):  
+[`automation-rails.md`](automation-rails.md).
