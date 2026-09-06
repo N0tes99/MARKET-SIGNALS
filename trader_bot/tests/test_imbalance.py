@@ -56,13 +56,25 @@ def test_parse_l2_book() -> None:
 
 
 def test_risk_kills_on_daily_loss() -> None:
-    settings = Settings(daily_loss_kill_pct=0.02, paper_equity_usd=10_000)
-    gate = RiskGate(settings, RiskState(equity_usd=10_000, day_pnl_usd=-250))
+    settings = Settings(daily_loss_kill_pct=0.01, paper_equity_usd=10_000)
+    gate = RiskGate(settings, RiskState(equity_usd=10_000, day_pnl_usd=-120))
     signal = evaluate(_book(bid_sz=900, ask_sz=100), StrategyParams(min_notional=1_000))
     assert signal is not None
     decision = gate.check(signal, book_age_s=0.1)
     assert not decision.allowed
     assert gate.state.killed
+
+
+def test_risk_cooldown_after_consecutive_losses() -> None:
+    settings = Settings(max_consecutive_losses=3, cooldown_seconds=60.0, paper_equity_usd=10_000)
+    gate = RiskGate(settings)
+    for _ in range(3):
+        gate.record_pnl(-1.0)
+    signal = evaluate(_book(bid_sz=900, ask_sz=100), StrategyParams(min_notional=1_000))
+    assert signal is not None
+    decision = gate.check(signal, book_age_s=0.1)
+    assert not decision.allowed
+    assert decision.reason == "cooldown"
 
 
 def test_live_executor_always_refuses() -> None:

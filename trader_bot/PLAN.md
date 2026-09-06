@@ -90,3 +90,16 @@ retarget (queue fade / funding only) — do not “force” live.
 
 Rail’s `scanners/book.py` is the starting threshold set; this lab may tune freely
 without changing Rail production scanners.
+
+## Wallet research → strategy choices
+
+See [`docs/research/profitable-wallets.md`](docs/research/profitable-wallets.md) and
+[`docs/risk-policy.md`](docs/risk-policy.md).
+
+HL leaderboard winners are mostly **high-turnover two-sided micro-edge** systems,
+not heavy trend apes. We therefore:
+
+- Keep **S1 imbalance scalp** as the only active strategy until paper proves edge
+- Prefer liquid majors; sit out by default
+- Enforce −1% daily kill, 1 position, low leverage, fee+buffer gate
+- Defer copy-trading / meme concentration / high leverage forever for this lab

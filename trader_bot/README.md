@@ -60,3 +60,5 @@ See [`docs/runbook.md`](docs/runbook.md) for systemd and journal layout.
 - Kill switch trips on drawdown, error rate, or stale book.
 - Live uses HL **agent wallet** (signs) vs **master wallet** (holds / withdraws) —
   see [`docs/automation-rails.md`](docs/automation-rails.md).
+- Capital rules: [`docs/risk-policy.md`](docs/risk-policy.md)  
+  Wallet research: [`docs/research/profitable-wallets.md`](docs/research/profitable-wallets.md)
