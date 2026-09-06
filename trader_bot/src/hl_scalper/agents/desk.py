@@ -113,19 +113,34 @@ class AgentDesk:
         return decision
 
     def journal_payload(self, decision: DeskDecision) -> dict[str, Any]:
+        signal = decision.signal
         return {
             "action": decision.action,
             "side": decision.side,
             "reason": decision.reason,
             "agreeing": decision.agreeing_agents,
             "votes": summarize_votes(decision.proposals),
+            "signal": (
+                {
+                    "coin": signal.coin,
+                    "side": signal.side,
+                    "imbalance": signal.imbalance,
+                    "spread_bps": signal.spread_bps,
+                    "mid": signal.mid,
+                    "edge_score": signal.edge_score,
+                    "reason": signal.reason,
+                }
+                if signal is not None
+                else None
+            ),
             "proposals": [
                 {
                     "agent": p.agent,
                     "kind": p.kind,
                     "side": p.side,
-                    "confidence": p.confidence,
+                    "confidence": round(float(p.confidence), 3),
                     "reason": p.reason,
+                    "has_signal": p.signal is not None,
                 }
                 for p in decision.proposals
             ],

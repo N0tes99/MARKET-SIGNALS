@@ -27,6 +27,7 @@ Hyperliquid before any signing wallet exists.
 trader_bot/
   PLAN.md                 phased roadmap
   docs/architecture.md    loop, risk, data flow
+  ui/                     pixel CRT agent desk (static)
   src/hl_scalper/         Python package (standalone)
   tests/                  unit tests (no live network required)
 ```
@@ -55,10 +56,11 @@ python3 -m hl_scalper.loop --mode paper --data-dir data --record-books
 python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
 python3 -m hl_scalper.loop --mode paper --ensemble --coins BTC,ETH --data-dir data
 python3 -m hl_scalper.webapp --data-dir data --port 8787
+# same UI entry point: hl-scalper-ui --data-dir data --port 8787
 ```
 
 Open `http://127.0.0.1:8787` for the pixel agent desk (live votes + tape).
-Point the UI at the same `--data-dir` as the loop.
+Point the UI at the **same** `--data-dir` as the loop (it tails `journal.jsonl` + `heartbeat.json`).
 
 Live path is wired but **dry-run by default**:
 

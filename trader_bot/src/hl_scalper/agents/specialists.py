@@ -70,12 +70,16 @@ class FundingAgent:
         if f >= self.extreme:
             conf = min(100.0, abs(f) / self.extreme * 55.0)
             sig = _lean_signal(snap.book, side="sell", confidence=conf, reason="funding_rich")
+            if sig is None:
+                return Proposal(self.name, "abstain", reason="funding_no_book")
             return Proposal(
                 self.name, "enter", side="sell", confidence=conf, reason="funding_rich", signal=sig
             )
         if f <= -self.extreme:
             conf = min(100.0, abs(f) / self.extreme * 55.0)
             sig = _lean_signal(snap.book, side="buy", confidence=conf, reason="funding_cheap")
+            if sig is None:
+                return Proposal(self.name, "abstain", reason="funding_no_book")
             return Proposal(
                 self.name, "enter", side="buy", confidence=conf, reason="funding_cheap", signal=sig
             )
@@ -105,11 +109,15 @@ class LiquidityAgent:
         imb = bid_n / total
         if imb >= 0.60:
             sig = _lean_signal(book, side="buy", confidence=40.0, reason="depth_bid_lean")
+            if sig is None:
+                return Proposal(self.name, "sit_out", reason="broken_book")
             return Proposal(
                 self.name, "enter", side="buy", confidence=40.0, reason="depth_bid_lean", signal=sig
             )
         if imb <= 0.40:
             sig = _lean_signal(book, side="sell", confidence=40.0, reason="depth_ask_lean")
+            if sig is None:
+                return Proposal(self.name, "sit_out", reason="broken_book")
             return Proposal(
                 self.name, "enter", side="sell", confidence=40.0, reason="depth_ask_lean", signal=sig
             )
@@ -140,11 +148,15 @@ class SpreadMicroAgent:
         conf = max(0.0, 70.0 - spread * 5.0)
         if imb >= self.lean:
             sig = _lean_signal(snap.book, side="buy", confidence=conf, reason="tight_bid_lean")
+            if sig is None:
+                return Proposal(self.name, "abstain", reason="no_spread")
             return Proposal(
                 self.name, "enter", side="buy", confidence=conf, reason="tight_bid_lean", signal=sig
             )
         if imb <= (1.0 - self.lean):
             sig = _lean_signal(snap.book, side="sell", confidence=conf, reason="tight_ask_lean")
+            if sig is None:
+                return Proposal(self.name, "abstain", reason="no_spread")
             return Proposal(
                 self.name, "enter", side="sell", confidence=conf, reason="tight_ask_lean", signal=sig
             )

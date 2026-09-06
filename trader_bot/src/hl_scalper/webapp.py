@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+HEARTBEAT_STALE_S = 20.0
 
 
 def ui_dir() -> Path:
@@ -23,6 +26,15 @@ def ui_dir() -> Path:
 
 
 def read_jsonl_tail(path: Path, *, after: int = 0, limit: int = 200) -> tuple[list[dict], int]:
+    """Return events starting at line index `after`, and the next line cursor.
+
+    Cursor is a 0-based line index (blank / corrupt lines still advance it) so
+    clients never re-read the same physical line after a successful poll.
+    """
+    if after < 0:
+        after = 0
+    if limit < 1:
+        return [], after
     if not path.is_file():
         return [], after
     events: list[dict] = []
@@ -32,26 +44,138 @@ def read_jsonl_tail(path: Path, *, after: int = 0, limit: int = 200) -> tuple[li
             if idx < after:
                 idx += 1
                 continue
-            line = line.strip()
-            if not line:
-                idx += 1
-                continue
-            try:
-                events.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
+            raw = line.strip()
+            if raw:
+                try:
+                    events.append(json.loads(raw))
+                except json.JSONDecodeError:
+                    pass
             idx += 1
             if len(events) >= limit:
                 break
-    return events, after + len(events)
+    return events, idx
 
 
-def latest_ensemble(path: Path) -> dict | None:
-    events, _ = read_jsonl_tail(path, after=0, limit=50_000)
-    for row in reversed(events):
+def latest_ensemble(path: Path, *, max_scan: int = 4_000) -> dict | None:
+    """Find the newest ensemble row by scanning from the end of the journal."""
+    if not path.is_file():
+        return None
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None
+    if size <= 0:
+        return None
+
+    chunk = min(size, 256 * 1024)
+    with path.open("rb") as handle:
+        handle.seek(max(0, size - chunk))
+        raw = handle.read().decode("utf-8", errors="replace")
+
+    lines = raw.splitlines()
+    # If we started mid-line, drop the partial first fragment.
+    if size > chunk and lines:
+        lines = lines[1:]
+    scanned = 0
+    for line in reversed(lines):
+        scanned += 1
+        if scanned > max_scan:
+            break
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            row = json.loads(text)
+        except json.JSONDecodeError:
+            continue
         if row.get("event") == "ensemble":
             return row
     return None
+
+
+def journal_stats(path: Path) -> dict[str, float | int]:
+    """Single-pass stats without materializing every event."""
+    fills = exits = sit = lines = 0
+    pnl = 0.0
+    if not path.is_file():
+        return {"fills": 0, "exits": 0, "sit_outs": 0, "pnl_usd": 0.0, "lines": 0}
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                row = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            lines += 1
+            ev = row.get("event")
+            if ev == "fill":
+                fills += 1
+            elif ev == "exit":
+                exits += 1
+                try:
+                    pnl += float(row.get("pnl_usd") or 0)
+                except (TypeError, ValueError):
+                    pass
+            elif ev == "sit_out":
+                sit += 1
+    return {
+        "fills": fills,
+        "exits": exits,
+        "sit_outs": sit,
+        "pnl_usd": pnl,
+        "lines": lines,
+    }
+
+
+def heartbeat_payload(path: Path, *, stale_s: float = HEARTBEAT_STALE_S) -> dict:
+    if not path.is_file():
+        return {"alive": False}
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"alive": False}
+    if not isinstance(body, dict):
+        return {"alive": False}
+    ts_raw = body.get("ts")
+    alive = False
+    age_s: float | None = None
+    if isinstance(ts_raw, str) and ts_raw:
+        try:
+            ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            age_s = (datetime.now(UTC) - ts.astimezone(UTC)).total_seconds()
+            alive = 0.0 <= age_s <= stale_s
+        except ValueError:
+            alive = False
+    out = {"alive": alive, **body}
+    if age_s is not None:
+        out["age_s"] = round(age_s, 3)
+    return out
+
+
+def _safe_int(values: list[str], default: int) -> int:
+    if not values:
+        return default
+    try:
+        return int(values[0])
+    except (TypeError, ValueError):
+        return default
+
+
+def _static_file(static_root: Path, rel: str) -> Path | None:
+    if not rel or rel.startswith("/") or "\\" in rel or ".." in Path(rel).parts:
+        return None
+    candidate = (static_root / rel).resolve()
+    try:
+        candidate.relative_to(static_root.resolve())
+    except ValueError:
+        return None
+    if not candidate.is_file():
+        return None
+    return candidate
 
 
 def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
@@ -86,12 +210,9 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return
             if path.startswith("/static/"):
                 rel = path[len("/static/") :]
-                if ".." in rel or rel.startswith("/"):
-                    self._json(400, {"error": "bad_path"})
-                    return
-                file_path = static / rel
-                if not file_path.is_file():
-                    self._json(404, {"error": "missing"})
+                file_path = _static_file(static, rel)
+                if file_path is None:
+                    self._json(404 if rel else 400, {"error": "missing" if rel else "bad_path"})
                     return
                 mime, _ = mimetypes.guess_type(str(file_path))
                 self._send(200, file_path.read_bytes(), mime or "application/octet-stream")
@@ -101,19 +222,11 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
                 self._json(200, {"ok": True, "data_dir": str(data_dir)})
                 return
             if path == "/api/heartbeat":
-                if not heartbeat.is_file():
-                    self._json(200, {"alive": False})
-                    return
-                try:
-                    body = json.loads(heartbeat.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    self._json(200, {"alive": False})
-                    return
-                self._json(200, {"alive": True, **body})
+                self._json(200, heartbeat_payload(heartbeat))
                 return
             if path == "/api/events":
-                after = int(qs.get("after", ["0"])[0] or 0)
-                limit = min(500, int(qs.get("limit", ["150"])[0] or 150))
+                after = max(0, _safe_int(qs.get("after", ["0"]), 0))
+                limit = min(500, max(1, _safe_int(qs.get("limit", ["150"]), 150)))
                 events, next_after = read_jsonl_tail(journal, after=after, limit=limit)
                 self._json(200, {"after": after, "next": next_after, "events": events})
                 return
@@ -122,21 +235,7 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
                 self._json(200, {"ensemble": ens})
                 return
             if path == "/api/stats":
-                events, _ = read_jsonl_tail(journal, after=0, limit=50_000)
-                fills = sum(1 for e in events if e.get("event") == "fill")
-                exits = sum(1 for e in events if e.get("event") == "exit")
-                sit = sum(1 for e in events if e.get("event") == "sit_out")
-                pnl = sum(float(e.get("pnl_usd") or 0) for e in events if e.get("event") == "exit")
-                self._json(
-                    200,
-                    {
-                        "fills": fills,
-                        "exits": exits,
-                        "sit_outs": sit,
-                        "pnl_usd": pnl,
-                        "lines": len(events),
-                    },
-                )
+                self._json(200, journal_stats(journal))
                 return
 
             self._json(404, {"error": "not_found", "path": path})

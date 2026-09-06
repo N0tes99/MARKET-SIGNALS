@@ -47,15 +47,19 @@ python3 -m hl_scalper.loop --mode live --once --coins BTC
 
 ## Pixel agent desk UI
 
+Local CRT desk that polls journal + heartbeat (same `--data-dir` as the bot).
+
 ```bash
-# terminal A — bot
+# terminal A — bot (ensemble required for live votes)
 python3 -m hl_scalper.loop --mode paper --ensemble --data-dir data --coins BTC,ETH
 
 # terminal B — UI
 python3 -m hl_scalper.webapp --data-dir data --port 8787
+# or: hl-scalper-ui --data-dir data --port 8787
 ```
 
-Open http://127.0.0.1:8787 — live agent votes, decision board, and event tape.
+Open http://127.0.0.1:8787 — agent vote tiles, decision board, tally, and event tape.
+API: `/api/health`, `/api/heartbeat`, `/api/desk`, `/api/stats`, `/api/events?after=N`.
 
 ## Replay
 
@@ -69,8 +73,8 @@ python3 -m hl_scalper.report --journal data/replay_journal.jsonl
 
 | File | Purpose |
 |------|---------|
-| `data/journal.jsonl` | boot / signal / fill / exit / kill / errors |
-| `data/heartbeat.json` | last successful tick (supervisor probe) |
+| `data/journal.jsonl` | boot / ensemble / signal / fill / exit / sit_out / kill / errors |
+| `data/heartbeat.json` | last successful tick (supervisor + UI LINK probe; stale > ~20s → LINK OFF) |
 | `data/books.jsonl` | optional recorded books for later replay |
 
 ## systemd

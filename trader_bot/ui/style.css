@@ -1,5 +1,5 @@
 :root {
-  /* Hue nudge: cooler moss base, spring-lime brand, honey amber, soft coral */
+  /* Cooler moss CRT: spring-lime brand, honey amber, soft coral (no purple/cream) */
   --ink: #10161a;
   --panel: #17241f;
   --panel-2: #1e3028;
@@ -10,6 +10,7 @@
   --fog: #d2e4d8;
   --muted: #7f9a8c;
   --pixel: 4px;
+  --focus: #b8ff7a;
 }
 
 * {
@@ -187,12 +188,20 @@ body {
 .agent.enter-sell .agent-vote {
   color: var(--coral);
 }
-.agent.sit_out .agent-vote,
+.agent.sit_out .agent-vote {
+  color: var(--amber);
+}
 .agent.veto .agent-vote {
   color: var(--coral);
 }
 .agent.abstain .agent-vote {
   color: var(--muted);
+}
+
+.agent:focus-visible,
+.pix-pill:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 
 .agent.flash {
@@ -285,7 +294,7 @@ body {
 
 .feed-row {
   display: grid;
-  grid-template-columns: 70px 1fr;
+  grid-template-columns: minmax(64px, 72px) 1fr;
   gap: 10px;
   padding: 4px 0;
   border-bottom: 2px solid #16241e;
@@ -332,5 +341,52 @@ body {
   }
   to {
     background: transparent;
+  }
+}
+
+@media (max-width: 520px) {
+  html,
+  body {
+    font-size: 20px;
+  }
+
+  .stage {
+    padding: 20px 12px 36px;
+  }
+
+  .feed {
+    max-height: 260px;
+    font-size: 18px;
+  }
+
+  .feed-row {
+    grid-template-columns: 56px 1fr;
+    gap: 8px;
+  }
+
+  .feed-row .t {
+    font-size: 7px;
+  }
+
+  .pix-pill {
+    font-size: 8px;
+    padding: 8px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanlines {
+    display: none;
+  }
+
+  .hero,
+  .feed-row,
+  .agent {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .agent.flash {
+    transform: none;
   }
 }

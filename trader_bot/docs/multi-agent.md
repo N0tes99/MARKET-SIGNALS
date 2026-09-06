@@ -57,9 +57,12 @@ Books + funding ctx
 cd trader_bot
 python -m hl_scalper.loop --mode paper --ensemble --coins BTC,ETH --data-dir data
 # or: HL_ENSEMBLE=true
+
+# optional CRT desk (same data-dir)
+python -m hl_scalper.webapp --data-dir data --port 8787
 ```
 
-Journal events: `ensemble` (full ballot) → `signal` / `sit_out` → `fill`.
+Journal events: `ensemble` (full ballot + optional `signal` snapshot) → `signal` / `sit_out` → `fill`.
 
 ## Tunables (`Settings`)
 
