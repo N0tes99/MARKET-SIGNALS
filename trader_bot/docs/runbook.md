@@ -26,23 +26,31 @@ Useful flags:
 python3 -m hl_scalper.report --journal data/journal.jsonl
 ```
 
-## Live arming (not trading yet)
+## Live arming
 
-Live **refuses** unless all of these pass — and even then the `/exchange` signer
-is not wired (`allow_live_orders` still blocks real orders):
+Ladder (all required for real posts):
 
 1. `LIVE_ENABLED=true`
-2. `ALLOW_LIVE_ORDERS=true` (explicit product gate)
-3. `data/ARMED` file exists (touch by hand)
-4. `HL_AGENT_PRIVATE_KEY` set (agent only)
-5. `HL_MASTER_ADDRESS` set (address only — **never** `HL_MASTER_PRIVATE_KEY`)
-6. Kill switch clear; reconcile flat before entries
+2. `ALLOW_LIVE_ORDERS=true`
+3. `data/ARMED` exists
+4. `HL_AGENT_PRIVATE_KEY` (agent only)
+5. `HL_MASTER_ADDRESS` (address only — never `HL_MASTER_PRIVATE_KEY`)
+6. `DRY_RUN_LIVE=false` (defaults **true** — dry-run even when armed)
+7. Kill clear + reconcile flat
 
 ```bash
-# Will still refuse until Phase 4 signer exists:
-LIVE_ENABLED=true ALLOW_LIVE_ORDERS=true \
+LIVE_ENABLED=true ALLOW_LIVE_ORDERS=true DRY_RUN_LIVE=true \
   HL_AGENT_PRIVATE_KEY=0x... HL_MASTER_ADDRESS=0x... \
-  touch data/ARMED && python3 -m hl_scalper.loop --mode live --once
+  touch data/ARMED
+python3 -m hl_scalper.loop --mode live --once --coins BTC
+```
+
+## Replay
+
+```bash
+python3 -m hl_scalper.loop --mode paper --record-books --data-dir data
+python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
+python3 -m hl_scalper.report --journal data/replay_journal.jsonl
 ```
 
 ## Artifacts

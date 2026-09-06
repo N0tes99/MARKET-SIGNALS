@@ -55,7 +55,9 @@ class RiskGate:
 
         # Round-trip taker + buffer must fit inside a tight scalp budget.
         round_trip_bps = 2.0 * self.settings.taker_fee_bps + self.settings.fee_edge_buffer_bps
-        if signal.spread_bps + round_trip_bps > self.settings.spread_bps_max + self.settings.fee_edge_buffer_bps:
+        cost = signal.spread_bps + round_trip_bps
+        budget = self.settings.spread_bps_max + self.settings.fee_edge_buffer_bps
+        if cost > budget + 1e-9:
             return RiskDecision(False, "fee_edge_block")
 
         if signal.coin not in self.settings.live_coins and self.settings.live_enabled:

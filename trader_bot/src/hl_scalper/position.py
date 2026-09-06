@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-from hl_scalper.execution import Fill
+from hl_scalper.types import Fill
 from hl_scalper.feed import L2Book
 from hl_scalper.strategy import Side, StrategyParams, evaluate
 

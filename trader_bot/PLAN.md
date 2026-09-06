@@ -1,6 +1,6 @@
 # Plan — Hyperliquid book-imbalance scalper
 
-Status: **Phase 2–3 scaffolding toward live** (signer not wired; paper is the product path)  
+Status: **Phase 4 dry-run live wired** (real posts require `DRY_RUN_LIVE=false` after paper proves edge)  
 Venue: Hyperliquid perps  
 Edge: L2 book imbalance scalping  
 Last updated: 2026-09-06
@@ -51,19 +51,23 @@ Success: paper journals report expectancy / sit-out / kills; WS books fresher th
 - [x] Dual-control arming (`LIVE_ENABLED` + `ALLOW_LIVE_ORDERS` + `data/ARMED` + agent/master env)
 - [x] Refuse if master private key env is present
 - [x] Reconcile stub vs HL `clearinghouseState` (flat check before live entries)
-- [ ] Replay harness from recorded books
+- [x] Replay harness from recorded books (`python -m hl_scalper.replay`)
 - [ ] Alert hook on kill
 
 ## Phase 4 — Tiny live (separate process only)
+
+- [x] Agent-wallet `/exchange` client (official SDK), IOC entry/close
+- [x] Default `DRY_RUN_LIVE=true` — armed dry-run does not post
+- [ ] Real posts only when `DRY_RUN_LIVE=false` after paper expectancy green
+- [ ] Overnight paper validation (operator)
+- [ ] Dust size promotion ladder on BTC/ETH
 
 Hyperliquid wallet model:
 
 - **Master wallet** — holds funds; **only** withdraw key; never on a bot host
 - **Agent (API) wallet** — authorized by master to sign `/exchange` orders only
 - **Dual-control arming** — env + arm file + kill clear + approved agent
-
-Also required: signed `/exchange` client, cloid idempotency, dust size on BTC/ETH only.
-`allow_live_orders` stays **false** until signer is wired and paper expectancy is green.
+- **Dry-run default** — even when armed, no post until `DRY_RUN_LIVE=false`
 
 Success: live fills reconcile to HL user state; SE/Rail production untouched.
 

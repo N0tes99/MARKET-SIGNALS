@@ -51,10 +51,20 @@ python3 -m hl_scalper.loop --mode paper --once --coins BTC
 python3 -m hl_scalper.loop --mode paper --data-dir data          # WS on by default
 python3 -m hl_scalper.loop --mode paper --data-dir data --no-ws  # HTTP only
 python3 -m hl_scalper.report --journal data/journal.jsonl
+python3 -m hl_scalper.loop --mode paper --data-dir data --record-books
+python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
 ```
 
-Live mode stays gated (`LIVE_ENABLED`, `ALLOW_LIVE_ORDERS`, `data/ARMED`, agent key,
-master **address** only). `/exchange` signer is not wired yet.
+Live path is wired but **dry-run by default**:
+
+```bash
+# Still refuses without all gates:
+LIVE_ENABLED=true ALLOW_LIVE_ORDERS=true DRY_RUN_LIVE=true \
+  HL_AGENT_PRIVATE_KEY=0x... HL_MASTER_ADDRESS=0x... \
+  touch data/ARMED && python3 -m hl_scalper.loop --mode live --once --coins BTC
+```
+
+`DRY_RUN_LIVE=false` is required for real `/exchange` posts — only after paper expectancy is green.
 
 See [`docs/runbook.md`](docs/runbook.md) for systemd and journal layout.
 

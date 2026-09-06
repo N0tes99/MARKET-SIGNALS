@@ -41,7 +41,8 @@ class Settings:
     adverse_exit_bps: float = 8.0
     max_feed_failures: int = 10
     live_enabled: bool = False
-    allow_live_orders: bool = False  # hard product gate; stays false until Phase 4 signed path
+    allow_live_orders: bool = False  # must be explicitly enabled
+    dry_run_live: bool = True  # even when armed, default is dry-run (no /exchange post)
     live_coins: tuple[str, ...] = ("BTC", "ETH")
     data_dir: str = "data"
     journal_path: str = "data/journal.jsonl"
@@ -56,6 +57,7 @@ class Settings:
         base = cls(
             live_enabled=_env_bool("LIVE_ENABLED", False),
             allow_live_orders=_env_bool("ALLOW_LIVE_ORDERS", False),
+            dry_run_live=_env_bool("DRY_RUN_LIVE", True),
             use_ws=_env_bool("HL_USE_WS", True),
         )
         if not overrides:

@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 
 from hl_scalper.config import Settings
-from hl_scalper.execution import Fill
 from hl_scalper.feed import BookLevel, L2Book
 from hl_scalper.journal import Heartbeat, Journal
 from hl_scalper.position import PaperPosition, close_at_mid, mark_pnl
 from hl_scalper.sizer import size_notional
 from hl_scalper.strategy import Signal, StrategyParams, evaluate
+from hl_scalper.types import Fill
 
 
 def test_journal_fsync(tmp_path: Path) -> None:

@@ -90,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
         equity_usd=settings.paper_equity_usd,
         use_ws=settings.use_ws,
         adverse_exit_bps=settings.adverse_exit_bps,
+        dry_run_live=settings.dry_run_live,
+        allow_live_orders=settings.allow_live_orders,
     )
 
     def manage_exit(books: dict[str, L2Book]) -> None:
@@ -105,6 +107,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not decision.should_exit or decision.reason is None or decision.exit_mid is None:
             return
+        try:
+            close_fill = executor.close_position(open_pos, decision.exit_mid)
+        except LiveTradingDisabled as exc:
+            journal.write("live_refused", error=str(exc), phase="close")
+            raise
         closed = close_at_mid(
             open_pos,
             decision.exit_mid,
@@ -116,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
         journal.write(
             "exit",
             fill_id=closed.fill_id,
+            close_fill_id=close_fill.fill_id,
+            close_status=close_fill.status,
             coin=closed.coin,
             side=closed.side,
             qty=closed.qty,
