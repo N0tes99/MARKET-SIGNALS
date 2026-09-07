@@ -1,11 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
 import { useAuth } from "@/components/auth-provider";
-import { fetchGateStatus, type GateStatus } from "@/services/api";
+import {
+  fetchAssets,
+  fetchGateStatus,
+  fetchPaperSummary,
+  fetchQuotes,
+  type GateStatus,
+} from "@/services/api";
 
 const BYPASS = new Set([
   "/login",
@@ -32,6 +38,7 @@ function isGranted(status: GateStatus | undefined): boolean {
 export function ProductAccessGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const pathname = usePathname() ?? "/";
   const pathBypass = BYPASS.has(pathname);
   const bypass = !REQUIRE_LOGIN || pathBypass;
@@ -47,6 +54,18 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     retry: 4,
     retryDelay: (attempt) => Math.min(8_000, 2_000 * (attempt + 1)),
   });
+
+  // Home desk fetches start with the gate check — do not wait for Connecting…
+  // to finish. Cheap snapshot reads only; Radar/Expansion keep the dyno later.
+  useEffect(() => {
+    if (!REQUIRE_LOGIN || pathBypass || pathname !== "/") return;
+    void queryClient.prefetchQuery({ queryKey: ["assets"], queryFn: fetchAssets });
+    void queryClient.prefetchQuery({
+      queryKey: ["paper-summary"],
+      queryFn: () => fetchPaperSummary(false),
+    });
+    void queryClient.prefetchQuery({ queryKey: ["quotes"], queryFn: fetchQuotes });
+  }, [pathBypass, pathname, queryClient]);
 
   useEffect(() => {
     if (!REQUIRE_LOGIN || pathBypass) return;

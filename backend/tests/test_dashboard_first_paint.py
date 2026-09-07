@@ -27,6 +27,44 @@ def test_assets_hook_defers_sse_until_snapshot() -> None:
     assert "ASSETS_SNAPSHOT_KEY" in text
 
 
+def test_quotes_hook_polls_while_warming() -> None:
+    text = (_ROOT / "frontend" / "hooks" / "use-quotes.ts").read_text(encoding="utf-8")
+    assert "QUOTES_SNAPSHOT_KEY" in text
+    assert "return 5_000" in text
+    api = (_ROOT / "frontend" / "services" / "api.ts").read_text(encoding="utf-8")
+    quotes = api.split("export async function fetchQuotes")[1].split(
+        "export async function fetchQuote"
+    )[0]
+    assert "12_000" in quotes
+
+
+def test_home_prefetches_desk_with_gate() -> None:
+    text = (
+        _ROOT / "frontend" / "components" / "product-access-guard.tsx"
+    ).read_text(encoding="utf-8")
+    assert 'prefetchQuery({ queryKey: ["assets"]' in text
+    assert 'queryKey: ["paper-summary"]' in text
+    assert 'queryKey: ["quotes"]' in text
+    assert 'pathname !== "/"' in text
+    assert "fetchPaperSummary(false)" in text
+
+
+def test_paper_first_paint_uses_short_timeout() -> None:
+    api = (_ROOT / "frontend" / "services" / "api.ts").read_text(encoding="utf-8")
+    fn = api.split("export async function fetchPaperSummary")[1].split(
+        "export async function downloadPaperTradesCsv"
+    )[0]
+    assert "tick ? 120_000 : 20_000" in fn
+
+
+def test_assets_list_does_not_block_on_alert_service() -> None:
+    text = (_ROOT / "backend" / "app" / "api" / "routes" / "assets.py").read_text(
+        encoding="utf-8"
+    )
+    assert "alerts: AlertService = Depends(get_alert_service)" not in text
+    assert "_resolve_dep(request, get_alert_service, get_alert_service)" in text
+
+
 def test_auth_wakes_health_in_parallel() -> None:
     text = (
         _ROOT / "frontend" / "components" / "auth-provider.tsx"
