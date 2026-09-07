@@ -4,11 +4,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-import yfinance as yf
-
 from app.config import settings
 from app.engines.evidence_engine.types import EvidenceItem
 from app.market_data.symbols import AssetClass, resolve_asset_class
+from app.market_data.yfinance_client import yf_ticker
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringCategory
 from app.utils.http_client import shared_client
 from app.utils.scoring_helpers import clamp_score
@@ -138,7 +137,7 @@ def _fetch_earnings_event(symbol: str, horizon_days: int = 14) -> list[tuple[str
     """Fetch next earnings date for an equity symbol via yfinance."""
     now = datetime.now(UTC)
     try:
-        calendar = yf.Ticker(symbol).calendar
+        calendar = yf_ticker(symbol).calendar
     except Exception:
         logger.exception("Failed to fetch earnings calendar for %s", symbol)
         return []

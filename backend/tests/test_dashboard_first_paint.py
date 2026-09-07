@@ -18,6 +18,7 @@ def test_access_guard_does_not_wait_on_fetch_me() -> None:
     enabled = text.split("useQuery")[1].split("staleTime")[0]
     assert "Boolean(user)" not in enabled
     assert "gateQuery.isFetching" not in text
+    assert "retry: 4" in text
 
 
 def test_assets_hook_defers_sse_until_snapshot() -> None:
@@ -55,3 +56,16 @@ async def test_paper_summary_without_tick_skips_agent(
     body = response.json()
     assert "optimistic" in body
     assert "honest" in body
+
+
+@pytest.mark.asyncio
+async def test_public_preview_does_not_construct_paper_agent(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _boom() -> None:
+        raise AssertionError("paper agent constructed on public preview")
+
+    monkeypatch.setattr("app.core.service_dependencies.get_paper_agent", _boom)
+    response = await client.get("/api/v1/public/preview")
+    assert response.status_code == 200
+    assert "optimistic" in response.json()

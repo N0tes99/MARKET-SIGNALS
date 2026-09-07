@@ -1,7 +1,9 @@
 """Signal Engine FastAPI application entry point."""
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,16 +13,28 @@ from app.config import settings
 from app.core.basic_auth import BasicAuthMiddleware
 from app.core.site_gate import AccessGateMiddleware
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage application startup and shutdown lifecycle."""
-    from app.engines.runner_engine.crypto_learn import hydrate_crypto_learn
-    from app.scoring.weight_config import hydrate_weight_config
+    """Accept traffic before hydrating optional scoring state from Postgres."""
 
-    hydrate_weight_config()
-    hydrate_crypto_learn()
+    async def _hydrate() -> None:
+        from app.engines.runner_engine.crypto_learn import hydrate_crypto_learn
+        from app.scoring.weight_config import hydrate_weight_config
+
+        try:
+            await asyncio.to_thread(hydrate_weight_config)
+            await asyncio.to_thread(hydrate_crypto_learn)
+        except Exception:
+            logger.exception("Background scoring hydrate failed")
+
+    task = asyncio.create_task(_hydrate())
     yield
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
 
 
 def create_app() -> FastAPI:

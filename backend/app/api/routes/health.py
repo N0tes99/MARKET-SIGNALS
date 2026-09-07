@@ -103,9 +103,13 @@ def _lake_ops() -> tuple[WarehouseHealth | None, AlembicHealth | None]:
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
-    """Cheap liveness for load balancers, keep-warm, and the Chart page."""
-    warehouse, alembic = _lake_ops()
+async def health_check(ops: bool = False) -> HealthResponse:
+    """Cheap liveness for load balancers, keep-warm, and the Chart page.
+
+    Warehouse/alembic snapshots are opt-in (``?ops=true``) so a Render wake
+    is not blocked on lake stats.
+    """
+    warehouse, alembic = _lake_ops() if ops else (None, None)
     return HealthResponse(
         status="healthy",
         app_name=settings.app_name,

@@ -44,7 +44,8 @@ export function ProductAccessGuard({ children }: { children: ReactNode }) {
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(8_000, 2_000 * (attempt + 1)),
   });
 
   useEffect(() => {

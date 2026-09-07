@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-import yfinance as yf
+from app.market_data.yfinance_client import yf_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def fetch_yahoo_option_chain(
     normalized = symbol.upper()
     today = as_of or datetime.now(UTC).date()
     try:
-        ticker = yf.Ticker(normalized)
+        ticker = yf_ticker(normalized)
         expiries = list(ticker.options or [])
     except Exception:
         logger.exception("Option expiry list failed for %s", normalized)

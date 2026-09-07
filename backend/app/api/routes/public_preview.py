@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.api.routes import assets as assets_routes
-from app.core.service_dependencies import get_paper_agent
+from app.core.service_dependencies import get_paper_store
 from app.engines.paper_agent.agent import PaperAgent
 from app.schemas.assets import AssetSummary
 from app.schemas.paper import PaperLedgerSchema
@@ -41,8 +41,8 @@ def _hot_picks(limit: int = 5) -> list[AssetSummary]:
     return ranked[:limit]
 
 
-def _build_preview(agent: PaperAgent) -> PublicPreviewSchema:
-    summary = agent.summary(tick_notes=[])
+def _build_preview() -> PublicPreviewSchema:
+    summary = PaperAgent.snapshot_from_store(get_paper_store())
     return PublicPreviewSchema(
         as_of=datetime.now(UTC),
         hot_picks=_hot_picks(5),
@@ -54,8 +54,6 @@ def _build_preview(agent: PaperAgent) -> PublicPreviewSchema:
 
 
 @router.get("/preview", response_model=PublicPreviewSchema)
-async def public_preview(
-    agent: PaperAgent = Depends(get_paper_agent),
-) -> PublicPreviewSchema:
-    """Login-screen teaser: hot picks + paper bot ledgers (no MFA required)."""
-    return await asyncio.to_thread(_build_preview, agent)
+async def public_preview() -> PublicPreviewSchema:
+    """Login-screen teaser: hot picks + paper ledgers from store (no scanners)."""
+    return await asyncio.to_thread(_build_preview)

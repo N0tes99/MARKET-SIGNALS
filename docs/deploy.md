@@ -108,7 +108,10 @@ reuse the same `CELERY_BROKER_URL` / beat schedule from `app.core.celery_app`.
 ```bash
 curl https://YOUR-RENDER-URL/api/v1/health
 # → 200 healthy; check stores.learning / stores.paper / stores.alerts == "postgres"
-# After 020: alembic.at_head true, alembic.current "020" (or later),
+# warehouse / alembic are omitted so keep-warm and Chart stay a cheap ping.
+
+curl https://YOUR-RENDER-URL/api/v1/health?ops=true
+# → warehouse + alembic snapshot. After 021: alembic.at_head true,
 # warehouse.table_present true. warehouse.bar_count grows after keep-warm /assets
 # and cortex ticks write 5m/15m/1h/4h/1d bars. Zero bars = lake not ready (no parquet yet).
 
@@ -116,7 +119,7 @@ curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/alerts/status
 # → 200; state_backend should be "postgres"
 
 curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/data-lake/status
-# → warehouse + alembic snapshot (same fields as health, behind Basic Auth)
+# → warehouse + alembic snapshot (same fields as health?ops=true, behind Basic Auth)
 ```
 
 ---
@@ -181,7 +184,7 @@ prefetches OHLCV and warms the decision evaluate cache for tracked symbols.
 
 | Ping | Cadence | Purpose |
 |------|---------|---------|
-| `GET /api/v1/health` | ~every 10 min | Cheap liveness ping — must **not** construct PaperAgent |
+| `GET /api/v1/health` | ~every 10 min | Wake the dyno (up to 6 attempts — cold Alembic+import can exceed 60s) |
 | `POST /api/v1/paper/cron-tick` | right after health (retries 502) | Advance paper bot before the heavy rank |
 | `GET /api/v1/assets?sync=true` | after paper tick | Full `rank_all` so memory + Postgres dashboard cache stay warm |
 

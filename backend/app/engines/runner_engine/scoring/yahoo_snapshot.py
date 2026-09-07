@@ -6,8 +6,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-import yfinance as yf
-
+from app.market_data.yfinance_client import yf_ticker
 from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
@@ -348,7 +347,7 @@ def fetch_yahoo_runner_snapshot(symbol: str) -> YahooRunnerSnapshot:
         return cached
 
     try:
-        ticker = yf.Ticker(normalized)
+        ticker = yf_ticker(normalized)
         raw_info = ticker.info
         info = raw_info if isinstance(raw_info, dict) else {}
         calendar = None

@@ -21,11 +21,17 @@ async def test_health_check(client: AsyncClient) -> None:
     assert data["stores"]["learning"] in {"memory", "postgres"}
     assert data["stores"]["paper"] in {"memory", "postgres"}
     assert data["stores"]["alerts"] in {"memory", "postgres"}
-    assert data["warehouse"]["backend"] in {"memory", "postgres"}
-    assert "bar_count" in data["warehouse"]
-    assert data["alembic"]["head"]
-    assert data["alembic"]["source"] in {"skipped", "postgres", "missing", "error"}
+    assert data["warehouse"] is None
+    assert data["alembic"] is None
     assert data["rss_mb"] is None or data["rss_mb"] >= 0
+
+    detailed = await client.get("/api/v1/health?ops=true")
+    assert detailed.status_code == 200
+    ops = detailed.json()
+    assert ops["warehouse"]["backend"] in {"memory", "postgres"}
+    assert "bar_count" in ops["warehouse"]
+    assert ops["alembic"]["head"]
+    assert ops["alembic"]["source"] in {"skipped", "postgres", "missing", "error"}
 
 
 @pytest.mark.asyncio
