@@ -35,7 +35,8 @@ def position_payload(
     open_pos: PaperPosition | None,
     books: Mapping[str, L2Book] | None = None,
     *,
-    taker_fee_bps: float = 0.0,
+    taker_fee_bps: float = 3.5,
+    ioc_slip_bps_min: float = 5.0,
 ) -> dict[str, Any]:
     if open_pos is None:
         return {"open": False, "ts": utc_now_iso()}
@@ -43,13 +44,22 @@ def position_payload(
     book = (books or {}).get(fill.coin)
     mark_mid = book.mid if book is not None else None
     unrealized: float | None = None
+    mark_exit_px: float | None = None
     if mark_mid is not None and mark_mid > 0:
-        exit_fee = abs(fill.qty) * mark_mid * (taker_fee_bps / 10_000.0)
+        from hl_scalper.sim import ioc_exit_limit_px, taker_fee_usd
+
+        flatten_is_buy = fill.side == "sell"
+        mark_exit_px = ioc_exit_limit_px(
+            flatten_is_buy=flatten_is_buy,
+            mid=mark_mid,
+            min_slip_bps=ioc_slip_bps_min,
+        )
+        exit_fee = taker_fee_usd(abs(fill.qty) * mark_exit_px, taker_fee_bps)
         unrealized = mark_pnl(
             side=fill.side,
             qty=fill.qty,
             entry_px=fill.px,
-            exit_px=mark_mid,
+            exit_px=mark_exit_px,
             entry_fee_usd=fill.fee_usd,
             exit_fee_usd=exit_fee,
         )
@@ -69,6 +79,7 @@ def position_payload(
         "age_s": round(age_s, 3),
         "hold_seconds": open_pos.hold_seconds,
         "mark_mid": mark_mid,
+        "mark_exit_px": mark_exit_px,
         "unrealized_pnl_usd": unrealized,
         "entry_imbalance": open_pos.entry_imbalance,
         "fill_id": fill.fill_id,
@@ -90,6 +101,43 @@ def status_payload(
         arm_file=arm_path,
         killed=risk.state.killed,
     )
+    strategies = [
+        {
+            "id": "imbalance",
+            "name": "S1 imbalance",
+            "role": "L2 book imbalance scalp",
+            "active": True,
+            "solo_default": True,
+        },
+        {
+            "id": "funding",
+            "name": "S3 funding",
+            "role": "funding extreme lean",
+            "active": bool(settings.ensemble),
+            "solo_default": False,
+        },
+        {
+            "id": "liquidity",
+            "name": "liquidity gate",
+            "role": "spread/depth quality",
+            "active": bool(settings.ensemble),
+            "solo_default": False,
+        },
+        {
+            "id": "spread_micro",
+            "name": "S2 spread micro",
+            "role": "tight-spread micro lean",
+            "active": bool(settings.ensemble),
+            "solo_default": False,
+        },
+        {
+            "id": "risk",
+            "name": "risk gate",
+            "role": "fee/kill/cooldown veto",
+            "active": True,
+            "solo_default": True,
+        },
+    ]
     return {
         "ts": utc_now_iso(),
         "mode": mode,
@@ -111,6 +159,11 @@ def status_payload(
         "ticks": ticks,
         "hold_seconds": settings.hold_seconds,
         "data_dir": settings.data_dir,
+        "taker_fee_bps": settings.taker_fee_bps,
+        "ioc_slip_bps_min": settings.ioc_slip_bps_min,
+        "fee_edge_buffer_bps": settings.fee_edge_buffer_bps,
+        "strategies": strategies,
+        "execution_model": "hl_ioc_taker",
     }
 
 
@@ -124,7 +177,15 @@ def publish_runtime(
     books: Mapping[str, L2Book] | None,
     ticks: int,
 ) -> None:
-    atomic_json(data_dir / "position.json", position_payload(open_pos, books, taker_fee_bps=settings.taker_fee_bps))
+    atomic_json(
+        data_dir / "position.json",
+        position_payload(
+            open_pos,
+            books,
+            taker_fee_bps=settings.taker_fee_bps,
+            ioc_slip_bps_min=settings.ioc_slip_bps_min,
+        ),
+    )
     atomic_json(
         data_dir / "status.json",
         status_payload(settings=settings, mode=mode, risk=risk, ticks=ticks),

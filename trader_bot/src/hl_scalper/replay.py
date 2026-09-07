@@ -10,7 +10,7 @@ from hl_scalper.config import Settings
 from hl_scalper.execution import Fill, PaperExecutor
 from hl_scalper.feed import BookLevel, L2Book
 from hl_scalper.journal import Journal
-from hl_scalper.position import PaperPosition, close_at_mid, decide_exit
+from hl_scalper.position import PaperPosition, close_from_fill, decide_exit
 from hl_scalper.risk import RiskGate
 from hl_scalper.sizer import size_notional
 from hl_scalper.strategy import StrategyParams, evaluate
@@ -96,10 +96,10 @@ def run_replay(
                     adverse_bps=settings.adverse_exit_bps,
                 )
                 if decision.should_exit and decision.reason and decision.exit_mid is not None:
-                    closed = close_at_mid(
+                    close_fill = executor.close_position(open_pos, decision.exit_mid)
+                    closed = close_from_fill(
                         open_pos,
-                        decision.exit_mid,
-                        exit_fee_bps=settings.taker_fee_bps,
+                        close_fill,
                         reason=decision.reason,
                     )
                     risk.state.open_positions = max(0, risk.state.open_positions - 1)
@@ -155,10 +155,10 @@ def run_replay(
     if open_pos is not None:
         book = latest.get(open_pos.fill.coin)
         exit_mid = book.mid if book and book.mid is not None else open_pos.entry_mid
-        closed = close_at_mid(
+        close_fill = executor.close_position(open_pos, exit_mid)
+        closed = close_from_fill(
             open_pos,
-            exit_mid,
-            exit_fee_bps=settings.taker_fee_bps,
+            close_fill,
             reason="hold_expired",
         )
         stats.exits += 1

@@ -37,6 +37,7 @@ class Settings:
     paper_equity_usd: float = 10_000.0
     taker_fee_bps: float = 3.5
     fee_edge_buffer_bps: float = 2.0
+    ioc_slip_bps_min: float = 5.0  # HL-realistic min cross through mid (entry/exit)
     hold_seconds: float = 5.0
     adverse_exit_bps: float = 8.0
     max_feed_failures: int = 10

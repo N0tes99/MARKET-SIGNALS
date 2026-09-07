@@ -15,7 +15,7 @@ from hl_scalper.execution import LiveTradingDisabled, build_executor
 from hl_scalper.feed import L2Book
 from hl_scalper.feed.ws import HybridBookFeed, build_feed
 from hl_scalper.journal import Heartbeat, Journal
-from hl_scalper.position import PaperPosition, close_at_mid, decide_exit
+from hl_scalper.position import PaperPosition, close_from_fill, decide_exit
 from hl_scalper.reconcile import ClearinghouseClient, reconcile_flat_local
 from hl_scalper.risk import RiskGate
 from hl_scalper.sizer import size_notional
@@ -156,10 +156,9 @@ def main(argv: list[str] | None = None) -> int:
         except LiveTradingDisabled as exc:
             journal.write("live_refused", error=str(exc), phase="close")
             raise
-        closed = close_at_mid(
+        closed = close_from_fill(
             open_pos,
-            decision.exit_mid,
-            exit_fee_bps=settings.taker_fee_bps,
+            close_fill,
             reason=decision.reason,
         )
         risk.state.open_positions = max(0, risk.state.open_positions - 1)

@@ -18,6 +18,40 @@
   const pillKill = document.getElementById("pill-kill");
   const pillArm = document.getElementById("pill-arm");
   const pillDry = document.getElementById("pill-dry");
+  const stratGrid = document.getElementById("strat-grid");
+
+  const DEFAULT_STRATS = [
+    { id: "imbalance", name: "S1 imbalance", role: "L2 book imbalance scalp", active: true },
+    { id: "funding", name: "S3 funding", role: "funding extreme lean", active: false },
+    { id: "liquidity", name: "liquidity gate", role: "spread/depth quality", active: false },
+    { id: "spread_micro", name: "S2 spread micro", role: "tight-spread micro lean", active: false },
+    { id: "risk", name: "risk gate", role: "fee/kill/cooldown veto", active: true },
+  ];
+
+  function renderStrategies(status) {
+    const list = status.strategies && status.strategies.length ? status.strategies : DEFAULT_STRATS;
+    const fees = `taker ${status.taker_fee_bps ?? 3.5}bps · ioc≥${status.ioc_slip_bps_min ?? 5}bps · ${status.execution_model || "hl_ioc_taker"}`;
+    stratGrid.replaceChildren();
+    list.forEach((s) => {
+      const el = document.createElement("article");
+      el.className = `strat ${s.active ? "on" : "off"}`;
+      const name = document.createElement("h3");
+      name.className = "strat-name";
+      name.textContent = String(s.name || s.id || "?").toUpperCase();
+      const role = document.createElement("p");
+      role.className = "strat-role";
+      role.textContent = s.role || "";
+      const flag = document.createElement("p");
+      flag.className = "strat-flag";
+      flag.textContent = s.active ? "ON" : "OFF";
+      el.append(name, role, flag);
+      stratGrid.appendChild(el);
+    });
+    const feeEl = document.createElement("p");
+    feeEl.className = "strat-fees";
+    feeEl.textContent = fees;
+    stratGrid.appendChild(feeEl);
+  }
 
   function tile(name) {
     const el = document.createElement("article");
@@ -278,6 +312,7 @@
       const ev = snap.events || {};
 
       renderPills(hb, status);
+      renderStrategies(status);
       renderStats(stats);
       renderDecision(ens);
       renderPosition(pos);

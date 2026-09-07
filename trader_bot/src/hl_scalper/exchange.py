@@ -32,6 +32,8 @@ class OrderResult:
     raw: dict[str, Any] | None
     intent: OrderIntent
     reason: str = ""
+    filled_sz: float | None = None
+    avg_px: float | None = None
 
 
 class HlExchangeClient:
@@ -104,9 +106,19 @@ class HlExchangeClient:
             dry_run=self._dry_run,
         )
         if self._dry_run:
-            return OrderResult(True, "dry_run", {"intent": intent.__dict__}, intent, "dry_run")
+            return OrderResult(
+                True,
+                "dry_run",
+                {"intent": intent.__dict__},
+                intent,
+                "dry_run",
+                filled_sz=sz,
+                avg_px=limit_px,
+            )
 
         from hyperliquid.utils.types import Cloid
+
+        from hl_scalper.exchange_parse import parse_ioc_fill
 
         raw = self._exchange.order(
             coin,
@@ -117,9 +129,16 @@ class HlExchangeClient:
             reduce_only=reduce_only,
             cloid=Cloid.from_str(intent.cloid),
         )
-        ok = isinstance(raw, dict)
-        status = "submitted" if ok else "error"
-        return OrderResult(ok=ok, status=status, raw=raw if isinstance(raw, dict) else None, intent=intent)
+        parsed = parse_ioc_fill(raw if isinstance(raw, dict) else None)
+        return OrderResult(
+            ok=bool(parsed["ok"]),
+            status=str(parsed["status"]),
+            raw=raw if isinstance(raw, dict) else None,
+            intent=intent,
+            reason=str(parsed.get("reason") or ""),
+            filled_sz=float(parsed["filled_sz"] or 0.0),
+            avg_px=parsed["avg_px"],
+        )
 
 
 def build_exchange_client_from_env(*, dry_run: bool, info_url: str) -> HlExchangeClient:

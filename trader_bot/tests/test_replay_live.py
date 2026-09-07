@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from eth_account import Account
+import pytest
 
 from hl_scalper.config import Settings
 from hl_scalper.exchange import HlExchangeClient
@@ -154,4 +155,12 @@ def test_paper_close_position() -> None:
     pos = PaperPosition(fill=fill, entry_mid=100.0, opened_at=datetime.now(UTC), hold_seconds=1)
     close = ex.close_position(pos, 101.0)
     assert close.side == "sell"
-    assert close.px == 101.0
+    # HL-realistic IOC exit: mid − ioc_slip_bps_min (default 5 bps)
+    assert close.px == pytest.approx(101.0 * (1.0 - 0.0005))
+    assert close.fee_usd > 0
+    from hl_scalper.position import close_from_fill
+
+    closed = close_from_fill(pos, close, reason="hold_expired")
+    assert closed.exit_px == close.px
+    assert closed.exit_fee_usd == close.fee_usd
+    assert closed.pnl_usd < (101.0 - fill.px) * fill.qty  # fees + exit slip drag

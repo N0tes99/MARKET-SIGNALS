@@ -122,6 +122,7 @@ def close_at_mid(
     reason: ExitReason = "hold_expired",
     now: datetime | None = None,
 ) -> ClosedTrade:
+    """Legacy mid-mark close. Prefer ``close_from_fill`` for HL-realistic PnL."""
     now = now or datetime.now(UTC)
     notional = position.fill.qty * exit_mid
     exit_fee = notional * (exit_fee_bps / 10_000.0)
@@ -142,6 +143,39 @@ def close_at_mid(
         exit_px=exit_mid,
         entry_fee_usd=position.fill.fee_usd,
         exit_fee_usd=exit_fee,
+        pnl_usd=pnl,
+        hold_seconds=(now - position.opened_at).total_seconds(),
+        reason=reason,
+    )
+
+
+def close_from_fill(
+    position: PaperPosition,
+    close_fill: Fill,
+    *,
+    reason: ExitReason = "hold_expired",
+    now: datetime | None = None,
+) -> ClosedTrade:
+    """PnL from actual executor fill prices/fees (paper IOC sim or live HL)."""
+    now = now or datetime.now(UTC)
+    qty = min(position.fill.qty, close_fill.qty)
+    pnl = mark_pnl(
+        side=position.fill.side,
+        qty=qty,
+        entry_px=position.fill.px,
+        exit_px=close_fill.px,
+        entry_fee_usd=position.fill.fee_usd,
+        exit_fee_usd=close_fill.fee_usd,
+    )
+    return ClosedTrade(
+        fill_id=position.fill.fill_id,
+        coin=position.fill.coin,
+        side=position.fill.side,
+        qty=qty,
+        entry_px=position.fill.px,
+        exit_px=close_fill.px,
+        entry_fee_usd=position.fill.fee_usd,
+        exit_fee_usd=close_fill.fee_usd,
         pnl_usd=pnl,
         hold_seconds=(now - position.opened_at).total_seconds(),
         reason=reason,

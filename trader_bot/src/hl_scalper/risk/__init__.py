@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from hl_scalper.config import Settings
+from hl_scalper.sim import estimated_round_trip_bps
 from hl_scalper.strategy import Signal
 
 
@@ -53,11 +54,24 @@ class RiskGate:
             self.trip(f"weekly_loss:{self.state.week_pnl_usd:.2f}")
             return RiskDecision(False, self.state.kill_reason)
 
-        # Round-trip taker + buffer must fit inside a tight scalp budget.
-        round_trip_bps = 2.0 * self.settings.taker_fee_bps + self.settings.fee_edge_buffer_bps
-        cost = signal.spread_bps + round_trip_bps
-        budget = self.settings.spread_bps_max + self.settings.fee_edge_buffer_bps
-        if cost > budget + 1e-9:
+        # HL-realistic IOC round-trip: entry cross + exit cross + 2×taker + buffer.
+        # Must also clear a soft edge_score floor (policy: fees cleared by edge).
+        rt = estimated_round_trip_bps(
+            signal.spread_bps,
+            taker_fee_bps=self.settings.taker_fee_bps,
+            fee_edge_buffer_bps=self.settings.fee_edge_buffer_bps,
+            min_slip_bps=self.settings.ioc_slip_bps_min,
+        )
+        # Hard ceiling: do not scalp when RT cost dominates a tight book budget.
+        max_rt = (
+            self.settings.spread_bps_max
+            + 2.0 * self.settings.ioc_slip_bps_min
+            + 2.0 * self.settings.taker_fee_bps
+            + self.settings.fee_edge_buffer_bps
+        )
+        if rt > max_rt + 1e-9:
+            return RiskDecision(False, "fee_edge_block")
+        if signal.edge_score + 1e-9 < rt:
             return RiskDecision(False, "fee_edge_block")
 
         if signal.coin not in self.settings.live_coins and self.settings.live_enabled:

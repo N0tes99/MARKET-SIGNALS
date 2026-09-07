@@ -62,6 +62,9 @@ python3 -m hl_scalper.webapp --data-dir data --port 8787
 Open `http://127.0.0.1:8787` for the pixel agent desk (live votes + tape).
 Point the UI at the **same** `--data-dir` as the loop (it tails `journal.jsonl` + `heartbeat.json`).
 
+Strategy roster + HL IOC fee/slip model: [`docs/strategies.md`](docs/strategies.md).
+Multi-agent desk: [`docs/multi-agent.md`](docs/multi-agent.md).
+
 Live path is wired but **dry-run by default**:
 
 ```bash
