@@ -9,10 +9,15 @@
   const grid = document.getElementById("agent-grid");
   const decisionText = document.getElementById("decision-text");
   const decisionMeta = document.getElementById("decision-meta");
+  const positionState = document.getElementById("position-state");
+  const positionMeta = document.getElementById("position-meta");
   const feed = document.getElementById("event-feed");
   const pillAlive = document.getElementById("pill-alive");
   const pillMode = document.getElementById("pill-mode");
   const pillTick = document.getElementById("pill-tick");
+  const pillKill = document.getElementById("pill-kill");
+  const pillArm = document.getElementById("pill-arm");
+  const pillDry = document.getElementById("pill-dry");
 
   function tile(name) {
     const el = document.createElement("article");
@@ -42,7 +47,6 @@
         grid.appendChild(tile(name));
       }
     });
-    // Drop extras that are no longer in the ballot (keep core always).
     [...grid.querySelectorAll(".agent")].forEach((el) => {
       const name = el.dataset.agent;
       if (!want.includes(name) && !CORE_AGENTS.includes(name)) {
@@ -107,6 +111,86 @@
     renderAgents(ens.proposals || []);
   }
 
+  function renderPosition(pos) {
+    if (!pos || !pos.open) {
+      positionState.textContent = "FLAT";
+      positionState.className = "position-state flat";
+      positionMeta.textContent = "No open inventory.";
+      return;
+    }
+    const side = String(pos.side || "").toUpperCase();
+    positionState.textContent = `${side} ${pos.coin || ""}`;
+    positionState.className = `position-state open ${pos.side || ""}`;
+    const u =
+      pos.unrealized_pnl_usd != null
+        ? `uPnL ${Number(pos.unrealized_pnl_usd).toFixed(4)}`
+        : "uPnL --";
+    const mid = pos.mark_mid != null ? `mid ${Number(pos.mark_mid).toFixed(2)}` : "mid --";
+    const age = pos.age_s != null ? `age ${Math.round(Number(pos.age_s))}s` : "";
+    positionMeta.textContent = `@ ${Number(pos.entry_px || 0).toFixed(2)} · ${mid} · ${u} · ${age}`.trim();
+  }
+
+  function renderStats(stats) {
+    document.getElementById("stat-fills").textContent = String(stats.fills ?? 0);
+    document.getElementById("stat-exits").textContent = String(stats.exits ?? 0);
+    document.getElementById("stat-wl").textContent = `${stats.wins ?? 0}/${stats.losses ?? 0}`;
+    document.getElementById("stat-exp").textContent = Number(stats.expectancy || 0).toFixed(3);
+    document.getElementById("stat-sit").textContent = String(stats.sit_outs ?? 0);
+    document.getElementById("stat-block").textContent = String(stats.blocks ?? 0);
+    document.getElementById("stat-kill").textContent = String(stats.kills ?? 0);
+    const pnlEl = document.getElementById("stat-pnl");
+    const pnl = Number(stats.pnl_usd || 0);
+    pnlEl.textContent = pnl.toFixed(3);
+    pnlEl.className = `v ${pnl < 0 ? "neg" : pnl > 0 ? "pos" : ""}`;
+  }
+
+  function renderPills(hb, status) {
+    if (hb.alive) {
+      pillAlive.textContent = "LINK ON";
+      pillAlive.className = "pix-pill on";
+      pillMode.textContent = `MODE ${String(hb.mode || status.mode || "?").toUpperCase()}`;
+      pillMode.className = "pix-pill warn";
+      pillTick.textContent = `TICK ${hb.ticks ?? status.ticks ?? "--"}`;
+      pillTick.className = "pix-pill";
+    } else {
+      pillAlive.textContent = "LINK OFF";
+      pillAlive.className = "pix-pill off";
+      pillMode.textContent = `MODE ${String(hb.mode || status.mode || "--").toUpperCase()}`;
+      pillMode.className = "pix-pill";
+      const age = hb.age_s != null ? `AGE ${Math.round(Number(hb.age_s))}s` : "TICK --";
+      pillTick.textContent = hb.ticks != null ? `TICK ${hb.ticks} · ${age}` : age;
+      pillTick.className = "pix-pill off";
+    }
+
+    const killed = Boolean(status.killed || hb.killed);
+    if (killed) {
+      pillKill.textContent = `KILL ${status.kill_reason || hb.kill_reason || "ON"}`
+        .slice(0, 28)
+        .toUpperCase();
+      pillKill.className = "pix-pill off";
+    } else {
+      pillKill.textContent = "KILL OFF";
+      pillKill.className = "pix-pill on";
+    }
+
+    if (status.armed) {
+      pillArm.textContent = "ARMED";
+      pillArm.className = "pix-pill warn";
+    } else {
+      pillArm.textContent = "DISARMED";
+      pillArm.className = "pix-pill";
+    }
+
+    const dry = status.dry_run_live !== false;
+    if (String(status.mode || hb.mode || "") === "live" && !dry) {
+      pillDry.textContent = "LIVE POST";
+      pillDry.className = "pix-pill off";
+    } else {
+      pillDry.textContent = dry ? "DRY RUN" : "DRY OFF";
+      pillDry.className = dry ? "pix-pill on" : "pix-pill warn";
+    }
+  }
+
   function eventKey(row) {
     return [
       row.ts || "",
@@ -151,6 +235,9 @@
     if (row.event === "sit_out" || row.event === "blocked") {
       return `${String(row.event).toUpperCase()} ${row.coin || ""} · ${row.reason || ""}`.trim();
     }
+    if (row.event === "kill") {
+      return `KILL · ${row.reason || ""}`;
+    }
     if (row.event === "boot") {
       return `BOOT mode=${row.mode || "?"} ensemble=${row.ensemble ?? "?"}`;
     }
@@ -178,50 +265,29 @@
     return res.json();
   }
 
-  function setLinkOff(label) {
-    pillAlive.textContent = label;
-    pillAlive.className = "pix-pill off";
-  }
-
   async function tick() {
     if (inFlight) return;
     inFlight = true;
     try {
-      const [hb, desk, stats, ev] = await Promise.all([
-        getJson("/api/heartbeat"),
-        getJson("/api/desk"),
-        getJson("/api/stats"),
-        getJson(`/api/events?after=${after}&limit=120`),
-      ]);
+      const snap = await getJson(`/api/snapshot?after=${after}&limit=120`);
+      const hb = snap.heartbeat || {};
+      const status = snap.status || {};
+      const stats = snap.stats || {};
+      const ens = (snap.desk && snap.desk.ensemble) || null;
+      const pos = snap.position || {};
+      const ev = snap.events || {};
 
-      if (hb.alive) {
-        pillAlive.textContent = "LINK ON";
-        pillAlive.className = "pix-pill on";
-        pillMode.textContent = `MODE ${String(hb.mode || "?").toUpperCase()}`;
-        pillMode.className = "pix-pill warn";
-        pillTick.textContent = `TICK ${hb.ticks ?? "--"}`;
-        pillTick.className = "pix-pill";
-      } else {
-        setLinkOff("LINK OFF");
-        pillMode.textContent = `MODE ${String(hb.mode || "--").toUpperCase()}`;
-        pillMode.className = "pix-pill";
-        const age = hb.age_s != null ? `AGE ${Math.round(Number(hb.age_s))}s` : "TICK --";
-        pillTick.textContent = hb.ticks != null ? `TICK ${hb.ticks} · ${age}` : age;
-        pillTick.className = "pix-pill off";
-      }
-
-      document.getElementById("stat-fills").textContent = String(stats.fills ?? 0);
-      document.getElementById("stat-exits").textContent = String(stats.exits ?? 0);
-      document.getElementById("stat-sit").textContent = String(stats.sit_outs ?? 0);
-      document.getElementById("stat-pnl").textContent = Number(stats.pnl_usd || 0).toFixed(3);
-
-      renderDecision(desk.ensemble);
+      renderPills(hb, status);
+      renderStats(stats);
+      renderDecision(ens);
+      renderPosition(pos);
       (ev.events || []).forEach(pushFeed);
       if (typeof ev.next === "number" && ev.next >= after) {
         after = ev.next;
       }
     } catch (err) {
-      setLinkOff("LINK ERR");
+      pillAlive.textContent = "LINK ERR";
+      pillAlive.className = "pix-pill off";
       console.warn(err);
     } finally {
       inFlight = false;

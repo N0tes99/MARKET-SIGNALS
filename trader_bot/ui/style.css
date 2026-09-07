@@ -215,8 +215,19 @@ body {
   margin-bottom: 20px;
 }
 
+.board.board-3 {
+  grid-template-columns: 1.2fr 1fr 1.1fr;
+}
+
+@media (max-width: 960px) {
+  .board.board-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 720px) {
-  .board {
+  .board,
+  .board.board-3 {
     grid-template-columns: 1fr;
   }
 }
@@ -255,10 +266,35 @@ body {
   color: var(--muted);
 }
 
+.position-state {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(14px, 2.6vw, 18px);
+  line-height: 1.5;
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.position-state.flat {
+  color: var(--muted);
+}
+
+.position-state.open.buy {
+  color: var(--mint);
+}
+
+.position-state.open.sell {
+  color: var(--coral);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px 10px;
+}
+
+.stat-grid.dense {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 8px;
 }
 
 .stat-grid .k {
@@ -273,6 +309,14 @@ body {
   font-family: "Press Start 2P", monospace;
   font-size: 14px;
   color: var(--fog);
+}
+
+.stat-grid .v.pos {
+  color: var(--mint);
+}
+
+.stat-grid .v.neg {
+  color: var(--coral);
 }
 
 .feed-wrap {

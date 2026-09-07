@@ -96,9 +96,23 @@ def latest_ensemble(path: Path, *, max_scan: int = 4_000) -> dict | None:
 def journal_stats(path: Path) -> dict[str, float | int]:
     """Single-pass stats without materializing every event."""
     fills = exits = sit = lines = 0
+    blocks = kills = ensembles = 0
+    wins = losses = 0
     pnl = 0.0
     if not path.is_file():
-        return {"fills": 0, "exits": 0, "sit_outs": 0, "pnl_usd": 0.0, "lines": 0}
+        return {
+            "fills": 0,
+            "exits": 0,
+            "sit_outs": 0,
+            "pnl_usd": 0.0,
+            "lines": 0,
+            "wins": 0,
+            "losses": 0,
+            "expectancy": 0.0,
+            "blocks": 0,
+            "kills": 0,
+            "ensembles": 0,
+        }
     with path.open(encoding="utf-8") as handle:
         for line in handle:
             text = line.strip()
@@ -115,17 +129,35 @@ def journal_stats(path: Path) -> dict[str, float | int]:
             elif ev == "exit":
                 exits += 1
                 try:
-                    pnl += float(row.get("pnl_usd") or 0)
+                    trade_pnl = float(row.get("pnl_usd") or 0)
                 except (TypeError, ValueError):
-                    pass
+                    trade_pnl = 0.0
+                pnl += trade_pnl
+                if trade_pnl > 0:
+                    wins += 1
+                elif trade_pnl < 0:
+                    losses += 1
             elif ev == "sit_out":
                 sit += 1
+            elif ev == "blocked":
+                blocks += 1
+            elif ev == "kill":
+                kills += 1
+            elif ev == "ensemble":
+                ensembles += 1
+    expectancy = (pnl / exits) if exits else 0.0
     return {
         "fills": fills,
         "exits": exits,
         "sit_outs": sit,
         "pnl_usd": pnl,
         "lines": lines,
+        "wins": wins,
+        "losses": losses,
+        "expectancy": expectancy,
+        "blocks": blocks,
+        "kills": kills,
+        "ensembles": ensembles,
     }
 
 
@@ -182,6 +214,8 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
     static = ui_dir()
     journal = data_dir / "journal.jsonl"
     heartbeat = data_dir / "heartbeat.json"
+    position_path = data_dir / "position.json"
+    status_path = data_dir / "status.json"
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args: object) -> None:
@@ -198,6 +232,18 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
         def _json(self, code: int, payload: object) -> None:
             raw = json.dumps(payload, default=str).encode("utf-8")
             self._send(code, raw, "application/json; charset=utf-8")
+
+        def _position(self) -> dict:
+            from hl_scalper.ui_state import read_json_file
+
+            body = read_json_file(position_path)
+            return body if body is not None else {"open": False}
+
+        def _status(self) -> dict:
+            from hl_scalper.ui_state import read_json_file
+
+            body = read_json_file(status_path)
+            return body if body is not None else {"mode": None, "armed": False, "killed": False}
 
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
@@ -236,6 +282,28 @@ def make_handler(data_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/api/stats":
                 self._json(200, journal_stats(journal))
+                return
+            if path == "/api/position":
+                self._json(200, self._position())
+                return
+            if path == "/api/status":
+                self._json(200, self._status())
+                return
+            if path == "/api/snapshot":
+                after = max(0, _safe_int(qs.get("after", ["0"]), 0))
+                limit = min(500, max(1, _safe_int(qs.get("limit", ["120"]), 120)))
+                events, next_after = read_jsonl_tail(journal, after=after, limit=limit)
+                self._json(
+                    200,
+                    {
+                        "heartbeat": heartbeat_payload(heartbeat),
+                        "desk": {"ensemble": latest_ensemble(journal)},
+                        "stats": journal_stats(journal),
+                        "position": self._position(),
+                        "status": self._status(),
+                        "events": {"after": after, "next": next_after, "events": events},
+                    },
+                )
                 return
 
             self._json(404, {"error": "not_found", "path": path})

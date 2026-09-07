@@ -20,6 +20,7 @@ from hl_scalper.reconcile import ClearinghouseClient, reconcile_flat_local
 from hl_scalper.risk import RiskGate
 from hl_scalper.sizer import size_notional
 from hl_scalper.strategy import StrategyParams, evaluate
+from hl_scalper.ui_state import publish_runtime
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -105,6 +106,37 @@ def main(argv: list[str] | None = None) -> int:
         ensemble=settings.ensemble,
         ensemble_min_agree=settings.ensemble_min_agree,
     )
+    publish_runtime(
+        data_dir,
+        settings=settings,
+        mode=args.mode,
+        risk=risk,
+        open_pos=None,
+        books=None,
+        ticks=0,
+    )
+
+    def beat(books: dict[str, L2Book] | None = None) -> None:
+        publish_runtime(
+            data_dir,
+            settings=settings,
+            mode=args.mode,
+            risk=risk,
+            open_pos=open_pos,
+            books=books,
+            ticks=ticks,
+        )
+        heartbeat.beat(
+            mode=args.mode,
+            coins=settings.coins,
+            extra={
+                "ticks": ticks,
+                "open": open_pos.fill.coin if open_pos else None,
+                "day_pnl_usd": risk.state.day_pnl_usd,
+                "killed": risk.state.killed,
+                "kill_reason": risk.state.kill_reason or None,
+            },
+        )
 
     def manage_exit(books: dict[str, L2Book]) -> None:
         nonlocal open_pos
@@ -216,24 +248,11 @@ def main(argv: list[str] | None = None) -> int:
         manage_exit(books)
 
         if open_pos is not None or risk.state.killed:
-            heartbeat.beat(
-                mode=args.mode,
-                coins=settings.coins,
-                extra={
-                    "ticks": ticks,
-                    "open": open_pos.fill.coin if open_pos else None,
-                    "day_pnl_usd": risk.state.day_pnl_usd,
-                    "killed": risk.state.killed,
-                },
-            )
+            beat(books)
             return
 
         if not maybe_reconcile():
-            heartbeat.beat(
-                mode=args.mode,
-                coins=settings.coins,
-                extra={"ticks": ticks, "killed": True},
-            )
+            beat(books)
             return
 
         for coin, book in books.items():
@@ -307,16 +326,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             break
 
-        heartbeat.beat(
-            mode=args.mode,
-            coins=settings.coins,
-            extra={
-                "ticks": ticks,
-                "open": open_pos.fill.coin if open_pos else None,
-                "day_pnl_usd": risk.state.day_pnl_usd,
-                "killed": risk.state.killed,
-            },
-        )
+        beat(books)
 
     try:
         if args.once:

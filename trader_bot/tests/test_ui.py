@@ -97,6 +97,122 @@ def test_journal_stats(tmp_path: Path) -> None:
     assert stats["sit_outs"] == 1
     assert abs(float(stats["pnl_usd"]) - 1.25) < 1e-9
     assert stats["lines"] == 6
+    assert stats["wins"] == 1
+    assert stats["losses"] == 1
+    assert abs(float(stats["expectancy"]) - 0.625) < 1e-9
+    assert stats["ensembles"] == 1
+
+
+def test_position_and_status_payloads() -> None:
+    from hl_scalper.position import PaperPosition
+    from hl_scalper.types import Fill
+    from hl_scalper.ui_state import position_payload, status_payload
+
+    flat = position_payload(None)
+    assert flat["open"] is False
+
+    fill = Fill(
+        fill_id="f1",
+        coin="BTC",
+        side="buy",
+        qty=0.01,
+        px=100.0,
+        fee_usd=0.01,
+        status="filled",
+        reason="test",
+        created_at=datetime.now(UTC),
+    )
+    pos = PaperPosition(
+        fill=fill,
+        entry_mid=100.0,
+        opened_at=datetime.now(UTC) - timedelta(seconds=3),
+        hold_seconds=6,
+    )
+    open_payload = position_payload(pos)
+    assert open_payload["open"] is True
+    assert open_payload["coin"] == "BTC"
+    assert open_payload["side"] == "buy"
+
+    settings = Settings(data_dir="/tmp/x", arm_file="/tmp/no-arm")
+    risk = RiskGate(settings)
+    st = status_payload(settings=settings, mode="paper", risk=risk, ticks=2)
+    assert st["mode"] == "paper"
+    assert st["armed"] is False
+    assert st["dry_run_live"] is True
+    assert st["killed"] is False
+
+
+def test_api_snapshot(tmp_path: Path) -> None:
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from hl_scalper.ui_state import atomic_json
+
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        "\n".join(
+            [
+                json.dumps({"event": "boot", "mode": "paper"}),
+                json.dumps({"event": "exit", "pnl_usd": 1.0}),
+                json.dumps({"event": "exit", "pnl_usd": -0.5}),
+                json.dumps({"event": "kill", "reason": "test"}),
+                json.dumps(
+                    {
+                        "event": "ensemble",
+                        "action": "sit_out",
+                        "coin": "ETH",
+                        "reason": "no_enters",
+                        "proposals": [],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "heartbeat.json").write_text(
+        json.dumps({"ts": datetime.now(UTC).isoformat(), "mode": "paper", "ticks": 4}),
+        encoding="utf-8",
+    )
+    atomic_json(tmp_path / "position.json", {"open": False})
+    atomic_json(
+        tmp_path / "status.json",
+        {"mode": "paper", "armed": False, "killed": False, "dry_run_live": True},
+    )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(tmp_path))
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/snapshot?after=0&limit=50",
+            timeout=2,
+        ) as resp:
+            snap = json.loads(resp.read().decode("utf-8"))
+        assert snap["heartbeat"]["alive"] is True
+        assert snap["stats"]["wins"] == 1
+        assert snap["stats"]["losses"] == 1
+        assert snap["stats"]["kills"] == 1
+        assert snap["position"]["open"] is False
+        assert snap["status"]["mode"] == "paper"
+        assert snap["desk"]["ensemble"]["coin"] == "ETH"
+        assert snap["events"]["next"] >= 1
+
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/position",
+            timeout=2,
+        ) as resp:
+            assert json.loads(resp.read().decode("utf-8"))["open"] is False
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/status",
+            timeout=2,
+        ) as resp:
+            assert json.loads(resp.read().decode("utf-8"))["dry_run_live"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_heartbeat_stale(tmp_path: Path) -> None:

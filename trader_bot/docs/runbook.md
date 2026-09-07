@@ -59,7 +59,8 @@ python3 -m hl_scalper.webapp --data-dir data --port 8787
 ```
 
 Open http://127.0.0.1:8787 — agent vote tiles, decision board, tally, and event tape.
-API: `/api/health`, `/api/heartbeat`, `/api/desk`, `/api/stats`, `/api/events?after=N`.
+API: `/api/health`, `/api/heartbeat`, `/api/desk`, `/api/stats`, `/api/events?after=N`,
+`/api/position`, `/api/status`, and `/api/snapshot?after=N` (combined poll used by the UI).
 
 ## Replay
 
@@ -75,6 +76,8 @@ python3 -m hl_scalper.report --journal data/replay_journal.jsonl
 |------|---------|
 | `data/journal.jsonl` | boot / ensemble / signal / fill / exit / sit_out / kill / errors |
 | `data/heartbeat.json` | last successful tick (supervisor + UI LINK probe; stale > ~20s → LINK OFF) |
+| `data/position.json` | open inventory snapshot for the desk (flat or mark PnL) |
+| `data/status.json` | mode / ensemble / dry-run / arm gates / kill |
 | `data/books.jsonl` | optional recorded books for later replay |
 
 ## systemd
