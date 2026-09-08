@@ -1,21 +1,24 @@
 [Unit]
-Description=HL book-imbalance scalper (paper daemon)
+Description=HL scalper paper loop (S1/S2)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
+# Edit these paths for your host:
 WorkingDirectory=/opt/hl-scalper
-# Install: cd trader_bot && python3 -m pip install -e .
-ExecStart=/usr/bin/python3 -m hl_scalper.loop --mode paper --data-dir /opt/hl-scalper/data --interval 1
+# pip install -e /path/to/trader_bot
+ExecStart=/usr/bin/python3 -m hl_scalper.loop --mode paper --maker --ensemble --coins BTC,ETH --data-dir /opt/hl-scalper/data --interval 2
 Restart=always
-RestartSec=3
-# No secrets required for paper mode.
+RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+# Optional: HL_ENSEMBLE=true HL_MAKER=true HL_USE_WS=true
 
-# Hardening (paper still benefits)
 NoNewPrivileges=true
 PrivateTmp=true
+
+# Kill switch clears only on process restart — intentional.
+# Do not put HL_MASTER_PRIVATE_KEY here. Agent key only if/when live.
 
 [Install]
 WantedBy=multi-user.target
