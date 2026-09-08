@@ -12,7 +12,7 @@ from hl_scalper.agents import AgentDesk
 from hl_scalper.arming import check_arming
 from hl_scalper.config import Settings
 from hl_scalper.execution import LiveTradingDisabled, build_executor
-from hl_scalper.execution.maker import PaperMakerBook, RestingQuote
+from hl_scalper.execution.maker import PaperMakerBook, QuoteBook, RestingQuote
 from hl_scalper.feed import L2Book
 from hl_scalper.feed.ws import HybridBookFeed, build_feed
 from hl_scalper.journal import Heartbeat, Journal
@@ -21,7 +21,7 @@ from hl_scalper.reconcile import ClearinghouseClient, reconcile_flat_local
 from hl_scalper.risk import RiskGate
 from hl_scalper.sizer import size_notional
 from hl_scalper.strategy import StrategyParams, evaluate
-from hl_scalper.strategy.maker import MakerParams, evaluate_maker
+from hl_scalper.strategy.maker import MakerParams, plan_maker_quotes
 from hl_scalper.ui_state import publish_runtime
 
 
@@ -104,11 +104,12 @@ def main(argv: list[str] | None = None) -> int:
         lean=settings.maker_lean,
         cancel_bps=settings.maker_cancel_bps,
         join_inside_bps=settings.maker_join_inside_bps,
+        twosided=settings.maker_twosided,
     )
     reconciler = ClearinghouseClient(info_url=settings.info_url)
     master = os.environ.get("HL_MASTER_ADDRESS", "").strip()
     open_pos: PaperPosition | None = None
-    open_quote: RestingQuote | None = None
+    quote_book = QuoteBook()
     feed_failures = 0
     ticks = 0
 
@@ -126,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         ensemble_min_agree=settings.ensemble_min_agree,
         maker_enabled=settings.maker_enabled,
         maker_fee_bps=settings.maker_fee_bps,
+        maker_twosided=settings.maker_twosided,
     )
     publish_runtime(
         data_dir,
@@ -153,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             extra={
                 "ticks": ticks,
                 "open": open_pos.fill.coin if open_pos else None,
-                "quote": open_quote.coin if open_quote else None,
+                "quotes": [f"{q.coin}:{q.side}@{q.limit_px}" for q in quote_book.quotes.values()],
                 "day_pnl_usd": risk.state.day_pnl_usd,
                 "killed": risk.state.killed,
                 "kill_reason": risk.state.kill_reason or None,
@@ -185,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         risk.state.open_positions = max(0, risk.state.open_positions - 1)
         risk.record_pnl(closed.pnl_usd)
+        for q in list(quote_book.all_for_coin(closed.coin)):
+            _cancel_quote(q, "position_closed")
         journal.write(
             "exit",
             fill_id=closed.fill_id,
@@ -205,52 +209,165 @@ def main(argv: list[str] | None = None) -> int:
         )
         open_pos = None
 
-    def manage_quote(books: dict[str, L2Book]) -> None:
-        nonlocal open_quote, open_pos
-        if open_quote is None or maker_book is None:
-            return
-        book = books.get(open_quote.coin)
-        outcome, fill, why = maker_book.poll(open_quote, book)
-        if outcome == "rest":
-            return
-        if outcome == "cancel":
-            journal.write(
-                "quote_cancel",
-                coin=open_quote.coin,
-                side=open_quote.side,
-                limit_px=open_quote.limit_px,
-                reason=why,
-                cloid=open_quote.cloid,
-            )
-            open_quote = None
-            return
-        # fill
-        assert fill is not None
-        risk.state.open_positions += 1
-        open_pos = PaperPosition(
-            fill=fill,
-            entry_mid=open_quote.placed_mid,
-            opened_at=datetime.now(UTC),
-            hold_seconds=settings.hold_seconds,
-            entry_imbalance=open_quote.imbalance,
-        )
+    def _cancel_quote(quote: RestingQuote, reason: str) -> None:
         journal.write(
-            "fill",
-            fill_id=fill.fill_id,
-            coin=fill.coin,
-            side=fill.side,
-            qty=fill.qty,
-            px=fill.px,
-            fee_usd=fill.fee_usd,
-            status=fill.status,
-            notional_usd=open_quote.notional_usd,
-            edge_score=open_quote.edge_score,
-            imbalance=open_quote.imbalance,
-            spread_bps=open_quote.spread_bps,
-            execution="maker",
-            ensemble=bool(desk),
+            "quote_cancel",
+            coin=quote.coin,
+            side=quote.side,
+            limit_px=quote.limit_px,
+            reason=reason,
+            cloid=quote.cloid,
         )
-        open_quote = None
+        quote_book.remove(quote)
+
+    def _place_quote(signal, notional_usd: float) -> RestingQuote | None:
+        if maker_book is None:
+            return None
+        existing = quote_book.get(signal.coin, signal.side)
+        if existing is not None:
+            # Refresh if price drifted; else keep resting.
+            if signal.limit_px is not None and abs(existing.limit_px - signal.limit_px) / signal.limit_px < 1e-8:
+                return existing
+            _cancel_quote(existing, "reprice")
+        quote = maker_book.place(signal, notional_usd)
+        quote_book.upsert(quote)
+        journal.write(
+            "quote_place",
+            coin=quote.coin,
+            side=quote.side,
+            limit_px=quote.limit_px,
+            qty=quote.qty,
+            notional_usd=quote.notional_usd,
+            cloid=quote.cloid,
+            reason=quote.reason,
+            maker_fee_bps=settings.maker_fee_bps,
+            twosided=settings.maker_twosided,
+        )
+        return quote
+
+    def manage_quotes(books: dict[str, L2Book]) -> None:
+        nonlocal open_pos
+        if maker_book is None:
+            return
+        # Poll resting quotes.
+        for quote in list(quote_book.quotes.values()):
+            book = books.get(quote.coin)
+            outcome, fill, why = maker_book.poll(quote, book)
+            if outcome == "rest":
+                continue
+            if outcome == "cancel":
+                _cancel_quote(quote, why)
+                continue
+            assert fill is not None
+            # First fill wins inventory; cancel sibling quotes on this coin.
+            for other in quote_book.all_for_coin(quote.coin):
+                if other.cloid != quote.cloid:
+                    _cancel_quote(other, "sibling_filled")
+            quote_book.remove(quote)
+            if open_pos is not None:
+                # Opposite-side fill flattens inventory; same-side is unexpected.
+                if fill.side == open_pos.fill.side:
+                    journal.write(
+                        "quote_cancel",
+                        coin=quote.coin,
+                        side=quote.side,
+                        limit_px=quote.limit_px,
+                        reason="fill_while_open_same_side",
+                        cloid=quote.cloid,
+                    )
+                    continue
+                closed = close_from_fill(open_pos, fill, reason="maker_flatten")
+                risk.state.open_positions = max(0, risk.state.open_positions - 1)
+                risk.record_pnl(closed.pnl_usd)
+                journal.write(
+                    "exit",
+                    fill_id=closed.fill_id,
+                    close_fill_id=fill.fill_id,
+                    close_status=fill.status,
+                    coin=closed.coin,
+                    side=closed.side,
+                    qty=closed.qty,
+                    entry_px=closed.entry_px,
+                    exit_px=closed.exit_px,
+                    entry_fee_usd=closed.entry_fee_usd,
+                    exit_fee_usd=closed.exit_fee_usd,
+                    pnl_usd=closed.pnl_usd,
+                    hold_seconds=closed.hold_seconds,
+                    reason=closed.reason,
+                    day_pnl_usd=risk.state.day_pnl_usd,
+                    killed=risk.state.killed,
+                    execution="maker",
+                )
+                open_pos = None
+                continue
+            risk.state.open_positions += 1
+            open_pos = PaperPosition(
+                fill=fill,
+                entry_mid=quote.placed_mid,
+                opened_at=datetime.now(UTC),
+                hold_seconds=settings.hold_seconds,
+                entry_imbalance=quote.imbalance,
+            )
+            journal.write(
+                "fill",
+                fill_id=fill.fill_id,
+                coin=fill.coin,
+                side=fill.side,
+                qty=fill.qty,
+                px=fill.px,
+                fee_usd=fill.fee_usd,
+                status=fill.status,
+                notional_usd=quote.notional_usd,
+                edge_score=quote.edge_score,
+                imbalance=quote.imbalance,
+                spread_bps=quote.spread_bps,
+                execution="maker",
+                ensemble=bool(desk),
+            )
+
+        # Two-sided inventory quotes are solo --maker; ensemble places via ballot.
+        if desk is not None:
+            return
+
+        inventory_coin = open_pos.fill.coin if open_pos else None
+        inventory_side = open_pos.fill.side if open_pos else None
+
+        for coin, book in books.items():
+            if args.mode == "live" and coin not in settings.live_coins:
+                continue
+            if inventory_coin is not None and coin != inventory_coin:
+                for q in quote_book.all_for_coin(coin):
+                    _cancel_quote(q, "other_coin_open")
+                continue
+
+            inv = inventory_side if inventory_coin is not None else None
+            wanted = plan_maker_quotes(book, inventory=inv, params=maker_params)
+            wanted_sides = {s.side for s in wanted}
+            for q in list(quote_book.all_for_coin(coin)):
+                if q.side not in wanted_sides:
+                    _cancel_quote(q, "inventory_skew")
+            if risk.state.killed:
+                continue
+            for signal in wanted:
+                # Never add size; only flatten when inventory is open.
+                if open_pos is not None and signal.side == open_pos.fill.side:
+                    continue
+                reduce_only = open_pos is not None
+                gate = risk.check(signal, book_age_s=book.age_s, reduce_only=reduce_only)
+                if not gate.allowed:
+                    continue
+                sized = size_notional(settings, signal, risk.state.equity_usd)
+                if sized.notional_usd <= 0:
+                    continue
+                if args.mode == "live":
+                    journal.write(
+                        "blocked",
+                        coin=coin,
+                        reason="maker_live_scaffold_paper_only",
+                        execution="maker",
+                    )
+                    continue
+                _place_quote(signal, sized.notional_usd)
 
     def maybe_reconcile() -> bool:
         if args.mode != "live" or not settings.reconcile_each_entry or not master:
@@ -278,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         return True
 
     def tick() -> None:
-        nonlocal open_pos, open_quote, feed_failures, ticks
+        nonlocal open_pos, feed_failures, ticks
         ticks += 1
         books: dict[str, L2Book] = {}
         got_any = False
@@ -314,24 +431,17 @@ def main(argv: list[str] | None = None) -> int:
             feed_failures = 0
 
         manage_exit(books)
-        if risk.state.killed and open_quote is not None:
-            journal.write(
-                "quote_cancel",
-                coin=open_quote.coin,
-                side=open_quote.side,
-                limit_px=open_quote.limit_px,
-                reason="killed",
-                cloid=open_quote.cloid,
-            )
-            open_quote = None
-        manage_quote(books)
+        if risk.state.killed:
+            for q in list(quote_book.quotes.values()):
+                _cancel_quote(q, "killed")
+        manage_quotes(books)
 
         if open_pos is not None or risk.state.killed:
             beat(books)
             return
 
-        if open_quote is not None:
-            # Wait for fill/cancel before new entries.
+        # Solo maker: quotes are maintained in manage_quotes; no taker entry loop.
+        if settings.maker_enabled and desk is None:
             beat(books)
             return
 
@@ -350,22 +460,6 @@ def main(argv: list[str] | None = None) -> int:
                     journal.write("sit_out", coin=coin, reason=desk_decision.reason)
                     continue
                 signal = desk_decision.signal
-            elif settings.maker_enabled and maker_book is not None:
-                signal = evaluate_maker(book, maker_params)
-                if signal is None:
-                    journal.write("sit_out", coin=coin, reason="no_maker_quote")
-                    continue
-                gate = risk.check(signal, book_age_s=book.age_s)
-                if not gate.allowed:
-                    journal.write(
-                        "blocked",
-                        coin=coin,
-                        reason=gate.reason,
-                        side=signal.side,
-                        imbalance=signal.imbalance,
-                        execution="maker",
-                    )
-                    continue
             else:
                 signal = evaluate(book, params)
                 if signal is None:
@@ -408,21 +502,7 @@ def main(argv: list[str] | None = None) -> int:
                         execution="maker",
                     )
                     continue
-                if maker_book is None:
-                    journal.write("blocked", coin=coin, reason="maker_disabled")
-                    continue
-                open_quote = maker_book.place(signal, sized.notional_usd)
-                journal.write(
-                    "quote_place",
-                    coin=open_quote.coin,
-                    side=open_quote.side,
-                    limit_px=open_quote.limit_px,
-                    qty=open_quote.qty,
-                    notional_usd=open_quote.notional_usd,
-                    cloid=open_quote.cloid,
-                    reason=open_quote.reason,
-                    maker_fee_bps=settings.maker_fee_bps,
-                )
+                _place_quote(signal, sized.notional_usd)
                 break
 
             try:

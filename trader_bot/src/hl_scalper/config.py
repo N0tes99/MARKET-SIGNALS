@@ -44,6 +44,7 @@ class Settings:
     maker_lean: float = 0.55
     maker_cancel_bps: float = 4.0
     maker_join_inside_bps: float = 0.0
+    maker_twosided: bool = True  # flat → quote both sides; inventory skews to flatten
     hold_seconds: float = 5.0
     adverse_exit_bps: float = 8.0
     max_feed_failures: int = 10
@@ -73,6 +74,7 @@ class Settings:
             use_ws=_env_bool("HL_USE_WS", True),
             ensemble=_env_bool("HL_ENSEMBLE", False),
             maker_enabled=_env_bool("HL_MAKER", False),
+            maker_twosided=_env_bool("HL_MAKER_TWOSIDED", True),
         )
         if not overrides:
             return base

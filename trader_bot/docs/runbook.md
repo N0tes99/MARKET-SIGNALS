@@ -19,7 +19,7 @@ Useful flags:
 | `--record-books` | Also append L2 snapshots to `data/books.jsonl` |
 | `--data-dir PATH` | Journal + heartbeat + arm file directory |
 | `--ensemble` | Multi-agent desk (min 2 agree; disagreement sits out) |
-| `--maker` | S2 post-only paper quotes (join touch; cancel/fill from L2) |
+| `--maker` | S2 two-sided paper quotes + inventory skew (join touch; cancel/fill from L2) |
 
 ## Report
 

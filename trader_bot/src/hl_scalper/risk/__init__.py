@@ -33,7 +33,9 @@ class RiskGate:
         self.settings = settings
         self.state = state or RiskState(equity_usd=settings.paper_equity_usd)
 
-    def check(self, signal: Signal, book_age_s: float) -> RiskDecision:
+    def check(
+        self, signal: Signal, book_age_s: float, *, reduce_only: bool = False
+    ) -> RiskDecision:
         if self.state.killed:
             return RiskDecision(False, f"killed:{self.state.kill_reason}")
         now = time.time()
@@ -41,7 +43,11 @@ class RiskGate:
             return RiskDecision(False, "cooldown")
         if book_age_s > self.settings.max_book_age_s:
             return RiskDecision(False, "stale_book")
-        if self.state.open_positions >= self.settings.max_concurrent_positions:
+        # Flatten / reduce-only quotes may rest while inventory is open.
+        if (
+            not reduce_only
+            and self.state.open_positions >= self.settings.max_concurrent_positions
+        ):
             return RiskDecision(False, "max_positions")
 
         day_limit = -self.settings.daily_loss_kill_pct * self.state.equity_usd

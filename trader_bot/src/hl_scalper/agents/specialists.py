@@ -178,6 +178,7 @@ class MakerAgent:
             lean=settings.maker_lean,
             cancel_bps=settings.maker_cancel_bps,
             join_inside_bps=settings.maker_join_inside_bps,
+            twosided=False,  # ensemble votes one-sided; solo loop owns two-sided book
         )
 
     def propose(self, snap: MarketSnapshot) -> Proposal:

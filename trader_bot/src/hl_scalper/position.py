@@ -8,7 +8,14 @@ from hl_scalper.types import Fill
 from hl_scalper.feed import L2Book
 from hl_scalper.strategy import Side, StrategyParams, evaluate
 
-ExitReason = Literal["hold_expired", "imbalance_flip", "adverse_mid", "manual", "kill"]
+ExitReason = Literal[
+    "hold_expired",
+    "imbalance_flip",
+    "adverse_mid",
+    "manual",
+    "kill",
+    "maker_flatten",
+]
 
 
 @dataclass

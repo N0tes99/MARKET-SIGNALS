@@ -1,8 +1,8 @@
-"""Paper resting post-only quotes (S2 maker scaffold)."""
+"""Paper resting post-only quotes (S2 maker — one or two sided)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -30,8 +30,36 @@ class RestingQuote:
     edge_score: float
 
 
+@dataclass
+class QuoteBook:
+    """Resting quotes keyed by (coin, side)."""
+
+    quotes: dict[tuple[str, str], RestingQuote] = field(default_factory=dict)
+
+    def get(self, coin: str, side: Side) -> RestingQuote | None:
+        return self.quotes.get((coin, side))
+
+    def all_for_coin(self, coin: str) -> list[RestingQuote]:
+        return [q for (c, _), q in self.quotes.items() if c == coin]
+
+    def sides(self, coin: str) -> set[str]:
+        return {s for (c, s) in self.quotes if c == coin}
+
+    def clear_coin(self, coin: str) -> list[RestingQuote]:
+        removed = [q for (c, _), q in list(self.quotes.items()) if c == coin]
+        for q in removed:
+            self.quotes.pop((q.coin, q.side), None)
+        return removed
+
+    def remove(self, quote: RestingQuote) -> None:
+        self.quotes.pop((quote.coin, quote.side), None)
+
+    def upsert(self, quote: RestingQuote) -> None:
+        self.quotes[(quote.coin, quote.side)] = quote
+
+
 class PaperMakerBook:
-    """One resting post-only order; cancel / fill from L2 touch."""
+    """Place / poll post-only quotes; supports two-sided books."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings

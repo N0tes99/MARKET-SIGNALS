@@ -112,7 +112,11 @@ def status_payload(
         {
             "id": "maker",
             "name": "S2 maker",
-            "role": "post-only join quote",
+            "role": (
+                "two-sided join + inventory skew"
+                if settings.maker_twosided
+                else "post-only join quote"
+            ),
             "active": bool(settings.maker_enabled),
             "solo_default": False,
         },
@@ -169,6 +173,7 @@ def status_payload(
         "taker_fee_bps": settings.taker_fee_bps,
         "maker_fee_bps": settings.maker_fee_bps,
         "maker_enabled": settings.maker_enabled,
+        "maker_twosided": settings.maker_twosided,
         "ioc_slip_bps_min": settings.ioc_slip_bps_min,
         "fee_edge_buffer_bps": settings.fee_edge_buffer_bps,
         "strategies": strategies,

@@ -8,7 +8,7 @@ S2 maker uses **paper post-only** resting quotes (live ALO deferred).
 | ID | Name | When active | What it does |
 |----|------|-------------|--------------|
 | `imbalance` | **S1** L2 book imbalance | Always (solo default) | Taker enter when skew ≥ 0.72 / ≤ 0.28 and spread ≤ 12 bps |
-| `maker` | **S2** post-only join | `--maker` / `HL_MAKER=true` | Rest join bid/ask on mild lean; cancel on adverse/cross; fill on touch |
+| `maker` | **S2** inventory maker | `--maker` / `HL_MAKER=true` | Flat: join **both** sides; long→ask only / short→bid only; cancel siblings on fill |
 | `funding` | **S3-lite** funding lean | `--ensemble` only | Enter against rich/cheap funding extremes |
 | `liquidity` | Liquidity / depth gate | `--ensemble` only | Sit out on thin/wide books; soft lean at 0.60/0.40 imb |
 | `spread_micro` | **S2-lite** tight spread vote | `--ensemble` only | Vote-only tight-spread lean (does not rest quotes) |
@@ -16,11 +16,11 @@ S2 maker uses **paper post-only** resting quotes (live ALO deferred).
 
 ### Solo modes
 - Default: S1 taker `evaluate()` → RiskGate → IOC executor  
-- `--maker`: S2 maker `evaluate_maker()` → RiskGate → paper resting quote  
+- `--maker`: S2 `plan_maker_quotes()` → RiskGate → paper quote book (two-sided + inventory skew; `HL_MAKER_TWOSIDED=false` for one-sided lean)
 
 ### Ensemble mode (`--ensemble`)
 Specialists vote → coordinator (min 2 agree) → RiskGate → executor.  
-With `--maker`, `MakerAgent` joins the ballot; if its maker `Signal` wins, paper rests a quote instead of IOC.
+With `--maker`, `MakerAgent` joins the ballot (one-sided lean vote); if its maker `Signal` wins, paper rests that quote instead of IOC.
 
 ```bash
 # S2 maker paper only
@@ -44,6 +44,8 @@ Flatten still uses **taker IOC** economics (urgent exit).
 
 ### Maker (S2 paper)
 - Join best bid/ask (post-only; never cross)
+- Flat + `maker_twosided`: rest **bid and ask**; inventory skews to flatten only
+- Sibling cancel on fill; flatten fill closes via `maker_flatten` (else hold/adverse still IOC)
 - Fee: `maker_fee_bps` (default **1.0**, conservative vs rebate)
 - Cancel: adverse mid / would-cross / off-touch (`maker_cancel_bps`)
 - Fill: when touch trades to resting price
@@ -51,6 +53,5 @@ Flatten still uses **taker IOC** economics (urgent exit).
 
 ## Not built yet
 - Live ALO / post-only on HL `/exchange`
-- Two-sided simultaneous quotes + inventory skew controller
 - True maker rebate tier from account fees
-- Funding carry PnL on holds
+- Funding carry PnL on holds / hedged funding (S3)
