@@ -22,3 +22,4 @@ export function writeSessionSnapshot(key: string, value: unknown): void {
 
 export const ASSETS_SNAPSHOT_KEY = "se.assets.v1";
 export const PAPER_SNAPSHOT_KEY = "se.paper.v1";
+export const QUOTES_SNAPSHOT_KEY = "se.quotes.v1";

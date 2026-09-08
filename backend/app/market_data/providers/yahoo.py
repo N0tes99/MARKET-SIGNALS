@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 import pandas as pd
-import yfinance as yf
 
 from app.market_data.normalizer import STANDARD_COLUMNS
 from app.market_data.symbols import (
@@ -14,6 +13,7 @@ from app.market_data.symbols import (
     looks_like_yahoo_future,
 )
 from app.market_data.types import DerivativesSnapshot, TickerSnapshot
+from app.market_data.yfinance_client import yf_ticker
 
 _YF_INTERVAL_MAP: dict[str, str] = {
     "1m": "1m",
@@ -96,7 +96,7 @@ class YahooFinanceProvider:
             raise ValueError(msg)
 
         period = yahoo_history_period(timeframe, limit)
-        ticker = yf.Ticker(normalized)
+        ticker = yf_ticker(normalized)
         raw = ticker.history(
             period=period,
             interval=interval,
@@ -128,7 +128,7 @@ class YahooFinanceProvider:
     def get_ticker(self, symbol: str) -> TickerSnapshot:
         """Return the latest equity quote."""
         normalized = self._resolve_yahoo_symbol(symbol)
-        ticker = yf.Ticker(normalized)
+        ticker = yf_ticker(normalized)
         info = ticker.fast_info
         price = float(info.last_price)
         market_cap: float | None = None

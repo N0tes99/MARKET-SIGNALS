@@ -438,7 +438,7 @@ export interface PaperSummary {
 
 export async function fetchPaperSummary(tick = true): Promise<PaperSummary> {
   const qs = new URLSearchParams({ tick: String(tick) });
-  return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, 120_000);
+  return apiFetch<PaperSummary>(`/api/v1/paper/summary?${qs}`, tick ? 120_000 : 20_000);
 }
 
 export async function downloadPaperTradesCsv(): Promise<void> {
@@ -1514,7 +1514,8 @@ export interface CandleSeries {
 }
 
 export async function fetchQuotes(): Promise<AssetQuote[]> {
-  return apiFetch<AssetQuote[]>("/api/v1/quotes");
+  // Progressive SWR returns placeholders immediately; 12s covers a cold proxy hop.
+  return apiFetch<AssetQuote[]>("/api/v1/quotes", 12_000);
 }
 
 export async function fetchQuote(symbol: string): Promise<AssetQuote> {

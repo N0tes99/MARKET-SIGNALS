@@ -75,7 +75,9 @@ def test_1h_limit_20_does_not_request_60d(monkeypatch) -> None:
             frame.index.name = "Datetime"
             return frame
 
-    monkeypatch.setattr("app.market_data.providers.yahoo.yf.Ticker", lambda symbol: _Ticker())
+    monkeypatch.setattr(
+        "app.market_data.providers.yahoo.yf_ticker", lambda symbol: _Ticker()
+    )
     df = YahooFinanceProvider().get_ohlcv("ES=F", "1h", limit=20)
     assert captured["period"] != "60d"
     assert captured["period"] == "5d"
@@ -96,7 +98,7 @@ def test_futures_quote_uses_fast_info_not_info(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "app.engines.runner_engine.scoring.yahoo_futures_quote.yf.Ticker",
+        "app.engines.runner_engine.scoring.yahoo_futures_quote.yf_ticker",
         lambda symbol: _Ticker(),
     )
     clear_yahoo_futures_quote_cache()

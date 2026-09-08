@@ -32,8 +32,8 @@ def test_home_defers_heavy_feeds_after_rank_all() -> None:
     panel = (_ROOT / "frontend" / "components" / "paper-agent-panel.tsx").read_text(
         encoding="utf-8"
     )
-    assert "timeout: 8_000" in panel
-    assert "8_000" in panel.split("setTimeout")[1]
+    assert "timeout: 20_000" in panel
+    assert "20_000" in panel.split("setTimeout")[1]
     assert "180_000" in panel
 
 

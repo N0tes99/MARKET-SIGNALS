@@ -22,6 +22,7 @@ def test_admin_pages_are_not_client_gate_bypass() -> None:
     assert "gateQuery.isFetching" not in text
     assert "Connecting" in text
     assert "enabled: REQUIRE_LOGIN && !pathBypass" in text
+    assert 'prefetchQuery({ queryKey: ["assets"]' in text
     assert "Boolean(user)" not in text.split("useQuery")[1].split("staleTime")[0]
 
 

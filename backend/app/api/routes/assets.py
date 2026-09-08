@@ -22,7 +22,6 @@ from app.engines.learning_engine import LearningEngine
 from app.market_data.freshness import freshness_tracker
 from app.market_data.symbols import get_asset_class
 from app.schemas.assets import AssetsDashboard, AssetSummary, RankingStatus
-from app.services.alert_service import AlertService
 from app.services.decision_pipeline import DecisionPipelineService
 from app.utils.disk_cache import read_json, write_json
 from app.utils.ttl_cache import TTLCache
@@ -248,7 +247,6 @@ def _get_dashboard(
 async def list_assets(
     request: Request,
     sync: bool = False,
-    alerts: AlertService = Depends(get_alert_service),
 ) -> AssetsDashboard:
     """Return tracked asset summaries with progressive ranking metadata.
 
@@ -256,6 +254,8 @@ async def list_assets(
     ``rank_all`` in a background thread (avoids Netlify proxy 504s).
 
     ``sync=true``: block until a full rank completes (keep-warm / tests).
+    AlertService is constructed in the background so a Postgres-seeded
+    snapshot is not blocked on Discord state load.
     """
     if sync:
         limit_heavy_compute(request)
@@ -265,6 +265,7 @@ async def list_assets(
     # Don't block the response on Discord/email dispatch
     async def _dispatch() -> None:
         try:
+            alerts = _resolve_dep(request, get_alert_service, get_alert_service)
             await asyncio.to_thread(alerts.dispatch, dashboard.assets)
         except Exception:
             logger.exception("Alert dispatch failed")

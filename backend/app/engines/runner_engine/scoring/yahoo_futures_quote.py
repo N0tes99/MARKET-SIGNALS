@@ -6,8 +6,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 
-import yfinance as yf
-
+from app.market_data.yfinance_client import yf_ticker
 from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
@@ -88,7 +87,7 @@ def fetch_yahoo_futures_quote(symbol: str) -> YahooFuturesQuote:
         return cached
 
     try:
-        ticker = yf.Ticker(normalized)
+        ticker = yf_ticker(normalized)
         snap = _parse_fast_info(normalized, ticker.fast_info)
     except Exception:
         logger.warning("Yahoo futures quote failed for %s", normalized, exc_info=True)
