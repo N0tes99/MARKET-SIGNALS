@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         return True
 
     def tick() -> None:
-        nonlocal open_pos, feed_failures, ticks
+        nonlocal open_pos, open_quote, feed_failures, ticks
         ticks += 1
         books: dict[str, L2Book] = {}
         got_any = False
