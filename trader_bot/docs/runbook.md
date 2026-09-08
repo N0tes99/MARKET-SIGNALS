@@ -19,6 +19,7 @@ Useful flags:
 | `--record-books` | Also append L2 snapshots to `data/books.jsonl` |
 | `--data-dir PATH` | Journal + heartbeat + arm file directory |
 | `--ensemble` | Multi-agent desk (min 2 agree; disagreement sits out) |
+| `--maker` | S2 post-only paper quotes (join touch; cancel/fill from L2) |
 
 ## Report
 
@@ -70,6 +71,28 @@ python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
 python3 -m hl_scalper.report --journal data/replay_journal.jsonl
 ```
 
+## Always-on (systemd)
+
+On a **private host / VPS** (not an ephemeral cloud agent VM):
+
+```bash
+cd trader_bot
+python3 -m pip install -e ".[dev]"
+sudo mkdir -p /opt/hl-scalper/data
+# Point WorkingDirectory + ExecStart in the units at your install path
+sudo cp deploy/hl-scalper.service deploy/hl-scalper-ui.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hl-scalper hl-scalper-ui
+systemctl status hl-scalper hl-scalper-ui
+journalctl -u hl-scalper -f
+```
+
+- `Restart=always` respawns on crash; kill switch clears only on restart (by design).
+- Desk: http://127.0.0.1:8787 (same `--data-dir` as the loop).
+- Heartbeat stale > ~30s → alert (Discord channel later).
+
+Alternatives: `tmux` for a quick session, or Docker `restart: unless-stopped`. Prefer systemd for a box that should survive reboots.
+
 ## Artifacts
 
 | File | Purpose |
@@ -79,18 +102,6 @@ python3 -m hl_scalper.report --journal data/replay_journal.jsonl
 | `data/position.json` | open inventory snapshot for the desk (flat or mark PnL) |
 | `data/status.json` | mode / ensemble / dry-run / arm gates / kill |
 | `data/books.jsonl` | optional recorded books for later replay |
-
-## systemd
-
-```bash
-sudo cp deploy/hl-scalper.service /etc/systemd/system/
-# Edit WorkingDirectory / ExecStart paths first
-sudo systemctl daemon-reload
-sudo systemctl enable --now hl-scalper
-journalctl -u hl-scalper -f
-```
-
-Heartbeat stale check (example): if `heartbeat.json` `ts` older than 30s, alert.
 
 ## Kill switch
 
