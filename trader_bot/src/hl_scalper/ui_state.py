@@ -110,6 +110,13 @@ def status_payload(
             "solo_default": True,
         },
         {
+            "id": "maker",
+            "name": "S2 maker",
+            "role": "post-only join quote",
+            "active": bool(settings.maker_enabled),
+            "solo_default": False,
+        },
+        {
             "id": "funding",
             "name": "S3 funding",
             "role": "funding extreme lean",
@@ -125,7 +132,7 @@ def status_payload(
         },
         {
             "id": "spread_micro",
-            "name": "S2 spread micro",
+            "name": "S2-lite spread micro",
             "role": "tight-spread micro lean",
             "active": bool(settings.ensemble),
             "solo_default": False,
@@ -160,10 +167,12 @@ def status_payload(
         "hold_seconds": settings.hold_seconds,
         "data_dir": settings.data_dir,
         "taker_fee_bps": settings.taker_fee_bps,
+        "maker_fee_bps": settings.maker_fee_bps,
+        "maker_enabled": settings.maker_enabled,
         "ioc_slip_bps_min": settings.ioc_slip_bps_min,
         "fee_edge_buffer_bps": settings.fee_edge_buffer_bps,
         "strategies": strategies,
-        "execution_model": "hl_ioc_taker",
+        "execution_model": "hl_ioc_taker+paper_maker",
     }
 
 

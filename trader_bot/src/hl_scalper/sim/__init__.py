@@ -53,3 +53,19 @@ def estimated_round_trip_bps(
     exit_ = float(min_slip_bps)
     fees = 2.0 * float(taker_fee_bps)
     return entry + exit_ + fees + float(fee_edge_buffer_bps)
+
+
+def estimated_maker_round_trip_bps(
+    spread_bps: float,
+    *,
+    maker_fee_bps: float,
+    fee_edge_buffer_bps: float,
+    cancel_bps: float,
+) -> float:
+    """Paper maker RT: 2×maker fee + buffer + cancel/adverse budget (no IOC cross)."""
+    return (
+        2.0 * float(maker_fee_bps)
+        + float(fee_edge_buffer_bps)
+        + float(cancel_bps) * 0.5
+        + float(spread_bps) * 0.25
+    )

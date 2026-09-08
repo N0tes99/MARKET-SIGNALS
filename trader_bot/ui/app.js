@@ -22,15 +22,16 @@
 
   const DEFAULT_STRATS = [
     { id: "imbalance", name: "S1 imbalance", role: "L2 book imbalance scalp", active: true },
+    { id: "maker", name: "S2 maker", role: "post-only join quote", active: false },
     { id: "funding", name: "S3 funding", role: "funding extreme lean", active: false },
     { id: "liquidity", name: "liquidity gate", role: "spread/depth quality", active: false },
-    { id: "spread_micro", name: "S2 spread micro", role: "tight-spread micro lean", active: false },
+    { id: "spread_micro", name: "S2-lite spread micro", role: "tight-spread micro lean", active: false },
     { id: "risk", name: "risk gate", role: "fee/kill/cooldown veto", active: true },
   ];
 
   function renderStrategies(status) {
     const list = status.strategies && status.strategies.length ? status.strategies : DEFAULT_STRATS;
-    const fees = `taker ${status.taker_fee_bps ?? 3.5}bps · ioc≥${status.ioc_slip_bps_min ?? 5}bps · ${status.execution_model || "hl_ioc_taker"}`;
+    const fees = `taker ${status.taker_fee_bps ?? 3.5}bps · maker ${status.maker_fee_bps ?? 1}bps · ioc≥${status.ioc_slip_bps_min ?? 5}bps · ${status.execution_model || "hl"}`;
     stratGrid.replaceChildren();
     list.forEach((s) => {
       const el = document.createElement("article");
@@ -272,8 +273,14 @@
     if (row.event === "kill") {
       return `KILL · ${row.reason || ""}`;
     }
+    if (row.event === "quote_place") {
+      return `QUOTE ${row.side || ""} ${row.coin || ""} @ ${Number(row.limit_px || 0).toFixed(2)}`;
+    }
+    if (row.event === "quote_cancel") {
+      return `CANCEL ${row.side || ""} ${row.coin || ""} · ${row.reason || ""}`;
+    }
     if (row.event === "boot") {
-      return `BOOT mode=${row.mode || "?"} ensemble=${row.ensemble ?? "?"}`;
+      return `BOOT mode=${row.mode || "?"} ensemble=${row.ensemble ?? "?"} maker=${row.maker_enabled ?? "?"}`;
     }
     return String(row.event || "?");
   }

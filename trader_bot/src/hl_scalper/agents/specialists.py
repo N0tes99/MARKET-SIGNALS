@@ -163,4 +163,43 @@ class SpreadMicroAgent:
         return Proposal(self.name, "abstain", reason="tight_but_flat")
 
 
-_: list[type[SpecialistAgent]] = [ImbalanceAgent, FundingAgent, LiquidityAgent, SpreadMicroAgent]
+class MakerAgent:
+    """S2 maker — post-only join quote on mild book lean (paper resting path)."""
+
+    name = "maker"
+
+    def __init__(self, settings: Settings) -> None:
+        from hl_scalper.strategy.maker import MakerParams
+
+        self._params = MakerParams(
+            spread_bps_max=settings.maker_spread_bps_max,
+            min_notional=settings.min_notional,
+            book_levels=settings.book_levels,
+            lean=settings.maker_lean,
+            cancel_bps=settings.maker_cancel_bps,
+            join_inside_bps=settings.maker_join_inside_bps,
+        )
+
+    def propose(self, snap: MarketSnapshot) -> Proposal:
+        from hl_scalper.strategy.maker import evaluate_maker
+
+        signal = evaluate_maker(snap.book, self._params)
+        if signal is None:
+            return Proposal(self.name, "abstain", reason="no_maker_quote")
+        return Proposal(
+            self.name,
+            "enter",
+            side=signal.side,
+            confidence=signal.edge_score,
+            reason=signal.reason,
+            signal=signal,
+        )
+
+
+_: list[type[SpecialistAgent]] = [
+    ImbalanceAgent,
+    FundingAgent,
+    LiquidityAgent,
+    SpreadMicroAgent,
+    MakerAgent,
+]

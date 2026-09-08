@@ -55,6 +55,7 @@ python3 -m hl_scalper.report --journal data/journal.jsonl
 python3 -m hl_scalper.loop --mode paper --data-dir data --record-books
 python3 -m hl_scalper.replay --books data/books.jsonl --data-dir data
 python3 -m hl_scalper.loop --mode paper --ensemble --coins BTC,ETH --data-dir data
+python3 -m hl_scalper.loop --mode paper --maker --coins BTC,ETH --data-dir data
 python3 -m hl_scalper.webapp --data-dir data --port 8787
 # same UI entry point: hl-scalper-ui --data-dir data --port 8787
 ```
@@ -62,7 +63,7 @@ python3 -m hl_scalper.webapp --data-dir data --port 8787
 Open `http://127.0.0.1:8787` for the pixel agent desk (live votes + tape).
 Point the UI at the **same** `--data-dir` as the loop (it tails `journal.jsonl` + `heartbeat.json`).
 
-Strategy roster + HL IOC fee/slip model: [`docs/strategies.md`](docs/strategies.md).
+Strategy roster + HL IOC / S2 maker model: [`docs/strategies.md`](docs/strategies.md).
 Multi-agent desk: [`docs/multi-agent.md`](docs/multi-agent.md).
 
 Live path is wired but **dry-run by default**:

@@ -12,6 +12,7 @@ from hl_scalper.agents import AgentDesk
 from hl_scalper.arming import check_arming
 from hl_scalper.config import Settings
 from hl_scalper.execution import LiveTradingDisabled, build_executor
+from hl_scalper.execution.maker import PaperMakerBook, RestingQuote
 from hl_scalper.feed import L2Book
 from hl_scalper.feed.ws import HybridBookFeed, build_feed
 from hl_scalper.journal import Heartbeat, Journal
@@ -20,6 +21,7 @@ from hl_scalper.reconcile import ClearinghouseClient, reconcile_flat_local
 from hl_scalper.risk import RiskGate
 from hl_scalper.sizer import size_notional
 from hl_scalper.strategy import StrategyParams, evaluate
+from hl_scalper.strategy.maker import MakerParams, evaluate_maker
 from hl_scalper.ui_state import publish_runtime
 
 
@@ -38,6 +40,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Multi-agent desk (imbalance+funding+liquidity+spread); disagreement sits out",
     )
+    parser.add_argument(
+        "--maker",
+        action="store_true",
+        help="Enable S2 maker post-only paper quotes (join touch; cancel/fill from L2)",
+    )
     args = parser.parse_args(argv)
 
     data_dir = Path(args.data_dir)
@@ -55,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     }
     if args.ensemble:
         overrides["ensemble"] = True
+    if args.maker:
+        overrides["maker_enabled"] = True
     settings = Settings.from_env(**overrides)
     if args.mode == "live":
         status = check_arming(
@@ -87,9 +96,19 @@ def main(argv: list[str] | None = None) -> int:
         book_levels=settings.book_levels,
     )
     desk = AgentDesk(settings, risk) if settings.ensemble else None
+    maker_book = PaperMakerBook(settings) if settings.maker_enabled else None
+    maker_params = MakerParams(
+        spread_bps_max=settings.maker_spread_bps_max,
+        min_notional=settings.min_notional,
+        book_levels=settings.book_levels,
+        lean=settings.maker_lean,
+        cancel_bps=settings.maker_cancel_bps,
+        join_inside_bps=settings.maker_join_inside_bps,
+    )
     reconciler = ClearinghouseClient(info_url=settings.info_url)
     master = os.environ.get("HL_MASTER_ADDRESS", "").strip()
     open_pos: PaperPosition | None = None
+    open_quote: RestingQuote | None = None
     feed_failures = 0
     ticks = 0
 
@@ -105,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
         allow_live_orders=settings.allow_live_orders,
         ensemble=settings.ensemble,
         ensemble_min_agree=settings.ensemble_min_agree,
+        maker_enabled=settings.maker_enabled,
+        maker_fee_bps=settings.maker_fee_bps,
     )
     publish_runtime(
         data_dir,
@@ -132,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
             extra={
                 "ticks": ticks,
                 "open": open_pos.fill.coin if open_pos else None,
+                "quote": open_quote.coin if open_quote else None,
                 "day_pnl_usd": risk.state.day_pnl_usd,
                 "killed": risk.state.killed,
                 "kill_reason": risk.state.kill_reason or None,
@@ -182,6 +204,53 @@ def main(argv: list[str] | None = None) -> int:
             killed=risk.state.killed,
         )
         open_pos = None
+
+    def manage_quote(books: dict[str, L2Book]) -> None:
+        nonlocal open_quote, open_pos
+        if open_quote is None or maker_book is None:
+            return
+        book = books.get(open_quote.coin)
+        outcome, fill, why = maker_book.poll(open_quote, book)
+        if outcome == "rest":
+            return
+        if outcome == "cancel":
+            journal.write(
+                "quote_cancel",
+                coin=open_quote.coin,
+                side=open_quote.side,
+                limit_px=open_quote.limit_px,
+                reason=why,
+                cloid=open_quote.cloid,
+            )
+            open_quote = None
+            return
+        # fill
+        assert fill is not None
+        risk.state.open_positions += 1
+        open_pos = PaperPosition(
+            fill=fill,
+            entry_mid=open_quote.placed_mid,
+            opened_at=datetime.now(UTC),
+            hold_seconds=settings.hold_seconds,
+            entry_imbalance=open_quote.imbalance,
+        )
+        journal.write(
+            "fill",
+            fill_id=fill.fill_id,
+            coin=fill.coin,
+            side=fill.side,
+            qty=fill.qty,
+            px=fill.px,
+            fee_usd=fill.fee_usd,
+            status=fill.status,
+            notional_usd=open_quote.notional_usd,
+            edge_score=open_quote.edge_score,
+            imbalance=open_quote.imbalance,
+            spread_bps=open_quote.spread_bps,
+            execution="maker",
+            ensemble=bool(desk),
+        )
+        open_quote = None
 
     def maybe_reconcile() -> bool:
         if args.mode != "live" or not settings.reconcile_each_entry or not master:
@@ -245,8 +314,24 @@ def main(argv: list[str] | None = None) -> int:
             feed_failures = 0
 
         manage_exit(books)
+        if risk.state.killed and open_quote is not None:
+            journal.write(
+                "quote_cancel",
+                coin=open_quote.coin,
+                side=open_quote.side,
+                limit_px=open_quote.limit_px,
+                reason="killed",
+                cloid=open_quote.cloid,
+            )
+            open_quote = None
+        manage_quote(books)
 
         if open_pos is not None or risk.state.killed:
+            beat(books)
+            return
+
+        if open_quote is not None:
+            # Wait for fill/cancel before new entries.
             beat(books)
             return
 
@@ -265,6 +350,22 @@ def main(argv: list[str] | None = None) -> int:
                     journal.write("sit_out", coin=coin, reason=desk_decision.reason)
                     continue
                 signal = desk_decision.signal
+            elif settings.maker_enabled and maker_book is not None:
+                signal = evaluate_maker(book, maker_params)
+                if signal is None:
+                    journal.write("sit_out", coin=coin, reason="no_maker_quote")
+                    continue
+                gate = risk.check(signal, book_age_s=book.age_s)
+                if not gate.allowed:
+                    journal.write(
+                        "blocked",
+                        coin=coin,
+                        reason=gate.reason,
+                        side=signal.side,
+                        imbalance=signal.imbalance,
+                        execution="maker",
+                    )
+                    continue
             else:
                 signal = evaluate(book, params)
                 if signal is None:
@@ -290,11 +391,40 @@ def main(argv: list[str] | None = None) -> int:
                 mid=signal.mid,
                 edge_score=signal.edge_score,
                 reason=signal.reason,
+                execution=signal.execution,
+                limit_px=signal.limit_px,
             )
             sized = size_notional(settings, signal, risk.state.equity_usd)
             if sized.notional_usd <= 0:
                 journal.write("blocked", coin=coin, reason=sized.reason)
                 continue
+
+            if signal.execution == "maker":
+                if args.mode == "live":
+                    journal.write(
+                        "blocked",
+                        coin=coin,
+                        reason="maker_live_scaffold_paper_only",
+                        execution="maker",
+                    )
+                    continue
+                if maker_book is None:
+                    journal.write("blocked", coin=coin, reason="maker_disabled")
+                    continue
+                open_quote = maker_book.place(signal, sized.notional_usd)
+                journal.write(
+                    "quote_place",
+                    coin=open_quote.coin,
+                    side=open_quote.side,
+                    limit_px=open_quote.limit_px,
+                    qty=open_quote.qty,
+                    notional_usd=open_quote.notional_usd,
+                    cloid=open_quote.cloid,
+                    reason=open_quote.reason,
+                    maker_fee_bps=settings.maker_fee_bps,
+                )
+                break
+
             try:
                 fill = executor.submit(signal, sized.notional_usd)
             except LiveTradingDisabled as exc:
@@ -321,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
                 edge_score=signal.edge_score,
                 imbalance=signal.imbalance,
                 spread_bps=signal.spread_bps,
+                execution="taker",
                 ensemble=bool(desk),
             )
             break
@@ -349,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
 
         print(
             f"hl_scalper mode={args.mode} ws={settings.use_ws} ensemble={settings.ensemble} "
-            f"coins={','.join(settings.coins)} data={settings.data_dir}"
+            f"maker={settings.maker_enabled} coins={','.join(settings.coins)} data={settings.data_dir}"
         )
         while True:
             try:

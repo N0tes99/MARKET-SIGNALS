@@ -17,6 +17,8 @@ class Signal:
     mid: float
     edge_score: float
     reason: str
+    execution: Literal["taker", "maker"] = "taker"
+    limit_px: float | None = None
 
 
 @dataclass(frozen=True)

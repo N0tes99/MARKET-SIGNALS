@@ -38,6 +38,12 @@ class Settings:
     taker_fee_bps: float = 3.5
     fee_edge_buffer_bps: float = 2.0
     ioc_slip_bps_min: float = 5.0  # HL-realistic min cross through mid (entry/exit)
+    maker_fee_bps: float = 1.0  # conservative maker fee (HL often lower / rebate)
+    maker_enabled: bool = False
+    maker_spread_bps_max: float = 8.0
+    maker_lean: float = 0.55
+    maker_cancel_bps: float = 4.0
+    maker_join_inside_bps: float = 0.0
     hold_seconds: float = 5.0
     adverse_exit_bps: float = 8.0
     max_feed_failures: int = 10
@@ -66,6 +72,7 @@ class Settings:
             dry_run_live=_env_bool("DRY_RUN_LIVE", True),
             use_ws=_env_bool("HL_USE_WS", True),
             ensemble=_env_bool("HL_ENSEMBLE", False),
+            maker_enabled=_env_bool("HL_MAKER", False),
         )
         if not overrides:
             return base

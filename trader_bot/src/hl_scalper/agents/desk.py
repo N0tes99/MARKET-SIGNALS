@@ -10,6 +10,7 @@ from hl_scalper.agents.specialists import (
     FundingAgent,
     ImbalanceAgent,
     LiquidityAgent,
+    MakerAgent,
     SpreadMicroAgent,
 )
 from hl_scalper.config import Settings
@@ -83,6 +84,8 @@ class AgentDesk:
             LiquidityAgent(settings),
             SpreadMicroAgent(tight_bps=settings.spread_micro_tight_bps),
         ]
+        if settings.maker_enabled:
+            self.agents.append(MakerAgent(settings))
         self.coordinator = EnsembleCoordinator(min_agree=settings.ensemble_min_agree)
 
     def evaluate_coin(self, book: L2Book, *, now: float) -> DeskDecision:
@@ -129,6 +132,8 @@ class AgentDesk:
                     "mid": signal.mid,
                     "edge_score": signal.edge_score,
                     "reason": signal.reason,
+                    "execution": signal.execution,
+                    "limit_px": signal.limit_px,
                 }
                 if signal is not None
                 else None
