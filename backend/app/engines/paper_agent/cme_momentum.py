@@ -14,6 +14,8 @@ from app.market_data.service import MarketDataService
 SETUP_TYPE = "cme_momentum"
 SOURCE = "cme_futures"
 MIN_CONFIDENCE = 55.0
+# Chop filter — any nonzero 12h tick used to open. Require a real move.
+MIN_ABS_MOM_PCT = 0.45
 TRADEABLE_BUCKETS = frozenset({"trending", "extended"})
 
 
@@ -30,9 +32,11 @@ class CmeMomentumIdea:
 
 
 def direction_from_row(row: CmeFuturesRow) -> PaperDirection | None:
-    """12h momentum, then session change. Flat or missing → skip."""
+    """12h momentum, then session change. Flat, missing, or tiny → skip."""
     mom = row.mom_12h_pct if row.mom_12h_pct is not None else row.change_pct
     if mom is None:
+        return None
+    if abs(float(mom)) < MIN_ABS_MOM_PCT:
         return None
     if mom > 0:
         return "long"

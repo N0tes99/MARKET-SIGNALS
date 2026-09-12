@@ -59,11 +59,11 @@ scanners on boot.
 | `SECRET_KEY` | long random string (**required** — app refuses to start in production with the default `change-me-in-production`). Signs session + MFA JWTs, peppers API-key hashes, and seals TOTP secrets. **Rotate once when deploying this hardening** (kills any stolen cookies). After users unlock 2FA, rotating again requires TOTP re-enrollment **and** reissuing API keys. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | optional; default `20160` (14 days) for `se_session` cookie |
 | `PUBLIC_APP_URL` | frontend origin for email verify links, e.g. `https://your-site.netlify.app` (falls back to first `CORS_ORIGINS`) |
-| `DATABASE_URL` | from Render Postgres |
+| `DATABASE_URL` | from Render Postgres. Production refuses the Compose default `signal_engine:signal_engine` credentials. |
 | `SIGNAL_STORE` | `postgres` (or `auto`) — learning outcomes, paper PnL, and Discord alert cooldowns |
 | `AUTH_USERNAME` | e.g. `signal` |
 | `AUTH_PASSWORD` | **required in production** — app refuses to start without it. Strong password (site lockdown Basic Auth; separate from user accounts) |
-| `CRON_SECRET` | shared secret for `POST /api/v1/paper/cron-tick` (GitHub Actions keep-warm). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `CRON_SECRET` | **required in production** — keep-warm `POST /api/v1/paper/cron-tick` plus GET `/assets` and `/futures/board`. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Do not reuse `AUTH_PASSWORD`. |
 | `REDDIT_SOCIAL_ENABLED` | optional; default `true` — per-ticker Reddit confirmation in Sentiment (~35% of the small Sentiment weight). Set `false` to skip Reddit entirely (Fear & Greed still runs) |
 | `REDDIT_CLIENT_ID` | **required for live Reddit on Render** — from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (script or web app). Public JSON is blocked on datacenter IPs |
 | `REDDIT_CLIENT_SECRET` | pair with `REDDIT_CLIENT_ID` (leave blank only for “installed app” type). Never commit this |
@@ -110,10 +110,9 @@ curl https://YOUR-RENDER-URL/api/v1/health
 # → 200 healthy; check stores.learning / stores.paper / stores.alerts == "postgres"
 # warehouse / alembic are omitted so keep-warm and Chart stay a cheap ping.
 
-curl https://YOUR-RENDER-URL/api/v1/health?ops=true
-# → warehouse + alembic snapshot. After 021: alembic.at_head true,
-# warehouse.table_present true. warehouse.bar_count grows after keep-warm /assets
-# and cortex ticks write 5m/15m/1h/4h/1d bars. Zero bars = lake not ready (no parquet yet).
+curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/health?ops=true
+# → warehouse + alembic snapshot. Requires Basic Auth when AUTH_PASSWORD is set.
+# After 021: alembic.at_head true, warehouse.table_present true.
 
 curl -u signal:YOUR_PASSWORD https://YOUR-RENDER-URL/api/v1/alerts/status
 # → 200; state_backend should be "postgres"

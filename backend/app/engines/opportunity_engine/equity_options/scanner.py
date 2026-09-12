@@ -206,19 +206,22 @@ class EquityOptionsScanner:
         self._option_fetcher = option_fetcher or fetch_yahoo_option_chain
         self._max_risk_usd = max_risk_usd
 
-    def scan(self, symbol: str) -> list[EquityOptionsIdea]:
+    def scan(self, symbol: str, *, as_of: datetime | None = None) -> list[EquityOptionsIdea]:
         """Scan a single symbol; empty for crypto or soft failures."""
         normalized = symbol.upper()
+        stamp = as_of.date().isoformat() if as_of is not None else "now"
         try:
             return _SCAN_CACHE.get_stale_while_revalidate(
-                f"eqopt:{normalized}",
-                lambda: self._scan_uncached(normalized),
+                f"eqopt:{normalized}:{stamp}",
+                lambda: self._scan_uncached(normalized, as_of=as_of),
             )
         except Exception:
             logger.exception("Layer 3 scan failed for %s", normalized)
             return []
 
-    def _scan_uncached(self, symbol: str) -> list[EquityOptionsIdea]:
+    def _scan_uncached(
+        self, symbol: str, *, as_of: datetime | None = None
+    ) -> list[EquityOptionsIdea]:
         try:
             asset_class = get_asset_class(symbol)
         except ValueError:
@@ -245,6 +248,7 @@ class EquityOptionsScanner:
             symbol,
             snap,
             option_rows,
+            as_of=as_of,
             max_risk_usd=self._max_risk_usd,
         )
         return [idea] if idea is not None else []

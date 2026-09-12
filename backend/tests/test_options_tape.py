@@ -1,6 +1,6 @@
 """Aggressive options tape — symmetric longs/shorts, volume standouts."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -43,9 +43,10 @@ def _bars(
 
 
 def _chain(spot: float, *, call_vol: int, put_vol: int) -> list[RawOptionRow]:
+    expiry = (datetime.now(UTC).date() + timedelta(days=28)).isoformat()
     return [
         RawOptionRow(
-            expiry="2026-09-18",
+            expiry=expiry,
             strike=round(spot * 1.08, 2),
             right="call",
             bid=1.4,
@@ -55,7 +56,7 @@ def _chain(spot: float, *, call_vol: int, put_vol: int) -> list[RawOptionRow]:
             iv=0.55,
         ),
         RawOptionRow(
-            expiry="2026-09-18",
+            expiry=expiry,
             strike=round(spot * 0.92, 2),
             right="put",
             bid=1.3,

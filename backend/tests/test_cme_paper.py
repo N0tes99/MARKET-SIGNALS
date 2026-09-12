@@ -128,6 +128,7 @@ def test_idea_from_row_skips_quiet_and_missing_last() -> None:
     assert idea_from_row(_row(bucket="quiet", score=70.0)) is None
     assert idea_from_row(_row(last=None)) is None
     assert idea_from_row(_row(score=50.0)) is None
+    assert idea_from_row(_row(mom_12h=0.1, change_pct=0.1)) is None
 
 
 def test_idea_from_row_uses_change_pct_when_mom_missing() -> None:
@@ -277,11 +278,11 @@ def test_confirm_cme_not_blocked_by_fng(monkeypatch) -> None:
         pipeline=_ExplodingPipe(),
         entry_price=5400.0,
         source="cme_futures",
-        market=None,
+        market=_Market(),
     )
     assert skip is None
-    assert tp == 6.0
-    assert sl == 3.0
+    assert sl >= 0.4
+    assert tp >= sl
     assert "cme" in note
 
 
@@ -295,6 +296,7 @@ def test_confirm_es_f_without_source_skips_pipeline(monkeypatch) -> None:
         direction="short",
         pipeline=_ExplodingPipe(),
         entry_price=5400.0,
+        market=_Market(),
     )
     assert skip is None
     assert "cme" in note

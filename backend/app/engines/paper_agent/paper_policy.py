@@ -131,7 +131,7 @@ def snapshot_live_knobs(
 
     from app.engines.opportunity_engine import scanner as l2
     from app.engines.paper_agent import agent as paper_agent
-    from app.engines.paper_agent import broker, confirm
+    from app.engines.paper_agent import broker, cme_momentum, confirm
     from app.engines.paper_agent import crypto_perp_v2 as v2
     from app.engines.runner_engine.crypto_learn import (
         MIN_CLOSED_TO_APPLY,
@@ -155,6 +155,7 @@ def snapshot_live_knobs(
         "confirm_min_grade": confirm.MIN_GRADE,
         "risk_veto_threshold": confirm.RISK_VETO_THRESHOLD,
         "risk_veto_min_rr": confirm.RISK_VETO_MIN_RR,
+        "confirm_allow_trade_states": sorted(confirm.ALLOW_TRADE_STATES),
         "fng_block_long_above": confirm.FNG_BLOCK_LONG_ABOVE,
         "fng_block_short_below": confirm.FNG_BLOCK_SHORT_BELOW,
         "earnings_veto_days": confirm.EARNINGS_VETO_DAYS,
@@ -167,6 +168,7 @@ def snapshot_live_knobs(
         "v2_min_confidence": v2.MIN_CONFIDENCE,
         "v2_momentum_bars": v2._MOMENTUM_BARS,
         "v2_universe_n": len(v2.V2_UNIVERSE),
+        "cme_min_abs_mom_pct": cme_momentum.MIN_ABS_MOM_PCT,
         "preferred_l2_setups": sorted(PREFERRED_L2_SETUPS),
         "skip_momentum_vs_crowded_funding": SKIP_MOMENTUM_VS_CROWDED_FUNDING,
         "skip_cme_vs_crowded_cot": SKIP_CME_VS_CROWDED_COT,

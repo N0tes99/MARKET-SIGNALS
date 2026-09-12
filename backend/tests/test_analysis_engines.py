@@ -41,6 +41,17 @@ def test_risk_engine_calculates_stop_and_target() -> None:
     assert result.risk_reward_ratio > 0
 
 
+def test_risk_engine_short_flips_stop_and_target() -> None:
+    engine = RiskEngine(_mock_service())
+    long_r = engine.assess("BTC", side="long")
+    short_r = engine.assess("BTC", side="short")
+    assert long_r is not None and short_r is not None
+    assert long_r.stop_loss < long_r.take_profit
+    assert short_r.stop_loss > short_r.take_profit
+    assert short_r.risk_reward_ratio == long_r.risk_reward_ratio
+    assert "short" in short_r.description
+
+
 def test_regime_engine_classifies_trending() -> None:
     """Regime engine classifies synthetic uptrend as trending."""
     engine = RegimeEngine(_mock_service())

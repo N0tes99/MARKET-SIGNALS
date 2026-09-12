@@ -10,6 +10,7 @@ from app.engines.paper_agent.broker import STOP_LOSS_PCT, TAKE_PROFIT_PCT
 from app.engines.paper_agent.types import PaperDirection
 from app.engines.sentiment_engine.engine import fetch_fear_greed
 from app.indicators.atr import calculate_atr
+from app.market_data.freshness import freshness_tracker
 from app.market_data.symbols import (
     FUTURES_BY_SYMBOL,
     AssetClass,
@@ -30,6 +31,7 @@ RISK_VETO_MIN_RR = 1.35
 FNG_BLOCK_LONG_ABOVE = 75
 FNG_BLOCK_SHORT_BELOW = 20
 EARNINGS_VETO_DAYS = 2.0
+ALLOW_TRADE_STATES = frozenset({"WATCH", "EXECUTE", "MANAGE"})
 
 
 class _DecisionLike(Protocol):
@@ -71,15 +73,46 @@ def _is_equity_like(symbol: str) -> bool:
         return looks_like_us_equity_ticker(symbol)
 
 
+def _state_value(decision: object) -> str:
+    raw = getattr(decision, "trade_state", None)
+    if raw is None:
+        opportunity = getattr(decision, "opportunity", None)
+        raw = getattr(opportunity, "trade_state", None)
+    if raw is None:
+        return ""
+    return str(getattr(raw, "value", raw)).upper()
+
+
+def _expected_value(decision: object) -> float | None:
+    opportunity = getattr(decision, "opportunity", None)
+    raw = getattr(opportunity, "expected_value", None)
+    if raw is None:
+        raw = getattr(decision, "expected_value", None)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _stale_skip(symbol: str) -> str | None:
+    snap = freshness_tracker.status(symbol)
+    if snap.degraded:
+        reason = snap.reason or "data"
+        return f"skip:stale:{reason}"
+    return None
+
+
 def earnings_soon(symbol: str, *, within_days: float = EARNINGS_VETO_DAYS) -> bool:
-    """True when Yahoo calendar shows earnings within ``within_days``. Fail-open."""
+    """True when Yahoo calendar shows earnings within ``within_days``. Fail-closed."""
     if not _is_equity_like(symbol):
         return False
     try:
         events = _fetch_earnings_event(symbol, horizon_days=max(1, int(within_days) + 1))
     except Exception:
-        logger.exception("Paper earnings calendar failed for %s", symbol)
-        return False
+        logger.exception("Paper earnings calendar failed for %s — fail closed", symbol)
+        return True
     return any(days <= within_days for _label, days in events)
 
 
@@ -95,12 +128,16 @@ def confirm_open(
     """Return (skip_reason, take_profit_pct, stop_loss_pct, note).
 
     skip_reason is None when the idea may open. Percent exits come from
-    RiskEngine ATR levels (same R:R for long and short). Fallback 6/3 only
-    if confirmation is disabled (no pipeline — tests).
+    RiskEngine ATR levels (same R:R for long and short).
 
     CME Yahoo names skip F&G and the 13-category pipeline; exits come from
-    Yahoo OHLCV ATR instead. Squeeze expansion skips F&G/grade the same way.
+    Yahoo OHLCV ATR instead. Squeeze expansion skips F&G/grade the same way
+    but still requires a real ATR (no 6/3 fallback opens).
     """
+    stale = _stale_skip(symbol)
+    if stale:
+        return stale, TAKE_PROFIT_PCT, STOP_LOSS_PCT, "stale market data"
+
     if _is_cme_paper(symbol, source):
         return _confirm_cme_open(symbol=symbol, entry_price=entry_price, market=market)
 
@@ -108,7 +145,7 @@ def confirm_open(
         return _confirm_expansion_open(symbol=symbol, entry_price=entry_price, market=market)
 
     if pipeline is None:
-        return None, TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:off"
+        return "skip:confirm_required", TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:off"
 
     fng = fetch_fear_greed()
     fng_note = ""
@@ -152,6 +189,21 @@ def confirm_open(
             f"grade {grade} < {MIN_GRADE}",
         )
 
+    state = _state_value(decision)
+    if state not in ALLOW_TRADE_STATES:
+        return (
+            f"skip:trade_state:{state or 'missing'}",
+            TAKE_PROFIT_PCT,
+            STOP_LOSS_PCT,
+            f"trade_state {state or 'missing'}",
+        )
+
+    ev = _expected_value(decision)
+    if ev is None:
+        return "skip:ev_unavailable", TAKE_PROFIT_PCT, STOP_LOSS_PCT, ""
+    if ev <= 0:
+        return "skip:negative_ev", TAKE_PROFIT_PCT, STOP_LOSS_PCT, f"EV {ev:.3f}"
+
     risk = decision.risk
     if risk is None:
         return "skip:risk_unavailable", TAKE_PROFIT_PCT, STOP_LOSS_PCT, ""
@@ -167,6 +219,7 @@ def confirm_open(
     bits = [f"Confirm grade {grade}"]
     if fng_note:
         bits.append(fng_note)
+    bits.append(f"{state} EV {ev:.3f}")
     bits.append(f"risk {risk.score:.0f}, R:R {risk.risk_reward_ratio:.2f}")
     bits.append(f"ATR SL {sl_pct:.1f}% / TP {tp_pct:.1f}%")
     return None, tp_pct, sl_pct, ", ".join(bits)
@@ -189,12 +242,11 @@ def _confirm_expansion_open(
     entry_price: float,
     market=None,
 ) -> tuple[str | None, float, float, str]:
-    """Squeeze trigger path: ATR exits, no F&G, no 13-category grade.
-
-    Crowded-funding / greed vetoes stay on perp_momentum. Expansion is a
-    different setup class — confirm the break with ATR, not mean-reversion.
-    """
-    tp_pct, sl_pct, atr_note = _cme_atr_exit_pcts(market, symbol, entry_price)
+    """Squeeze trigger path: ATR exits required, no F&G, no 13-category grade."""
+    atr = _cme_atr_exit_pcts(market, symbol, entry_price)
+    if atr is None:
+        return "skip:atr_unavailable", TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:expansion no ATR"
+    tp_pct, sl_pct, atr_note = atr
     note = atr_note.replace("confirm:cme", "confirm:expansion", 1)
     return None, tp_pct, sl_pct, note
 
@@ -205,30 +257,34 @@ def _confirm_cme_open(
     entry_price: float,
     market=None,
 ) -> tuple[str | None, float, float, str]:
-    """Scanner-gated CME path: Yahoo ATR percents, no F&G, no DecisionPipeline."""
-    tp_pct, sl_pct, atr_note = _cme_atr_exit_pcts(market, symbol, entry_price)
+    """Scanner-gated CME path: Yahoo ATR percents required, no F&G, no pipeline."""
+    atr = _cme_atr_exit_pcts(market, symbol, entry_price)
+    if atr is None:
+        return "skip:atr_unavailable", TAKE_PROFIT_PCT, STOP_LOSS_PCT, "confirm:cme no ATR"
+    tp_pct, sl_pct, atr_note = atr
     return None, tp_pct, sl_pct, atr_note
 
 
-def _cme_atr_exit_pcts(market, symbol: str, entry: float) -> tuple[float, float, str]:
-    """2 ATR stop / 2–3.5 ATR target from Yahoo 1h bars. Fallback 6/3."""
-    fallback_note = "confirm:cme fallback 6/3"
+def _cme_atr_exit_pcts(
+    market, symbol: str, entry: float
+) -> tuple[float, float, str] | None:
+    """2 ATR stop / 2–3.5 ATR target from Yahoo 1h bars. None if ATR cannot be computed."""
     if market is None or entry <= 0:
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     try:
         df = market.safe_get_ohlcv(symbol, "1h", limit=32)
     except Exception:
         logger.exception("CME ATR OHLCV failed for %s", symbol)
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     if df is None or len(df) < 15:
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     try:
         atr = float(calculate_atr(df["high"], df["low"], df["close"]).iloc[-1])
     except Exception:
         logger.exception("CME ATR calc failed for %s", symbol)
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     if atr <= 0 or entry <= 0:
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     atr_pct = (atr / entry) * 100.0
     stop_mult = 2.0
     if atr_pct >= 4.0:
@@ -240,5 +296,5 @@ def _cme_atr_exit_pcts(market, symbol: str, entry: float) -> tuple[float, float,
     sl = stop_mult * atr_pct
     tp = tp_mult * atr_pct
     if sl < 0.4 or tp < sl:
-        return TAKE_PROFIT_PCT, STOP_LOSS_PCT, fallback_note
+        return None
     return tp, sl, f"confirm:cme ATR SL {sl:.1f}% / TP {tp:.1f}%"

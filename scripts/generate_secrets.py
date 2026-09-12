@@ -36,6 +36,9 @@ def password(length: int = 32) -> str:
 def main() -> None:
     secret_key = token_urlsafe(48)
     auth_password = password(32)
+    cron_secret = token_urlsafe(32)
+    totp_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    site_totp_secret = "".join(secrets.choice(totp_alphabet) for _ in range(32))
     extra_1 = token_hex(32)
     extra_2 = token_urlsafe(32)
 
@@ -47,6 +50,8 @@ def main() -> None:
 SECRET_KEY={secret_key}
 AUTH_USERNAME=signal
 AUTH_PASSWORD={auth_password}
+CRON_SECRET={cron_secret}
+SITE_TOTP_SECRET={site_totp_secret}
 APP_ENV=production
 APP_DEBUG=false
 SIGNAL_STORE=postgres
@@ -56,6 +61,7 @@ EXTRA_SECRET_1={extra_1}
 EXTRA_SECRET_2={extra_2}
 
 # Reminder: set DATABASE_URL from your host's Postgres dashboard (don't invent it).
+# Never reuse Compose defaults (signal_engine / signal_engine) in production.
 # CORS_ORIGINS=https://your-site.netlify.app
 """
 
@@ -66,6 +72,8 @@ EXTRA_SECRET_2={extra_2}
     print(f"SECRET_KEY={secret_key}")
     print(f"AUTH_USERNAME=signal")
     print(f"AUTH_PASSWORD={auth_password}")
+    print(f"CRON_SECRET={cron_secret}")
+    print(f"SITE_TOTP_SECRET={site_totp_secret}")
     print("---")
     print("Keep secrets.local.env private. It is gitignored.")
 

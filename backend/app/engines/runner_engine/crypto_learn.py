@@ -267,8 +267,44 @@ def tune_coefficients(
     return winner
 
 
+def _time_split(
+    records: list[SignalRecord],
+    *,
+    holdout_frac: float = 0.3,
+) -> tuple[list[SignalRecord], list[SignalRecord]]:
+    """Chronological train/holdout split. Empty holdout when N is tiny."""
+    ordered = sorted(
+        records,
+        key=lambda r: r.timestamp or datetime.min.replace(tzinfo=UTC),
+    )
+    if len(ordered) < 8:
+        return ordered, []
+    cut = max(1, int(len(ordered) * (1.0 - holdout_frac)))
+    if cut >= len(ordered):
+        return ordered, []
+    return ordered[:cut], ordered[cut:]
+
+
+def _holdout_beats_default(
+    winner: CryptoLearnCoefficients,
+    holdout: list[SignalRecord],
+) -> bool:
+    """True when the candidate is at least as good as default on unseen rows."""
+    if not holdout:
+        return False
+    default_taken = [r for r in holdout if _variant_takes(r, DEFAULT_COEFFICIENTS)]
+    winner_taken = [r for r in holdout if _variant_takes(r, winner)]
+    default_score = float(_stats_for_records(default_taken)["score"])
+    winner_score = float(_stats_for_records(winner_taken)["score"])
+    return winner_score >= default_score
+
+
 def maybe_retune_from_paper(learning: LearningEngine) -> CryptoLearnCoefficients | None:
-    """Retune from paper_honest perp_momentum rows. Frozen until N >= 30."""
+    """Retune from paper_honest perp_momentum rows. Frozen until N >= 30.
+
+    In-sample grid search can overfit the same history it filters. Apply only
+    when a chronological holdout scores at least as well as the default knobs.
+    """
     stats = learning.outcome_stats_by_setup(SETUP_TYPE)
     rows = [
         r
@@ -278,12 +314,22 @@ def maybe_retune_from_paper(learning: LearningEngine) -> CryptoLearnCoefficients
     winner = tune_coefficients(rows)
     if winner is None:
         return None
+    _train, holdout = _time_split(rows)
+    if len(holdout) < 8 or not _holdout_beats_default(winner, holdout):
+        logger.info(
+            "crypto learn proposed preset=%s n=%s holdout=%s — not applying (need OOS edge)",
+            winner.preset,
+            stats.get("resolved"),
+            len(holdout),
+        )
+        return None
     get_crypto_learn_config().apply(winner, persist=True)
     logger.info(
-        "crypto learn applied preset=%s n=%s win_rate=%s",
+        "crypto learn applied preset=%s n=%s win_rate=%s holdout=%s",
         winner.preset,
         stats.get("resolved"),
         stats.get("win_rate"),
+        len(holdout),
     )
     return winner
 

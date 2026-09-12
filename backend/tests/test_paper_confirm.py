@@ -9,7 +9,12 @@ def _ok_pipe():
     class _Pipe:
         def evaluate(self, symbol, timeframe="1h"):
             return SimpleNamespace(
-                opportunity=SimpleNamespace(trade_grade="A"),
+                opportunity=SimpleNamespace(
+                    trade_grade="A",
+                    expected_value=0.4,
+                    trade_state="WATCH",
+                ),
+                trade_state="WATCH",
                 risk=SimpleNamespace(
                     score=62.0,
                     risk_reward_ratio=2.0,
@@ -29,14 +34,14 @@ def test_grade_floor() -> None:
     assert not grade_meets_floor("D")
 
 
-def test_confirm_off_without_pipeline() -> None:
+def test_confirm_requires_pipeline() -> None:
     skip, tp, sl, note = confirm_open(
         symbol="BTC",
         direction="long",
         pipeline=None,
         entry_price=65000.0,
     )
-    assert skip is None
+    assert skip == "skip:confirm_required"
     assert tp == 6.0
     assert sl == 3.0
     assert note == "confirm:off"
@@ -159,7 +164,7 @@ def test_earnings_soon_uses_calendar(monkeypatch) -> None:
         "app.engines.paper_agent.confirm._fetch_earnings_event",
         lambda symbol, horizon_days=3: (_ for _ in ()).throw(RuntimeError("yahoo")),
     )
-    assert earnings_soon("NVDA") is False
+    assert earnings_soon("NVDA") is True
     assert earnings_soon("BTC") is False
 
 
@@ -195,7 +200,12 @@ def test_confirm_skips_weak_risk(monkeypatch) -> None:
     class _Pipe:
         def evaluate(self, symbol, timeframe="1h"):
             return SimpleNamespace(
-                opportunity=SimpleNamespace(trade_grade="B"),
+                opportunity=SimpleNamespace(
+                    trade_grade="B",
+                    expected_value=0.4,
+                    trade_state="WATCH",
+                ),
+                trade_state="WATCH",
                 risk=SimpleNamespace(
                     score=40.0,
                     risk_reward_ratio=1.1,
@@ -232,7 +242,65 @@ def test_confirm_uses_atr_exit_pcts(monkeypatch) -> None:
     assert "ATR" in note
 
 
-def test_confirm_cme_ignores_fng_and_skips_pipeline(monkeypatch) -> None:
+def test_confirm_skips_ignore_and_negative_ev(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (40, "Fear"),
+    )
+
+    class _Ignore:
+        def evaluate(self, symbol, timeframe="1h"):
+            return SimpleNamespace(
+                opportunity=SimpleNamespace(
+                    trade_grade="A",
+                    expected_value=0.4,
+                    trade_state="IGNORE",
+                ),
+                trade_state="IGNORE",
+                risk=SimpleNamespace(
+                    score=70.0,
+                    risk_reward_ratio=2.0,
+                    stop_loss=96.0,
+                    take_profit=108.0,
+                ),
+            )
+
+    skip, _, _, _ = confirm_open(
+        symbol="BTC",
+        direction="long",
+        pipeline=_Ignore(),
+        entry_price=100.0,
+    )
+    assert skip == "skip:trade_state:IGNORE"
+
+    class _Neg:
+        def evaluate(self, symbol, timeframe="1h"):
+            return SimpleNamespace(
+                opportunity=SimpleNamespace(
+                    trade_grade="A",
+                    expected_value=-0.05,
+                    trade_state="WATCH",
+                ),
+                trade_state="WATCH",
+                risk=SimpleNamespace(
+                    score=70.0,
+                    risk_reward_ratio=2.0,
+                    stop_loss=96.0,
+                    take_profit=108.0,
+                ),
+            )
+
+    skip_ev, _, _, note = confirm_open(
+        symbol="BTC",
+        direction="long",
+        pipeline=_Neg(),
+        entry_price=100.0,
+    )
+    assert skip_ev == "skip:negative_ev"
+    assert "EV" in note
+
+
+def test_confirm_cme_requires_atr_without_market(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.engines.paper_agent.confirm.fetch_fear_greed",
         lambda: (82, "Extreme Greed"),
@@ -242,20 +310,18 @@ def test_confirm_cme_ignores_fng_and_skips_pipeline(monkeypatch) -> None:
         def evaluate(self, symbol, timeframe="1h"):
             raise AssertionError("pipeline should not evaluate CME")
 
-    skip, tp, sl, note = confirm_open(
+    skip, _, _, note = confirm_open(
         symbol="ES=F",
         direction="long",
         pipeline=_Pipe(),
         entry_price=5400.0,
         source="cme_futures",
     )
-    assert skip is None
-    assert tp == 6.0
-    assert sl == 3.0
+    assert skip == "skip:atr_unavailable"
     assert "cme" in note
 
 
-def test_confirm_expansion_skips_fng_and_pipeline(monkeypatch) -> None:
+def test_confirm_expansion_requires_atr_without_market(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.engines.paper_agent.confirm.fetch_fear_greed",
         lambda: (82, "Extreme Greed"),
@@ -265,14 +331,32 @@ def test_confirm_expansion_skips_fng_and_pipeline(monkeypatch) -> None:
         def evaluate(self, symbol, timeframe="1h"):
             raise AssertionError("pipeline should not evaluate squeeze expansion")
 
-    skip, tp, sl, note = confirm_open(
+    skip, _, _, note = confirm_open(
         symbol="SOL",
         direction="long",
         pipeline=_Pipe(),
         entry_price=150.0,
         source="squeeze_expansion",
     )
-    assert skip is None
-    assert tp == 6.0
-    assert sl == 3.0
+    assert skip == "skip:atr_unavailable"
     assert "expansion" in note
+
+
+def test_confirm_skips_stale_symbol(monkeypatch) -> None:
+    from app.market_data.freshness import freshness_tracker
+
+    freshness_tracker.reset()
+    try:
+        freshness_tracker.record_failure("BTC")
+        freshness_tracker.record_failure("BTC")
+        freshness_tracker.record_failure("BTC")
+        skip, _, _, note = confirm_open(
+            symbol="BTC",
+            direction="long",
+            pipeline=_ok_pipe(),
+            entry_price=100.0,
+        )
+        assert skip == "skip:stale:provider_errors"
+        assert "stale" in note
+    finally:
+        freshness_tracker.reset()

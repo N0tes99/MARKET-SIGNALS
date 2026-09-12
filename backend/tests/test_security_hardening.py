@@ -63,6 +63,17 @@ def test_proxy_forwards_only_netlify_client_ip() -> None:
     assert 'request.headers.get("x-real-ip")' not in text
     assert 'request.headers.get("x-forwarded-for")' not in text
     assert 'request.headers.get("x-cron-secret")' not in text
+    assert "isAllowedProxyPath" in text
+    assert "api/v1/paper/cron-tick" in text
+    assert 'targetPath.startsWith("api/v1/")' in text
+
+
+def test_frontend_dockerfile_defaults_to_production_start() -> None:
+    dockerfile = (_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    compose = _COMPOSE.read_text(encoding="utf-8")
+    assert "AS production" in dockerfile
+    assert 'CMD ["npm", "run", "start"]' in dockerfile
+    assert "target: development" in compose
 
 
 def test_compose_ports_bind_localhost_only() -> None:

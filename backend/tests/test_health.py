@@ -35,6 +35,28 @@ async def test_health_check(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_health_ops_requires_basic_when_auth_on(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+
+    monkeypatch.setattr("app.core.basic_auth.settings.auth_username", "signal")
+    monkeypatch.setattr("app.core.basic_auth.settings.auth_password", "secret")
+    public = await client.get("/api/v1/health?ops=true")
+    assert public.status_code == 200
+    assert public.json()["warehouse"] is None
+    assert public.json()["alembic"] is None
+
+    token = base64.b64encode(b"signal:secret").decode()
+    detailed = await client.get(
+        "/api/v1/health?ops=true",
+        headers={"Authorization": f"Basic {token}"},
+    )
+    assert detailed.status_code == 200
+    assert detailed.json()["warehouse"]["backend"] in {"memory", "postgres"}
+
+
+@pytest.mark.asyncio
 async def test_health_does_not_construct_paper_agent(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

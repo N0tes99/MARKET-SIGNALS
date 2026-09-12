@@ -28,13 +28,27 @@ def score_to_grade(score: float) -> str:
     return "F"
 
 
+# Confidence is not a calibrated P(win). Map 0–100 onto a 22–48% band so
+# grade B (70) ≈ 40% — needs R:R ≳ 1.5 to be +EV at the risk veto floor.
+_WIN_PROB_FLOOR = 0.22
+_WIN_PROB_SPAN = 0.26
+
+
+def calibrated_win_prob(opportunity_score: float) -> float:
+    """Conservative win probability implied by a 0–100 opportunity score."""
+    clamped = max(0.0, min(float(opportunity_score), 100.0))
+    return _WIN_PROB_FLOOR + _WIN_PROB_SPAN * (clamped / 100.0)
+
+
 def compute_expected_value(opportunity_score: float, risk_reward_ratio: float) -> float:
     """Estimate expected value from opportunity score and risk/reward.
 
     Returns a unitless EV estimate where positive values favor the trade.
+    Does **not** treat confidence/100 as P(win) — that systematically
+    overstated edge (a 70 score is not a 70% win rate).
     """
-    win_prob = opportunity_score / 100
-    lose_prob = 1 - win_prob
+    win_prob = calibrated_win_prob(opportunity_score)
+    lose_prob = 1.0 - win_prob
     return round((win_prob * risk_reward_ratio) - lose_prob, 3)
 
 
