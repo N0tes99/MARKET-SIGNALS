@@ -186,6 +186,7 @@ export default function PerpsPage() {
   const l2NewOpensPaused = (paper.data?.paused_new_opens ?? []).includes(
     "crypto_setup",
   );
+  const drawdownHalted = Boolean(paper.data?.drawdown_halted);
   const funding = board.data?.funding ?? [];
   const liquidations = board.data?.liquidations ?? [];
   const ideas = board.data?.ideas ?? [];
@@ -199,6 +200,7 @@ export default function PerpsPage() {
           {l2NewOpensPaused
             ? " (new Layer-2 crypto_setup opens paused)"
             : " and Layer-2 setups"}
+          {drawdownHalted ? ". New opens halted on drawdown" : ""}
           . Funding comes from Bybit when reachable, otherwise OKX (US/Render-safe).
           Liquidations use recent OKX fills (Bybit fallback); Coinglass stays an optional
           chart deep-link. Not live exchange orders. Not financial advice.

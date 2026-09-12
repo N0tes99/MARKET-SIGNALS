@@ -195,6 +195,7 @@ def test_agent_opens_mocked_es(monkeypatch) -> None:
 
 
 def test_agent_cme_daily_cap(monkeypatch) -> None:
+    monkeypatch.setattr("app.engines.paper_agent.agent.MAX_CONCURRENT_OPENS", 6)
     store = PaperTradeStore()
     now = datetime.now(UTC)
     for i, sym in enumerate(("NQ=F", "YM=F", "RTY=F")):

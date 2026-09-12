@@ -113,6 +113,8 @@ def _schema_from_summary(s: PaperAgentSummary) -> PaperSummarySchema:
         opens_today=s.opens_today,
         daily_open_cap=s.daily_open_cap,
         paused_new_opens=list(s.paused_new_opens),
+        drawdown_halted=s.drawdown_halted,
+        max_concurrent_opens=s.max_concurrent_opens,
         tick_stale=s.tick_stale,
         last_tick_age_seconds=s.last_tick_age_seconds,
     )

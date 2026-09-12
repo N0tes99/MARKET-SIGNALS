@@ -88,6 +88,11 @@ class PaperSummarySchema(BaseModel):
         default_factory=list,
         description="Idea factories not opening new paper trades (existing still manage)",
     )
+    drawdown_halted: bool = Field(
+        default=False,
+        description="True when either ledger is past the drawdown halt; no new opens",
+    )
+    max_concurrent_opens: int = 3
     tick_stale: bool = Field(
         default=False,
         description="True when last_tick_at is older than two keep-warm cycles",

@@ -348,6 +348,7 @@ def test_discover_skipped_between_interval(monkeypatch) -> None:
 
 def test_daily_open_cap_picks_best(monkeypatch) -> None:
     """Up to 5 opens/day — ranks by score and stops at the daily budget."""
+    monkeypatch.setattr("app.engines.paper_agent.agent.MAX_CONCURRENT_OPENS", 6)
     store = PaperTradeStore()
     signal_at = datetime(2026, 8, 9, 15, 0, tzinfo=UTC)
 

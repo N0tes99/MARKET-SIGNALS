@@ -29,9 +29,12 @@ from app.engines.paper_agent.confirm import confirm_open
 from app.engines.paper_agent.crypto_perp_v2 import scan_crypto_perp_v2
 from app.engines.paper_agent.maturity import compute_maturity, map_honest_close_outcome
 from app.engines.paper_agent.paper_policy import (
+    DRAWDOWN_HALT_META_KEY,
+    MAX_CONCURRENT_OPENS,
     attach_close_to_policy,
     last_tick_age_seconds,
     momentum_fights_crowded_funding,
+    new_opens_halted_from_returns,
     paper_tick_stale,
     snapshot_paper_execution,
     sort_paper_candidates,
@@ -155,6 +158,44 @@ class PaperAgent:
             return True
         return (now - self._last_discover_at).total_seconds() >= _DISCOVER_INTERVAL_SECONDS
 
+    def _max_concurrent_opens(self) -> int:
+        if self._size_usd <= 0:
+            return 1
+        slot_cap = int(self._starting_cash // self._size_usd)
+        return max(1, min(MAX_CONCURRENT_OPENS, slot_cap))
+
+    def _drawdown_halted(self, *, persist: bool = False) -> bool:
+        """True when either ledger is deep enough in the hole to freeze new opens."""
+        trades = self._store.list_all()
+        opt = self._ledger("optimistic", trades)
+        hon = self._ledger("honest", trades)
+        get_meta = getattr(self._store, "get_meta", None)
+        currently = False
+        if callable(get_meta):
+            currently = (get_meta(DRAWDOWN_HALT_META_KEY) or "") == "1"
+        halted = new_opens_halted_from_returns(
+            optimistic_return_pct=opt.return_pct,
+            honest_return_pct=hon.return_pct,
+            currently_halted=currently,
+        )
+        if persist:
+            set_meta = getattr(self._store, "set_meta", None)
+            if callable(set_meta) and halted != currently:
+                set_meta(DRAWDOWN_HALT_META_KEY, "1" if halted else "0")
+                if halted:
+                    logger.warning(
+                        "Paper drawdown halt — no new opens opt=%.2f%% hon=%.2f%%",
+                        opt.return_pct,
+                        hon.return_pct,
+                    )
+                else:
+                    logger.info(
+                        "Paper drawdown halt cleared opt=%.2f%% hon=%.2f%%",
+                        opt.return_pct,
+                        hon.return_pct,
+                    )
+        return halted
+
     def _opens_on_utc_day(self, now: datetime, *, source: str | None = None) -> int:
         day = now.astimezone(UTC).date()
         n = 0
@@ -173,7 +214,7 @@ class PaperAgent:
         notes: list[str] = []
         now = datetime.now(UTC)
         active = self._store.fingerprints_active()
-        max_open = max(1, int(self._starting_cash // self._size_usd))
+        max_open = self._max_concurrent_opens()
         hit_cap = False
         daily_cap_hit = False
 
@@ -184,42 +225,51 @@ class PaperAgent:
         if catchup:
             notes.append("skip:stale_tick")
 
-        discover = self._should_discover(now) and not catchup
+        halted = self._drawdown_halted(persist=True)
+        if halted:
+            notes.append("skip:drawdown_halt")
+
+        discover = self._should_discover(now) and not catchup and not halted
         if discover:
             candidates: list[dict] = []
 
             # --- Squeeze expansion (cortex TRIGGER/EXPANSION only) ---
-            if self._cortex is not None:
+            if SQUEEZE_EXPANSION_SOURCE in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                notes.append(f"skip:paused:{SQUEEZE_EXPANSION_SOURCE}")
+                squeeze_ideas = []
+            elif self._cortex is not None:
                 try:
                     squeeze_ideas = scan_squeeze_expansion(self._cortex)
                 except Exception:
                     logger.exception("Paper agent squeeze_expansion feed failed")
                     squeeze_ideas = []
                     notes.append("squeeze_expansion_feed_error")
-                for idea in squeeze_ideas:
-                    fp = _fingerprint(
-                        SQUEEZE_EXPANSION_SOURCE,
-                        idea.symbol,
-                        idea.setup_type,
-                        idea.direction,
-                    )
-                    if fp in active:
-                        continue
-                    candidates.append(
-                        {
-                            "source": SQUEEZE_EXPANSION_SOURCE,
-                            "symbol": idea.symbol,
-                            "setup_type": idea.setup_type,
-                            "direction": idea.direction,
-                            "fingerprint": fp,
-                            "confidence": float(idea.confidence),
-                            "opportunity_score": float(idea.confidence),
-                            "factors": list(idea.factors[:5]),
-                            "score": float(idea.confidence),
-                            "extra_note": "squeeze expansion trigger",
-                            "extras": dict(idea.extras),
-                        }
-                    )
+            else:
+                squeeze_ideas = []
+            for idea in squeeze_ideas:
+                fp = _fingerprint(
+                    SQUEEZE_EXPANSION_SOURCE,
+                    idea.symbol,
+                    idea.setup_type,
+                    idea.direction,
+                )
+                if fp in active:
+                    continue
+                candidates.append(
+                    {
+                        "source": SQUEEZE_EXPANSION_SOURCE,
+                        "symbol": idea.symbol,
+                        "setup_type": idea.setup_type,
+                        "direction": idea.direction,
+                        "fingerprint": fp,
+                        "confidence": float(idea.confidence),
+                        "opportunity_score": float(idea.confidence),
+                        "factors": list(idea.factors[:5]),
+                        "score": float(idea.confidence),
+                        "extra_note": "squeeze expansion trigger",
+                        "extras": dict(idea.extras),
+                    }
+                )
 
             # --- Crypto Layer 2 ---
             if "crypto_setup" in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
@@ -344,7 +394,10 @@ class PaperAgent:
                         )
 
             # --- Tape hunts (hot only, same confirm + daily cap) ---
-            if self._tape is None or not us_cash_session_open(now):
+            if "tape_hunt" in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                notes.append("skip:paused:tape_hunt")
+                tape_hunts = []
+            elif self._tape is None or not us_cash_session_open(now):
                 tape_hunts = []
             else:
                 try:
@@ -387,14 +440,18 @@ class PaperAgent:
                 )
 
             # --- CME Yahoo futures (cme_momentum, separate from crypto perps) ---
-            try:
-                cme_ideas = scan_cme_paper_ideas(
-                    self._market, min_confidence=MIN_CONFIDENCE
-                )
-            except Exception:
-                logger.exception("Paper agent cme_futures feed failed")
+            if "cme_futures" in paper_policy_mod.PAUSED_NEW_OPEN_SOURCES:
+                notes.append("skip:paused:cme_futures")
                 cme_ideas = []
-                notes.append("cme_futures_feed_error")
+            else:
+                try:
+                    cme_ideas = scan_cme_paper_ideas(
+                        self._market, min_confidence=MIN_CONFIDENCE
+                    )
+                except Exception:
+                    logger.exception("Paper agent cme_futures feed failed")
+                    cme_ideas = []
+                    notes.append("cme_futures_feed_error")
 
             for idea in cme_ideas:
                 fp = _fingerprint(
@@ -552,7 +609,8 @@ class PaperAgent:
             if callable(set_meta):
                 set_meta("last_discover_at", now.isoformat())
         else:
-            notes.append("discover:skipped")
+            if not halted:
+                notes.append("discover:skipped")
 
         if hit_cap:
             notes.append(f"skip:max_open:{max_open}")
@@ -1071,6 +1129,8 @@ class PaperAgent:
             opens_today=self._opens_on_utc_day(now),
             daily_open_cap=MAX_NEW_OPENS_PER_DAY,
             paused_new_opens=sorted(paper_policy_mod.PAUSED_NEW_OPEN_SOURCES),
+            drawdown_halted=self._drawdown_halted(),
+            max_concurrent_opens=self._max_concurrent_opens(),
             tick_stale=paper_tick_stale(self._last_tick_at, now),
             last_tick_age_seconds=last_tick_age_seconds(self._last_tick_at, now),
         )

@@ -19,6 +19,7 @@ def test_perps_page_sections() -> None:
     assert "crypto_perp_v2" in text
     assert "paused_new_opens" in text
     assert "new Layer-2 crypto_setup opens paused" in text
+    assert "New opens halted on drawdown" in text
     assert "Coinglass" in text
     assert "OKX" in text
     assert "need a Coinglass key" not in text
