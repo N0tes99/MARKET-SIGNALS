@@ -9,7 +9,10 @@ _PANEL = _ROOT / "frontend" / "components" / "paper-agent-panel.tsx"
 def test_paper_panel_shows_paused_new_opens() -> None:
     text = _PANEL.read_text(encoding="utf-8")
     assert "paused_new_opens" in text
-    assert "perp v2 sleeve" in text
+    assert "drawdown_halted" in text
+    assert "leftover positions still manage" in text
+    assert "new opens halted (drawdown)" in text
+    assert "perp v2 sleeve" not in text
     assert "new opens paused" in text
     assert "tick_stale" in text
     assert "tick stale — leftover opens still manage" in text

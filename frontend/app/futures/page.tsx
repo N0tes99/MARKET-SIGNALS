@@ -143,6 +143,9 @@ export default function FuturesPage() {
     openCme.length === 0
       ? "none"
       : openCme.map((t) => `${t.symbol} ${t.direction}`).join(" · ");
+  const cmeNewOpensPaused = (paper.data?.paused_new_opens ?? []).includes(
+    "cme_futures",
+  );
 
   return (
     <main className="min-h-screen">
@@ -152,8 +155,11 @@ export default function FuturesPage() {
           Yahoo Finance continuous front-month contracts (ES=F, NQ=F, CL=F, GC=F, …). Quotes are
           delayed — this is not a live CME pit or Rithmic feed. Open interest is Yahoo when it
           publishes a print; otherwise weekly CFTC COT open interest, labeled as-of Tuesday and
-          3–6 days stale. COT index is leveraged/managed-money positioning, not live pit OI. Not
-          financial advice.
+          3–6 days stale. COT index is leveraged/managed-money positioning, not live pit OI.
+          {cmeNewOpensPaused
+            ? " New CME paper opens paused — leftover positions still manage."
+            : ""}{" "}
+          Not financial advice.
         </p>
 
         <div className="mt-4 flex flex-wrap items-baseline gap-4">

@@ -68,6 +68,9 @@ def test_policy_snapshot_roundtrip_in_notes() -> None:
     assert policy["knobs"]["cme_min_abs_mom_pct"] == 0.45
     assert "WATCH" in policy["knobs"]["confirm_allow_trade_states"]
     assert isinstance(policy["knobs"]["paused_new_open_sources"], list)
+    assert policy["knobs"]["halt_new_opens_return_pct"] == -5.0
+    assert policy["knobs"]["resume_new_opens_return_pct"] == -2.0
+    assert policy["knobs"]["max_concurrent_opens"] == 3
     assert policy["features"]["funding_bps"] == 9.0
     same = snapshot_paper_execution(
         size_usd=2500.0,

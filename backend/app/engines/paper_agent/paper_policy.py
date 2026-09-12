@@ -20,8 +20,26 @@ SKIP_CME_VS_CROWDED_COT = True
 MIN_WIN_RETURN_PCT = 0.5
 MIN_LOSS_RETURN_PCT = -0.5
 # 2026-08-29 CSV: equity stock paper 3W/9L; crypto L2 (basis_rich/liq_flush) 0/2.
-# Proof sleeve is crypto_perp_v2. Empty this set to resume those factories.
-PAUSED_NEW_OPEN_SOURCES = frozenset({"equity_setup", "crypto_setup"})
+# 2026-09-12 public book: optimistic −$1,040 (−6.9%, 28W/44L), honest −$628
+# (24W/38L). CME/squeeze skip the 13-category pipeline; tape is equity-session
+# momentum. Proof sleeve remains crypto_perp_v2, frozen by the drawdown halt
+# until either ledger recovers. Empty this set to resume those factories.
+PAUSED_NEW_OPEN_SOURCES = frozenset(
+    {
+        "equity_setup",
+        "crypto_setup",
+        "cme_futures",
+        "squeeze_expansion",
+        "tape_hunt",
+    }
+)
+# Trip when either ledger is at/under this return %. Stay halted until both
+# recover above the resume line so a single winner does not re-arm the bot.
+HALT_NEW_OPENS_RETURN_PCT = -5.0
+RESUME_NEW_OPENS_RETURN_PCT = -2.0
+DRAWDOWN_HALT_META_KEY = "drawdown_halt"
+# Never lock the whole $15k book (was starting_cash / $2,500 = 6).
+MAX_CONCURRENT_OPENS = 3
 # Keep-warm cron is scheduled */10 but GitHub often fires every few hours.
 # Two missed *real* keep-warm cycles (~6h) = the bot slept; do not open into a gap
 # on that first catchup pass. Cron then ticks again immediately so discover can run.
@@ -35,6 +53,19 @@ def last_tick_age_seconds(last_tick_at: datetime | None, now: datetime) -> float
     aware = last_tick_at if last_tick_at.tzinfo else last_tick_at.replace(tzinfo=UTC)
     as_of = now if now.tzinfo else now.replace(tzinfo=UTC)
     return max(0.0, (as_of - aware).total_seconds())
+
+
+def new_opens_halted_from_returns(
+    *,
+    optimistic_return_pct: float,
+    honest_return_pct: float,
+    currently_halted: bool,
+) -> bool:
+    """Sticky drawdown brake for new paper opens (existing positions still manage)."""
+    worst = min(float(optimistic_return_pct), float(honest_return_pct))
+    if currently_halted:
+        return worst < RESUME_NEW_OPENS_RETURN_PCT
+    return worst <= HALT_NEW_OPENS_RETURN_PCT
 
 
 def paper_tick_stale(
@@ -173,6 +204,9 @@ def snapshot_live_knobs(
         "skip_momentum_vs_crowded_funding": SKIP_MOMENTUM_VS_CROWDED_FUNDING,
         "skip_cme_vs_crowded_cot": SKIP_CME_VS_CROWDED_COT,
         "paused_new_open_sources": sorted(PAUSED_NEW_OPEN_SOURCES),
+        "halt_new_opens_return_pct": HALT_NEW_OPENS_RETURN_PCT,
+        "resume_new_opens_return_pct": RESUME_NEW_OPENS_RETURN_PCT,
+        "max_concurrent_opens": MAX_CONCURRENT_OPENS,
         "stale_tick_seconds": STALE_TICK_SECONDS,
         "min_win_return_pct": MIN_WIN_RETURN_PCT,
         "min_loss_return_pct": MIN_LOSS_RETURN_PCT,

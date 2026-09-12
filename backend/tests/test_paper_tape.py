@@ -126,6 +126,7 @@ def test_tape_weekend_skipped(monkeypatch) -> None:
 
 def test_tape_daily_cap_shared(monkeypatch) -> None:
     monkeypatch.setattr("app.engines.paper_agent.agent.us_cash_session_open", lambda _now: True)
+    monkeypatch.setattr("app.engines.paper_agent.agent.MAX_CONCURRENT_OPENS", 6)
     store = PaperTradeStore()
     tape = _Tape(
         [

@@ -19,6 +19,8 @@ def test_futures_page_is_cme_yahoo() -> None:
     assert "ES=F" in text
     assert "learning from paper" in text
     assert "cme_futures" in text
+    assert "New CME paper opens paused" in text
+    assert "leftover positions still manage" in text
     assert "fetchPaperSummary" in text
     assert "md:block" in text
     assert "md:hidden" in text

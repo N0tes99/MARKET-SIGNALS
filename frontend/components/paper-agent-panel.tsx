@@ -451,7 +451,9 @@ export function PaperAgentPanel() {
           <p className="mt-3 font-mono text-[10px] text-muted-foreground/45">
             Starting {money(data.starting_cash)} paper · each idea locks {money(data.optimistic.size_usd ?? 2500)}{" "}
             notional · max{" "}
-            {Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))} concurrent ·{" "}
+            {data.max_concurrent_opens ??
+              Math.floor(data.starting_cash / (data.optimistic.size_usd ?? 2500))}{" "}
+            concurrent ·{" "}
             {Math.max(0, (data.daily_open_cap ?? 5) - (data.opens_today ?? 0))} of{" "}
             {data.daily_open_cap ?? 5} daily opens left · ATR TP/SL from RiskEngine · max hold 3d
             · WATCH 55 + grade B + F&G + R:R · no US cash Sat/Sun ET
@@ -470,11 +472,16 @@ export function PaperAgentPanel() {
                 {" · tick stale — leftover opens still manage, no new opens until fresh"}
               </>
             ) : null}
+            {data.drawdown_halted ? (
+              <>
+                {" · new opens halted (drawdown) — leftover positions still manage"}
+              </>
+            ) : null}
             {data.paused_new_opens && data.paused_new_opens.length > 0 ? (
               <>
                 {" · new opens paused "}
                 {data.paused_new_opens.join(", ")}
-                {" (perp v2 sleeve)"}
+                {" — leftover positions still manage"}
               </>
             ) : null}
           </p>
