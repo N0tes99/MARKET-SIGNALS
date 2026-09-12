@@ -1,0 +1,19 @@
+[Unit]
+Description=HL agent desk UI (pixel CRT)
+After=network-online.target hl-scalper.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hl-scalper
+# Must share --data-dir with hl-scalper.service
+ExecStart=/usr/bin/python3 -m hl_scalper.webapp --data-dir /opt/hl-scalper/data --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
