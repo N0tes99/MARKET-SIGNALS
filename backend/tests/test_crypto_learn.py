@@ -140,3 +140,47 @@ def test_tuner_picks_skip_crowded_when_crowded_loses() -> None:
     assert live.skip_crowded_opens is False
     assert live.preset == "default"
     assert live == DEFAULT_COEFFICIENTS
+
+
+def test_holdout_rejects_variant_that_filters_all_wins() -> None:
+    from datetime import UTC, datetime
+
+    from app.engines.learning_engine.types import SignalRecord
+    from app.engines.runner_engine.crypto_learn import (
+        CryptoLearnCoefficients,
+        _holdout_beats_default,
+        encode_paper_open_notes,
+    )
+
+    notes = encode_paper_open_notes(
+        setup_type="perp_momentum",
+        direction="long",
+        extras={
+            "radar_bucket": "crowded",
+            "radar_score": 70.0,
+            "funding_bps": 12.0,
+            "mom_12h_pct": 5.0,
+            "basis_pct": 0.1,
+        },
+    )
+    rows = [
+        SignalRecord(
+            id=uuid4(),
+            symbol="BTC",
+            timestamp=datetime.now(UTC),
+            confidence=70.0,
+            trade_grade="B",
+            trade_state="WATCH",
+            execution_signal="WATCH",
+            opportunity_score=70.0,
+            outcome=SignalOutcome.WIN.value,
+            realized_return_pct=3.0,
+            notes=notes,
+        )
+        for _ in range(8)
+    ]
+    skip_crowded = CryptoLearnCoefficients(
+        skip_crowded_opens=True,
+        preset="learned_paper:skip_crowded",
+    )
+    assert _holdout_beats_default(skip_crowded, rows) is False

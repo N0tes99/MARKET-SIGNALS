@@ -107,6 +107,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
     container_name: signal-engine-frontend
     env_file:
       - .env

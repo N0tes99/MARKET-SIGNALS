@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pandas as pd
+
 from app.cortex.types import SymbolContext, WorkingMemory
 from app.engines.expansion_engine.types import (
     CompressionResult,
@@ -37,7 +39,21 @@ class _Market:
         return SimpleNamespace(price=100.0)
 
     def safe_get_ohlcv(self, symbol, timeframe, limit=96):
-        return None
+        n = max(limit, 20)
+        rows = []
+        for i in range(n):
+            close = 100.0 * (1.0 + i * 0.0002)
+            rows.append(
+                {
+                    "timestamp": datetime(2026, 8, 17, 0, 0, tzinfo=UTC),
+                    "open": close,
+                    "high": close * 1.004,
+                    "low": close * 0.996,
+                    "close": close,
+                    "volume": 10_000.0,
+                }
+            )
+        return pd.DataFrame(rows)
 
 
 def _candidate(

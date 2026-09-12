@@ -1,6 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -19,6 +20,7 @@ from app.core.service_dependencies import (
 )
 from app.engines.learning_engine import LearningEngine
 from app.engines.learning_engine.store import InMemorySignalStore
+from app.engines.paper_agent.agent import PaperAgent
 from app.main import app
 from app.models.user import User
 from app.services.decision_pipeline import DecisionPipelineService
@@ -48,6 +50,55 @@ def _silence_cme_paper_scan(monkeypatch: pytest.MonkeyPatch) -> None:
         "app.engines.paper_agent.agent.scan_cme_paper_ideas",
         lambda *a, **k: [],
     )
+
+
+def ok_paper_pipeline():
+    """Stub decision pipeline that clears the paper confirm gates."""
+
+    class _Pipe:
+        def evaluate(self, symbol, timeframe="1h"):  # noqa: ANN001
+            return SimpleNamespace(
+                opportunity=SimpleNamespace(
+                    trade_grade="A",
+                    expected_value=0.4,
+                    trade_state="WATCH",
+                ),
+                trade_state="WATCH",
+                risk=SimpleNamespace(
+                    score=62.0,
+                    risk_reward_ratio=2.0,
+                    stop_loss=96.0,
+                    take_profit=108.0,
+                ),
+            )
+
+    return _Pipe()
+
+
+@pytest.fixture(autouse=True)
+def _stable_paper_confirm_feeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep paper ticks off live F&G / earnings HTTP in unit tests."""
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.fetch_fear_greed",
+        lambda: (45, "Neutral"),
+    )
+    monkeypatch.setattr(
+        "app.engines.paper_agent.confirm.earnings_soon",
+        lambda symbol, within_days=2.0: False,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _inject_ok_paper_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Paper constructors that omit pipeline used to open with confirm:off."""
+    original = PaperAgent.__init__
+
+    def _init(self, *args, **kwargs):  # noqa: ANN001
+        if kwargs.get("pipeline") is None:
+            kwargs["pipeline"] = ok_paper_pipeline()
+        original(self, *args, **kwargs)
+
+    monkeypatch.setattr(PaperAgent, "__init__", _init)
 
 
 @pytest.fixture

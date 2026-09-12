@@ -377,8 +377,12 @@ class AccessGateMiddleware(BaseHTTPMiddleware):
                 )
 
         # Keep-warm (GitHub Actions): valid cron secret may hit GET /assets
-        # and GET /futures/board without MFA. Dashboard sessions still use cookies.
-        if is_keep_warm_cron_path(request.url.path) and request_has_valid_cron_secret(request):
+        # and GET /futures/board without MFA. POSTs still need a session.
+        if (
+            request.method == "GET"
+            and is_keep_warm_cron_path(request.url.path)
+            and request_has_valid_cron_secret(request)
+        ):
             return await call_next(request)
 
         session_tok = request.cookies.get(SESSION_COOKIE_NAME)

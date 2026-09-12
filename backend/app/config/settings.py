@@ -183,6 +183,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SITE_TOTP_SECRET must be set when APP_ENV=production"
             )
+        if not self.cron_secret.strip():
+            raise ValueError(
+                "CRON_SECRET must be set when APP_ENV=production"
+            )
+        if "signal_engine:signal_engine@" in self.database_url:
+            raise ValueError(
+                "DATABASE_URL must not use default credentials when APP_ENV=production"
+            )
         return self
 
     def cors_origin_list(self) -> list[str]:

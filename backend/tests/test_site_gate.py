@@ -89,6 +89,22 @@ async def test_assets_list_allowed_with_cron_secret_when_gate_on(
 
 
 @pytest.mark.asyncio
+async def test_assets_post_not_allowed_with_cron_secret_when_gate_on(
+    totp_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.core.site_gate.settings.cron_secret", "test-cron-secret")
+    monkeypatch.setattr("app.config.settings.cron_secret", "test-cron-secret")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/assets",
+            headers={"X-Cron-Secret": "test-cron-secret"},
+        )
+    assert res.status_code == 401
+    assert res.json().get("code") == "LOGIN_REQUIRED"
+
+
+@pytest.mark.asyncio
 async def test_forged_mfa_session_is_rejected_when_gate_on(totp_secret: str) -> None:
     """MFA cookies for a user id that does not exist (or has no grant) are not enough."""
     uid = uuid4()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.config import settings
 from app.schemas.health import AlembicHealth, HealthResponse, StoreBackends, WarehouseHealth
@@ -102,14 +102,25 @@ def _lake_ops() -> tuple[WarehouseHealth | None, AlembicHealth | None]:
     return warehouse, alembic
 
 
+def _ops_allowed(request: Request) -> bool:
+    """Warehouse/alembic snapshots stay off the public liveness ping."""
+    from app.core.basic_auth import auth_enabled, credentials_valid, parse_basic_auth
+
+    if not auth_enabled():
+        return True
+    parsed = parse_basic_auth(request.headers.get("Authorization"))
+    return parsed is not None and credentials_valid(parsed[0], parsed[1])
+
+
 @router.get("/health", response_model=HealthResponse)
-async def health_check(ops: bool = False) -> HealthResponse:
+async def health_check(request: Request, ops: bool = False) -> HealthResponse:
     """Cheap liveness for load balancers, keep-warm, and the Chart page.
 
     Warehouse/alembic snapshots are opt-in (``?ops=true``) so a Render wake
-    is not blocked on lake stats.
+    is not blocked on lake stats. When Basic Auth is on, ``ops`` also requires
+    valid credentials — do not leak lake/alembic posture on the public ping.
     """
-    warehouse, alembic = _lake_ops() if ops else (None, None)
+    warehouse, alembic = _lake_ops() if ops and _ops_allowed(request) else (None, None)
     return HealthResponse(
         status="healthy",
         app_name=settings.app_name,

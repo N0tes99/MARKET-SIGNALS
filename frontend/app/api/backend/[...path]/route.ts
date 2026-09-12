@@ -21,6 +21,29 @@ function authHeader(): string | null {
   return `Basic ${token}`;
 }
 
+const BLOCKED_PROXY_PATHS = new Set(["api/v1/paper/cron-tick"]);
+
+function isAllowedProxyPath(segments: string[]): boolean {
+  if (segments.length === 0) return false;
+  for (const segment of segments) {
+    if (
+      !segment ||
+      segment === "." ||
+      segment === ".." ||
+      segment.includes("\\") ||
+      segment.includes("://") ||
+      segment.includes("/")
+    ) {
+      return false;
+    }
+  }
+  const targetPath = segments.join("/");
+  if (targetPath.startsWith("/") || !targetPath.startsWith("api/v1/")) {
+    return false;
+  }
+  return !BLOCKED_PROXY_PATHS.has(targetPath.replace(/\/$/, ""));
+}
+
 function proxyTimeoutMs(targetPath: string): number {
   const normalized = targetPath.replace(/\/$/, "");
   if (normalized === "api/v1/chart-analysis") return 180_000;
@@ -63,6 +86,9 @@ async function proxyRequest(
   request: NextRequest,
   pathSegments: string[],
 ): Promise<NextResponse> {
+  if (!isAllowedProxyPath(pathSegments)) {
+    return NextResponse.json({ detail: "Not found" }, { status: 404 });
+  }
   const targetPath = pathSegments.join("/");
   const url = `${backendBase()}/${targetPath}${request.nextUrl.search}`;
 

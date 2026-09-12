@@ -12,8 +12,26 @@ from app.utils.scoring_helpers import clamp_score
 
 logger = logging.getLogger(__name__)
 
-# Fixed paper risk per idea — Risk Engine remains authority for live later
+# Cap per idea. Actual size scales so ~1% of cash is at the stop.
 DEFAULT_SIZE_USD = 2_500.0
+RISK_FRACTION_OF_CASH = 0.01
+MIN_SIZE_USD = 100.0
+
+
+def size_from_stop(
+    *,
+    cash: float,
+    stop_loss_pct: float,
+    cap_usd: float = DEFAULT_SIZE_USD,
+) -> float:
+    """Notional so a full stop loses about ``RISK_FRACTION_OF_CASH`` of cash."""
+    cap = max(MIN_SIZE_USD, float(cap_usd))
+    risk_budget = max(0.0, float(cash)) * RISK_FRACTION_OF_CASH
+    sl = float(stop_loss_pct) / 100.0
+    if sl <= 0 or risk_budget <= 0:
+        return round(cap, 2)
+    raw = risk_budget / sl
+    return round(min(cap, max(MIN_SIZE_USD, raw)), 2)
 SLIPPAGE_BPS = 5.0  # 0.05% adverse vs reference
 # Slightly tighter than the first pass so sleeves rotate on real moves.
 TAKE_PROFIT_PCT = 6.0

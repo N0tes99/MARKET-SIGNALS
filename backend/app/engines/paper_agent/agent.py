@@ -21,6 +21,7 @@ from app.engines.paper_agent.broker import (
     last_price,
     next_bar_open_after,
     should_close,
+    size_from_stop,
     unrealized_pnl,
 )
 from app.engines.paper_agent.cme_momentum import scan_cme_paper_ideas
@@ -606,7 +607,11 @@ class PaperAgent:
             return None
 
         opt_entry = _bps_slip(px, direction, entry=True)
-        size = float(self._size_usd)
+        size = size_from_stop(
+            cash=float(self._starting_cash),
+            stop_loss_pct=stop_loss_pct,
+            cap_usd=float(self._size_usd),
+        )
         if size <= 0:
             logger.warning("Paper skip %s — invalid size_usd=%s", symbol, size)
             return None
