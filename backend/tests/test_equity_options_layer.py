@@ -250,7 +250,7 @@ def test_scanner_equity_with_mocks(monkeypatch) -> None:
         MarketDataService(provider=_Prov()),
         option_fetcher=lambda _s: _hood_option_rows(),
     )
-    ideas = scanner.scan("HOOD")
+    ideas = scanner.scan("HOOD", as_of=_as_of())
     assert len(ideas) == 1
     assert ideas[0].selected_option is not None
 
